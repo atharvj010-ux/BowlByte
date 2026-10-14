@@ -1,0 +1,42 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
+blob-report/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs and local data
+*.log
+tmp/
+ml/artifacts/
+ml/models/
+
+# Docker
+postgres_data/
+redis_data/

@@ -1,0 +1,14 @@
+.git
+.github
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/coverage
+**/.env
+ml/artifacts
+ml/models
+docs
+*.md
