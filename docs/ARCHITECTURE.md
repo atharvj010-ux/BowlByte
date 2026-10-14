@@ -40,13 +40,13 @@ The API is one deployable service with internal module boundaries.
 
 | Module | Current contents |
 | --- | --- |
-| `app/api` | Versioned health, auth, staff, and role-boundary routes |
+| `app/api` | Versioned health, auth, staff, menu, order, and catalog routes |
 | `app/core` | Settings, JSON logs, error envelope, Argon2id and token hashing |
 | `app/db` | Engine, session dependency, declarative base |
-| `app/models` | Identity, sessions, invitations, roster, and audit tables |
-| `app/schemas` | Health and authentication models |
-| `app/services` | Readiness, registration, sessions, mail, and rate limits |
-| `app/cli` | Manager bootstrap and roster import |
+| `app/models` | Identity tables plus menu, stock, orders, and payments |
+| `app/schemas` | Health, authentication, menu, and order models |
+| `app/services` | Readiness, registration, sessions, mail, rate limits, ordering |
+| `app/cli` | Manager bootstrap, roster import, and development menu seed |
 | `app/worker.py` | Celery application and `bowlbyte.worker_ping` |
 
 `bowlbyte.worker_ping` returns `ok` when a worker executes it. It does not send a notification or change an order.
@@ -61,7 +61,7 @@ Route handlers stay thin. When orders exist, a handler will authenticate the cal
 | Live process status | `/status` | Public |
 | Student registration and sign-in | `/student/register`, `/student/login`, `/student/verify-email` | Public |
 | Staff invitation | `/invite/accept` | Public. The token is the credential |
-| Student | `/student`, `/student/menu`, `/student/orders` | Student session, checked on the server and again by the API |
+| Student | `/student`, `/student/menu`, `/student/cart`, `/student/orders` | Student session, checked on the server and again by the API |
 | Kitchen staff | `/staff`, `/staff/queue`, `/staff/login` | Kitchen session for the work pages |
 | Cashier | `/cashier`, `/cashier/login` | Cashier session for the work page |
 | Canteen manager | `/admin`, `/admin/staff`, `/admin/menu`, `/admin/login` | Manager session for the work pages |

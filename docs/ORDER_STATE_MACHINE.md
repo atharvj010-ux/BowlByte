@@ -2,7 +2,7 @@
 
 Fulfillment status and payment status are different fields. This document defines fulfillment. Cash rules are in `CASH_PAYMENT_FLOW.md`. Notification delivery has its own status and never moves an order.
 
-P001 documents these transitions and does not execute them. No endpoint can place or advance an order.
+P003 executes the student path into `PLACED` and from `PLACED` to `CANCELLED`. It does not execute acceptance, preparation, ready, pickup, rejection, or unclaimed transitions.
 
 ## Primary path
 

@@ -6,8 +6,13 @@ import { ProtectedArea } from "@/components/protected-area";
 
 export const metadata: Metadata = { title: "Manager" };
 
-const note =
-  "Menu, stock, and reports are not available yet. Staff invitations are available now.";
+const links = [
+  ["/admin/menu", "Menu"],
+  ["/admin/stations", "Stations"],
+  ["/admin/stock", "Stock"],
+  ["/admin/orders", "Orders"],
+  ["/admin/staff", "Staff"],
+] as const;
 
 export default function AdminPage() {
   return (
@@ -15,11 +20,15 @@ export default function AdminPage() {
       {(user) => (
         <AccountHome
           user={user}
-          note={note}
+          note="Manage the menu, stations, and today's portions. Cash collection is not available yet."
           extra={
-            <Link href="/admin/staff" className="text-sm underline-offset-4 hover:underline">
-              Manage staff
-            </Link>
+            <nav className="flex flex-wrap gap-3 text-sm" aria-label="Manager">
+              {links.map(([href, label]) => (
+                <Link key={href} href={href} className="underline-offset-4 hover:underline">
+                  {label}
+                </Link>
+              ))}
+            </nav>
           }
         />
       )}

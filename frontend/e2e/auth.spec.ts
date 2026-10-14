@@ -60,7 +60,7 @@ test("manager invitation, kitchen login, and deactivation", async ({ browser, pa
   await page.goto("/admin/login");
   await signIn(page, managerEmail);
   await expect(page.getByRole("heading", { name: "Hello, Pilot Manager" })).toBeVisible();
-  await page.getByRole("link", { name: "Manage staff" }).click();
+  await page.getByRole("link", { name: "Staff" }).click();
   const staffDesk = page.locator("section").filter({
     has: page.getByRole("heading", { name: "Staff" }),
   });
@@ -122,7 +122,7 @@ function clearExistingManagers() {
       "-v",
       "ON_ERROR_STOP=1",
       "-c",
-      "DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
+      "DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
     ],
     { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
   );

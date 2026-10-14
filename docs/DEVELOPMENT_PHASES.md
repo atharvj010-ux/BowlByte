@@ -22,19 +22,22 @@ Implemented. See `docs/P002_AUTHENTICATION.md` and `docs/P002_TEST_RESULTS.md`.
 
 Menu, cart, ordering, cash recording, QR pickup, forecasting, push, and WebSockets remain out of scope.
 
-## P003 — Menu, stations, and stock
+## P003 — Menu, stock, and cash-pending orders
 
-- Manager-managed menu items with `price_paise`
-- Stations and capacity
-- Stock movements
-- Students can read the published menu and see an honest empty state when nothing is published
+Implemented. See `docs/P003_MENU_ORDERING.md`, `docs/P003_INVENTORY_CONCURRENCY.md`, and `docs/P003_ORDER_LIFECYCLE.md`.
 
-## P004 — Orders and the kitchen queue
+- Manager menu, categories, stations, and daily portions
+- Student cart and real `PLACED` orders with a `CASH` / `PENDING` payment
+- Student cancellation of their own `PLACED` order, releasing reserved stock once
+- Kitchen list of incoming `PLACED` tickets
+- No preparation transitions, ETA, cash confirmation, or QR pickup
 
-- Place order in one transaction, with a PENDING cash payment row and no payment provider
-- Implement the fulfillment transitions except pickup
+## P004 — Kitchen queue and preparation
+
+- Fulfillment transitions from `PLACED` through `READY`, except pickup
 - Kitchen screen updates through the API, then WebSockets when the polling version is correct
-- ETA from workload, station capacity, and item preparation minutes
+- ETA from workload, station `parallel_capacity`, and item `prep_seconds`
+- Move reserved portions toward consumed portions when preparation starts
 - Concurrency tests for conflicting transitions
 
 ## P005 — Cash receipt and pickup

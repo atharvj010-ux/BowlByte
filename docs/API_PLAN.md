@@ -75,33 +75,40 @@ Implemented in P002. Clients cannot submit a role on student registration. Invit
 | GET | `/api/v1/cashier/session` | Cashier | Role boundary |
 | GET | `/api/v1/admin/session` | Manager | Role boundary |
 
+## Menu, stock, and placement
+
+Implemented in P003. Prices are integer paise. Unsafe methods keep the existing origin and CSRF checks. There is no route that sets payment to `PAID` or fulfillment to `READY` or `PICKED_UP`.
+
+| Method | Path | Actor |
+| --- | --- | --- |
+| GET | `/api/v1/menu/categories` | Signed-in student, kitchen, or manager |
+| GET | `/api/v1/menu/items` | Student |
+| GET | `/api/v1/menu/items/{id}` | Student |
+| GET | `/api/v1/menu/items/{id}/image` | Public for an active item photo |
+| POST | `/api/v1/orders` | Student. Body is item ids, quantities, note, and idempotency key |
+| GET | `/api/v1/orders` | Student, own orders |
+| GET | `/api/v1/orders/{id}` | Owning student. Other students receive 404 |
+| POST | `/api/v1/orders/{id}/cancel` | Owning student, only from `PLACED` |
+| GET | `/api/v1/staff/orders` | Kitchen staff, `PLACED` tickets for their canteen |
+| GET, POST, PATCH | `/api/v1/admin/categories` | Manager |
+| GET, POST, PATCH | `/api/v1/admin/stations` | Manager |
+| GET, POST, PATCH | `/api/v1/admin/menu` and `/api/v1/admin/menu/{id}` | Manager |
+| POST | `/api/v1/admin/menu/{id}/image` | Manager. Validated JPEG, PNG, or WebP bytes |
+| GET, PATCH | `/api/v1/admin/stock` and `/api/v1/admin/stock/{item_id}` | Manager |
+| GET | `/api/v1/admin/orders` | Manager, own canteen |
+
 ## Planned
 
 These routes arrive with the phase that enforces their rules. Money fields are integers in paise.
 
-### Menu and stations
-
-| Method | Path | Actor |
-| --- | --- | --- |
-| GET | `/api/v1/menu` | Verified student, staff |
-| POST | `/api/v1/menu-items` | Manager |
-| PATCH | `/api/v1/menu-items/{item_id}` | Manager |
-| GET | `/api/v1/stations` | Kitchen, manager |
-| PUT | `/api/v1/stations/{station_id}` | Manager |
-
-`price_paise` is an integer.
-
-### Orders
+### Later fulfillment
 
 | Method | Path | Actor | Notes |
 | --- | --- | --- | --- |
-| POST | `/api/v1/orders` | Verified student | Creates PLACED and a PENDING cash payment |
-| GET | `/api/v1/orders` | Student | Own orders only |
-| GET | `/api/v1/kitchen/orders` | Kitchen, manager | Canteen queue |
-| POST | `/api/v1/orders/{order_id}/transitions` | Role depends on the target state | Body carries the target state, expected version, and reason when required |
+| POST | `/api/v1/orders/{order_id}/transitions` | Role depends on the target state | Not implemented. P004 will carry the target state, expected version, and reason |
 | POST | `/api/v1/orders/{order_id}/unclaimed` | Cashier, manager | READY to UNCLAIMED after the hold window |
 
-The transition route is the only fulfillment writer. It refuses a target the state machine does not allow, including `PICKED_UP` while payment is not `PAID`.
+The transition route will be the fulfillment writer. It must refuse a target the state machine does not allow, including `PICKED_UP` while payment is not `PAID`.
 
 ### Cash and pickup
 

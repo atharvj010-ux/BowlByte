@@ -16,11 +16,12 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.2.0",
+        version="0.3.0",
         summary="Canteen operations API.",
         description=(
-            "Authentication, sessions, and role checks are implemented. "
-            "Ordering, cash recording, notifications, and forecasting are not."
+            "Authentication, menus, stock reservations, and cash-on-pickup "
+            "placement are implemented. Cash recording, kitchen preparation, "
+            "QR pickup, notifications, and forecasting are not."
         ),
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url=None,
@@ -51,9 +52,13 @@ def create_app() -> FastAPI:
             )
         response = await call_next(request)
         path = request.url.path
+        prefix = current.api_v1_prefix
         if (
-            path.startswith(f"{current.api_v1_prefix}/auth")
-            or "/admin/" in path
+            path.startswith(f"{prefix}/auth")
+            or path.startswith(f"{prefix}/orders")
+            or path.startswith(f"{prefix}/menu")
+            or path.startswith(f"{prefix}/admin")
+            or path.startswith(f"{prefix}/staff")
             or path.endswith("/session")
         ):
             response.headers["Cache-Control"] = "private, no-store"

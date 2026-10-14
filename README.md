@@ -27,7 +27,15 @@ docker compose up --build
 | Worker | no host port | Celery worker |
 | Mailpit | http://127.0.0.1:8025 | Local mailbox UI. SMTP is on 127.0.0.1:1025 |
 
-The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables.
+The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables.
+
+## Development menu sample
+
+This does not create users or orders. Running it twice does not duplicate the sample items.
+
+```powershell
+docker compose exec backend python -m app.cli.seed_menu
+```
 
 ## First manager
 
@@ -136,6 +144,10 @@ npm run test:e2e
 | `docs/P002_AUTHENTICATION.md` | Sessions, eligibility, invitations, and email |
 | `docs/P002_SECURITY_TESTS.md` | Security cases and how they are enforced |
 | `docs/P002_TEST_RESULTS.md` | Commands that were run and their results |
+| `docs/P003_MENU_ORDERING.md` | Menu, cart, placement, and seed |
+| `docs/P003_INVENTORY_CONCURRENCY.md` | Stock locks and idempotency |
+| `docs/P003_ORDER_LIFECYCLE.md` | P003 states and the P004 handoff |
+| `docs/P003_TEST_RESULTS.md` | Commands that were run for P003 |
 
 ## Pilot limits
 

@@ -1,6 +1,6 @@
 # Database design
 
-PostgreSQL 16 is the system of record. Migration `0001_baseline` creates no tables. Migration `0002_identity` creates the identity tables below. Menu, order, payment, and forecast tables are still only a target.
+PostgreSQL 16 is the system of record. Migration `0001_baseline` creates no tables. Migration `0002_identity` creates the identity tables. Migration `0003_menu_ordering` creates the menu, station, daily stock, order, payment, and idempotency tables. Forecast tables are still only a target.
 
 Redis is not a system of record. It is the Celery broker. Later short-lived coordination may use it. Orders and payments are never stored only in Redis.
 
