@@ -16,10 +16,16 @@ anyio==4.15.1
     # via
     #   starlette
     #   watchfiles
+argon2-cffi==25.1.0
+    # via bowlbyte-api (pyproject.toml)
+argon2-cffi-bindings==26.1.0
+    # via argon2-cffi
 billiard==4.3.1
     # via celery
 celery==5.6.3
     # via bowlbyte-api (pyproject.toml)
+cffi==2.1.1
+    # via argon2-cffi-bindings
 click==8.5.0
     # via
     #   celery
@@ -33,6 +39,10 @@ click-plugins==1.1.1.2
     # via celery
 click-repl==0.4.1
     # via celery
+dnspython==2.9.0
+    # via email-validator
+email-validator==2.3.0
+    # via bowlbyte-api (pyproject.toml)
 fastapi==0.143.1
     # via bowlbyte-api (pyproject.toml)
 h11==0.16.0
@@ -40,7 +50,9 @@ h11==0.16.0
 httptools==0.9.0
     # via uvicorn
 idna==3.20
-    # via anyio
+    # via
+    #   anyio
+    #   email-validator
 kombu==5.6.2
     # via celery
 mako==1.4.3
@@ -57,6 +69,8 @@ psycopg==3.3.6
     # via bowlbyte-api (pyproject.toml)
 psycopg-binary==3.3.6
     # via psycopg
+pycparser==3.11
+    # via cffi
 pydantic==2.14.1
     # via
     #   bowlbyte-api (pyproject.toml)

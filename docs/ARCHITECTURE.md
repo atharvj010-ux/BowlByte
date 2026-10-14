@@ -38,15 +38,16 @@ PostgreSQL and Redis publish ports on `127.0.0.1` only. They are not bound to ev
 
 The API is one deployable service with internal module boundaries.
 
-| Module | P001 contents | Later contents |
-| --- | --- | --- |
-| `app/api` | Versioned routers. Only operations routes exist | Orders, menus, payments, identity |
-| `app/core` | Settings, JSON logs, error envelope | Shared security helpers |
-| `app/db` | Engine, session dependency, declarative base | Transaction helpers used by order and payment services |
-| `app/models` | Empty package | Tables documented in `DATABASE_DESIGN.md` |
-| `app/schemas` | Health and readiness models | Request and response models |
-| `app/services` | PostgreSQL and Redis probes | Order, payment, queue, and notification services |
-| `app/worker.py` | Celery application and `bowlbyte.worker_ping` | Preparation timing, notification delivery, cleanup |
+| Module | Current contents |
+| --- | --- |
+| `app/api` | Versioned health, auth, staff, and role-boundary routes |
+| `app/core` | Settings, JSON logs, error envelope, Argon2id and token hashing |
+| `app/db` | Engine, session dependency, declarative base |
+| `app/models` | Identity, sessions, invitations, roster, and audit tables |
+| `app/schemas` | Health and authentication models |
+| `app/services` | Readiness, registration, sessions, mail, and rate limits |
+| `app/cli` | Manager bootstrap and roster import |
+| `app/worker.py` | Celery application and `bowlbyte.worker_ping` |
 
 `bowlbyte.worker_ping` returns `ok` when a worker executes it. It does not send a notification or change an order.
 
@@ -54,18 +55,18 @@ Route handlers stay thin. When orders exist, a handler will authenticate the cal
 
 ## Frontend modules
 
-| Area | Route | Access in P001 |
+| Area | Route | Access |
 | --- | --- | --- |
-| Public marketing and rules | `/` | Public |
-| Live process status | `/status` | Public. Calls the real health and readiness endpoints |
-| Student | `/student`, `/student/menu`, `/student/orders` | Scaffold. No session check exists yet |
-| Kitchen staff | `/staff`, `/staff/queue` | Scaffold |
-| Cashier | `/cashier` | Scaffold |
-| Canteen manager | `/admin`, `/admin/menu` | Scaffold |
+| Public marketing and rules | `/` | Public. A session does not redirect this page |
+| Live process status | `/status` | Public |
+| Student registration and sign-in | `/student/register`, `/student/login`, `/student/verify-email` | Public |
+| Staff invitation | `/invite/accept` | Public. The token is the credential |
+| Student | `/student`, `/student/menu`, `/student/orders` | Student session, checked on the server and again by the API |
+| Kitchen staff | `/staff`, `/staff/queue`, `/staff/login` | Kitchen session for the work pages |
+| Cashier | `/cashier`, `/cashier/login` | Cashier session for the work page |
+| Canteen manager | `/admin`, `/admin/staff`, `/admin/menu`, `/admin/login` | Manager session for the work pages |
 
-Public pages and future protected pages use different layouts. The operations layout states that no session is checked. There is no pretend login and no sample operational data.
-
-The browser calls `NEXT_PUBLIC_API_URL`. Inside Docker Compose that value is `http://localhost:8000` because the browser runs on the host, not inside the frontend container.
+The browser calls `/api/v1/*` on the web origin. A Next.js route handler forwards those requests to `API_INTERNAL_URL` and passes cookies through. `NEXT_PUBLIC_API_URL` is no longer the browser's API origin.
 
 ## Request and error path
 

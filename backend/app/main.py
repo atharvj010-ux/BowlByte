@@ -1,10 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.errors import register_exception_handlers
+from app.core.errors import error_body, register_exception_handlers
 from app.core.logging import configure_logging
+
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def create_app() -> FastAPI:
@@ -13,11 +16,11 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
-        summary="Canteen operations API foundation.",
+        version="0.2.0",
+        summary="Canteen operations API.",
         description=(
-            "Phase P001 exposes liveness and readiness only. "
-            "Ordering, cash recording, notifications, and forecasting are not implemented."
+            "Authentication, sessions, and role checks are implemented. "
+            "Ordering, cash recording, notifications, and forecasting are not."
         ),
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url=None,
@@ -28,8 +31,35 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "Accept"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
     )
+
+    @app.middleware("http")
+    async def protect_origin_and_cache(request: Request, call_next):
+        current = get_settings()
+        if (
+            request.method not in _SAFE_METHODS
+            and request.url.path.startswith(current.api_v1_prefix)
+            and request.headers.get("origin") not in current.allowed_origins
+        ):
+            return JSONResponse(
+                status_code=403,
+                content=error_body(
+                    code="CSRF_REJECTED",
+                    message="Request was rejected.",
+                ),
+            )
+        response = await call_next(request)
+        path = request.url.path
+        if (
+            path.startswith(f"{current.api_v1_prefix}/auth")
+            or "/admin/" in path
+            or path.endswith("/session")
+        ):
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["Pragma"] = "no-cache"
+        return response
+
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app

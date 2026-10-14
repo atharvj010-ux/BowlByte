@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/states/empty-state";
+import { AccountHome } from "@/components/account-home";
+import { LaterPhase } from "@/components/later-phase";
+import { ProtectedArea } from "@/components/protected-area";
 
 export const metadata: Metadata = { title: "Menu" };
 
 export default function StudentMenuPage() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <EmptyState
-        title="No menu is published"
-        description="Menu items are not stored yet. Prices, when they exist, will be integer paise."
-      />
-    </main>
+    <ProtectedArea role="STUDENT" loginHref="/student/login">
+      {(user) => (
+        <AccountHome user={user} note="The published menu arrives in a later phase." extra={<LaterPhase title="No menu" />} />
+      )}
+    </ProtectedArea>
   );
 }

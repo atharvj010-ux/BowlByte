@@ -1,5 +1,27 @@
-"""Domain models.
+"""Domain models registered with Alembic metadata."""
 
-P001 keeps this package empty on purpose. The target schema is documented in
-docs/DATABASE_DESIGN.md and will be introduced with the features that own it.
-"""
+from app.models.identity import (
+    AuditLog,
+    Canteen,
+    College,
+    EmailVerificationToken,
+    Session,
+    StaffInvitation,
+    StaffMembership,
+    StudentProfile,
+    StudentRosterEntry,
+    User,
+)
+
+__all__ = [
+    "AuditLog",
+    "Canteen",
+    "College",
+    "EmailVerificationToken",
+    "Session",
+    "StaffInvitation",
+    "StaffMembership",
+    "StudentProfile",
+    "StudentRosterEntry",
+    "User",
+]

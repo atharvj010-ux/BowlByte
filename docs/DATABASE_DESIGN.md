@@ -1,6 +1,6 @@
 # Database design
 
-PostgreSQL 16 is the system of record. P001 migration `0001_baseline` creates no domain tables. The schema in this document is the target for later phases. Treat a table as real only after an Alembic revision creates it.
+PostgreSQL 16 is the system of record. Migration `0001_baseline` creates no tables. Migration `0002_identity` creates the identity tables below. Menu, order, payment, and forecast tables are still only a target.
 
 Redis is not a system of record. It is the Celery broker. Later short-lived coordination may use it. Orders and payments are never stored only in Redis.
 
@@ -71,6 +71,8 @@ QR pickup is not implemented in P001. When it is added, the rules are:
 ## Target tables
 
 ### Identity and access
+
+`0002_identity` creates `colleges`, `canteens`, `users`, `student_profiles`, `staff_memberships`, `student_roster_entries`, `email_verification_tokens`, `staff_invitations`, `sessions`, and `audit_log`. Email is stored lowercase with a unique index and a check that it stays lowercase. Roll numbers are unique per college. Token and session columns store hashes. Timestamps are `timestamptz`. The names below were the earlier target; membership status is a column on `staff_memberships` rather than only `disabled_at`.
 
 `canteens`
 

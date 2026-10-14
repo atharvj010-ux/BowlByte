@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/states/empty-state";
+import { AccountHome } from "@/components/account-home";
+import { LaterPhase } from "@/components/later-phase";
+import { ProtectedArea } from "@/components/protected-area";
 
-export const metadata: Metadata = { title: "Kitchen queue" };
+export const metadata: Metadata = { title: "Queue" };
 
 export default function StaffQueuePage() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <EmptyState
-        title="The queue is empty"
-        description="Kitchen actions are not connected. This is not a paused live queue."
-      />
-    </main>
+    <ProtectedArea role="KITCHEN_STAFF" loginHref="/staff/login">
+      {(user) => (
+        <AccountHome user={user} note="The kitchen queue arrives in a later phase." extra={<LaterPhase title="No tickets" />} />
+      )}
+    </ProtectedArea>
   );
 }

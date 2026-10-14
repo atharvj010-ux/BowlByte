@@ -12,16 +12,15 @@ Status: this repository.
 
 ## P002 — Identity and access
 
-Start here after P001.
+Implemented. See `docs/P002_AUTHENTICATION.md` and `docs/P002_TEST_RESULTS.md`.
 
-- Student self-registration and a real email verification step
-- Server sessions
+- Student registration with a college eligibility rule, Argon2id, and Mailpit email verification
+- Database sessions in HttpOnly cookies
 - Bootstrap command for the first canteen manager
-- Manager provisioning of kitchen staff and cashiers
-- Protect `/student`, `/staff`, `/cashier`, and `/admin` with those sessions
-- Tests that prove a student cannot call a staff route and an unverified student cannot gain a staff role
+- Manager invitations for kitchen staff and cashiers
+- Server-side protection for `/student`, `/staff`, `/cashier`, and `/admin`
 
-Do not start P002 by building the menu or the payment routes. The shells are already in place, and they are unsafe to fill with operational data before authorization exists.
+Menu, cart, ordering, cash recording, QR pickup, forecasting, push, and WebSockets remain out of scope.
 
 ## P003 — Menu, stations, and stock
 

@@ -26,12 +26,11 @@ export const operatingRules = [
 
 export const releaseNotes = {
   available: [
-    "Public pages and separate student, kitchen, cashier, and manager scaffolds",
+    "Student registration, email confirmation, and server sessions",
+    "Manager bootstrap and staff invitations",
     "API liveness and readiness checks against PostgreSQL and Redis",
-    "A background worker process with no product jobs attached",
   ],
   unavailable: [
-    "Accounts and email verification",
     "Menus, orders, and kitchen actions",
     "Cash recording, receipts, and QR pickup",
     "Web Push notifications",

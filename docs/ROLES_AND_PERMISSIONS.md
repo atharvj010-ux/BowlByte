@@ -1,6 +1,6 @@
 # Roles and permissions
 
-Authorization is a server decision. A client cannot choose its role by sending a field, a header, or a hidden form value. P001 does not implement accounts, sessions, or these checks. The rules below are the contract for the phase that adds them.
+Authorization is a server decision. A client cannot choose its role by sending a field, a header, or a hidden form value. P002 enforces the account, session, and staff rules below. Ordering and payment actions in the matrix are still future work.
 
 ## Accounts
 
@@ -39,14 +39,14 @@ Every staff assignment names one canteen. A kitchen employee, cashier, or manage
 
 Kitchen status changes do not grant payment permission. Payment permission does not by itself mark an order collected.
 
-## Session rules for the later identity phase
+## Session rules
 
-- Passwords are hashed with a current password hashing algorithm. Plaintext passwords are never stored or logged.
-- Session identifiers are random, stored server-side or in a signed httpOnly cookie. They are not placed in local storage.
-- Email verification tokens are random, stored as a hash, and expire.
-- Staff provisioning writes an audit row with the acting manager, the target user, the role, and the canteen.
-- Disabled staff lose access on the next request. Existing pages must not keep working from a cached role.
-- The `/student`, `/staff`, `/cashier`, and `/admin` shells in P001 are not protected by these rules yet. The layout says so.
+- Passwords are hashed with Argon2id. Plaintext passwords are never stored or logged.
+- Session identifiers are random. The database stores only a SHA-256 hash. The cookie is HttpOnly and is not placed in local storage or session storage.
+- Email verification and invitation tokens are random, stored as a SHA-256 hash, and expire.
+- Staff provisioning writes an audit row with the acting manager, the target, the role, and the canteen.
+- Disabled staff lose existing sessions immediately. The next request is rejected.
+- `/student`, `/staff`, `/cashier`, and `/admin` check the session on the server before rendering, and the API checks it again at the data boundary.
 
 ## Audit
 

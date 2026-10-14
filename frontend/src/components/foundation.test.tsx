@@ -2,8 +2,9 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { RoleScaffold } from "@/components/role-scaffold";
+import { AccessDenied } from "@/components/account-home";
 import { EmptyState } from "@/components/states/empty-state";
+import { loginFormSchema } from "@/lib/auth";
 import { releaseNotes } from "@/lib/content";
 
 vi.mock("next/link", () => ({
@@ -27,12 +28,27 @@ describe("EmptyState", () => {
   });
 });
 
-describe("RoleScaffold", () => {
-  it("states that authentication is not implemented", () => {
-    render(<RoleScaffold href="/cashier" />);
+describe("authentication forms", () => {
+  it("rejects a short password and a mismatched confirmation is covered by the schema", () => {
+    const result = loginFormSchema.safeParse({ email: "not-an-email", password: "" });
 
-    expect(screen.getByRole("heading", { name: "Cashier" })).toBeInTheDocument();
-    expect(screen.getByText(/Authentication is not implemented/)).toBeInTheDocument();
-    expect(screen.getByText("No operational data")).toBeInTheDocument();
+    expect(result.success).toBe(false);
+  });
+
+  it("shows a denial instead of another role's workspace", () => {
+    render(
+      <AccessDenied
+        user={{
+          id: "1",
+          full_name: "Asha Rao",
+          email: "asha@student.bowlbyte.edu",
+          role: "STUDENT",
+          status: "ACTIVE",
+          canteen_id: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("access-denied")).toHaveTextContent("cannot open this page");
   });
 });

@@ -23,7 +23,10 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type ReadyResponse = z.infer<typeof readyResponseSchema>;
 
 export function apiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  if (typeof window !== "undefined") {
+    return "";
+  }
+  return process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8010";
 }
 
 async function readJson(response: Response): Promise<unknown> {

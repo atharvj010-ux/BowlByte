@@ -1,6 +1,6 @@
 # API plan
 
-The HTTP API is versioned under `/api/v1`. P001 implements two routes. Every other route in this document is a plan. A planned route must not be stubbed to return success.
+The HTTP API is versioned under `/api/v1`. Health, readiness, authentication, and staff administration are implemented. Menu, order, payment, and forecast routes in this document are still a plan. A planned route must not be stubbed to return success.
 
 Interactive OpenAPI is available at `/docs` when `ENVIRONMENT` is not `production`.
 
@@ -52,22 +52,32 @@ HTTP 200:
 
 HTTP 503 uses `"status": "not_ready"` and `"status": "down"` on the failed check. `detail` is the exception class name, not the driver message.
 
-## Planned
+## Identity
 
-These routes arrive with the phase that enforces their rules. Money fields are integers in paise.
-
-### Identity
+Implemented in P002. Clients cannot submit a role on student registration. Invitations reject `CANTEEN_MANAGER`. There is no public manager registration route.
 
 | Method | Path | Actor | Behavior |
 | --- | --- | --- | --- |
-| POST | `/api/v1/auth/register` | Anonymous | Create a student. Send a real verification email. Do not return a session that can order |
-| POST | `/api/v1/auth/verify-email` | Anonymous | Consume a hashed token |
-| POST | `/api/v1/auth/login` | Anonymous | Start a session |
-| POST | `/api/v1/auth/logout` | Any session | Revoke the session |
-| POST | `/api/v1/staff` | Manager | Provision kitchen, cashier, or manager access for this canteen |
-| POST | `/api/v1/staff/{assignment_id}/disable` | Manager | Disable that assignment |
+| GET | `/api/v1/auth/registration-policy` | Anonymous | College mode, without secrets |
+| POST | `/api/v1/auth/student/register` | Anonymous | Create a student or send a generic follow-up. No session |
+| POST | `/api/v1/auth/verify-email` | Anonymous | Consume a hashed token. No session |
+| POST | `/api/v1/auth/resend-verification` | Anonymous | Rate-limited, enumeration-safe resend |
+| POST | `/api/v1/auth/login` | Anonymous | New server session. Generic failure text |
+| POST | `/api/v1/auth/logout` | Session plus CSRF | Delete that session |
+| GET | `/api/v1/auth/me` | Session | Current user |
+| GET | `/api/v1/auth/csrf` | Session | Confirm or rotate the CSRF token |
+| POST | `/api/v1/auth/accept-invitation` | Invitation token | Activate kitchen or cashier. No session |
+| POST | `/api/v1/admin/staff/invitations` | Manager plus CSRF | Invite kitchen or cashier for that canteen |
+| GET | `/api/v1/admin/staff` | Manager | List kitchen and cashier accounts for that canteen |
+| PATCH | `/api/v1/admin/staff/{id}/status` | Manager plus CSRF | Activate or deactivate. Deactivation deletes sessions |
+| GET | `/api/v1/student/session` | Student | Role boundary |
+| GET | `/api/v1/staff/session` | Kitchen | Role boundary |
+| GET | `/api/v1/cashier/session` | Cashier | Role boundary |
+| GET | `/api/v1/admin/session` | Manager | Role boundary |
 
-There is no public staff registration route.
+## Planned
+
+These routes arrive with the phase that enforces their rules. Money fields are integers in paise.
 
 ### Menu and stations
 

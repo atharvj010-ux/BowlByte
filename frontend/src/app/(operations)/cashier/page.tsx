@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 
-import { RoleScaffold } from "@/components/role-scaffold";
+import { AccountHome } from "@/components/account-home";
+import { ProtectedArea } from "@/components/protected-area";
 
 export const metadata: Metadata = { title: "Cashier" };
 
+const note = "Cash recording and pickup are not available yet. They arrive in a later phase.";
+
 export default function CashierPage() {
-  return <RoleScaffold href="/cashier" />;
+  return (
+    <ProtectedArea role="CASHIER" loginHref="/cashier/login">
+      {(user) => <AccountHome user={user} note={note} />}
+    </ProtectedArea>
+  );
 }

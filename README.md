@@ -1,6 +1,6 @@
 # BowlByte
 
-BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. This repository is phase P001: the application foundation and the operating contract. Ordering, accounts, cash recording, QR pickup, notifications, and forecasting are not implemented.
+BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phase P001 is the foundation. Phase P002 adds database accounts, email verification, sessions, and role checks. Ordering, cash recording, QR pickup, notifications, and forecasting are not implemented.
 
 ## Stack
 
@@ -25,8 +25,36 @@ docker compose up --build
 | PostgreSQL | `127.0.0.1:5432` | System of record. Loopback only |
 | Redis | `127.0.0.1:6379` | Celery broker. Not bound to a public interface |
 | Worker | no host port | Celery worker |
+| Mailpit | http://127.0.0.1:8025 | Local mailbox UI. SMTP is on 127.0.0.1:1025 |
 
-The API container runs `alembic upgrade head` before Uvicorn. The P001 revision does not create domain tables.
+The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables.
+
+## First manager
+
+There is no public manager registration page and no seeded password. From `backend/` with the API database reachable:
+
+```powershell
+$env:BOWLBYTE_BOOTSTRAP_EMAIL = "manager@college.edu"
+$env:BOWLBYTE_BOOTSTRAP_NAME = "Pilot Manager"
+python -m app.cli.bootstrap_manager
+```
+
+The command prompts for the password, or reads one line from stdin when it is not a terminal. It does not accept the password as an argument and it does not print it. A second run is refused after a manager exists.
+
+Inside Compose:
+
+```powershell
+docker compose exec -e BOWLBYTE_BOOTSTRAP_EMAIL=manager@college.edu -e BOWLBYTE_BOOTSTRAP_NAME="Pilot Manager" backend python -m app.cli.bootstrap_manager
+```
+
+## Student eligibility
+
+`COLLEGE_ELIGIBILITY_MODE` defaults to `disabled`, so public registration stays closed until the operator chooses one mode:
+
+- `institutional_domain` requires the email domain in `COLLEGE_EMAIL_DOMAIN`. The verification message proves control of that mailbox.
+- `roster` requires a preloaded roll number and a long enrollment code. The roll number alone is not enough. Import with `python -m app.cli.import_roster roster.csv` using columns `roll_number,enrollment_code`.
+
+Do not open registration until that data is real. A personal email address is not evidence of enrollment.
 
 Host ports stay on `127.0.0.1`. If a port is already taken, set `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, or `FRONTEND_PORT` in `.env`. When `BACKEND_PORT` changes, set `NEXT_PUBLIC_API_URL` to that same host port and rebuild the web image, because the browser reads the API origin from the built page.
 
@@ -104,6 +132,10 @@ npm run test:e2e
 | `docs/DATABASE_DESIGN.md` | Target schema, transactions, QR rules |
 | `docs/API_PLAN.md` | Implemented and planned HTTP routes |
 | `docs/DEVELOPMENT_PHASES.md` | Phase order and test commands |
+| `docs/P001_VERIFICATION.md` | P001 baseline, including the unresolved braces advisory |
+| `docs/P002_AUTHENTICATION.md` | Sessions, eligibility, invitations, and email |
+| `docs/P002_SECURITY_TESTS.md` | Security cases and how they are enforced |
+| `docs/P002_TEST_RESULTS.md` | Commands that were run and their results |
 
 ## Pilot limits
 

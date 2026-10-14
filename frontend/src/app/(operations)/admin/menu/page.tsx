@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/states/empty-state";
+import { AccountHome } from "@/components/account-home";
+import { LaterPhase } from "@/components/later-phase";
+import { ProtectedArea } from "@/components/protected-area";
 
 export const metadata: Metadata = { title: "Menu management" };
 
 export default function AdminMenuPage() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <EmptyState
-        title="Menu editing is not available"
-        description="Managers will publish items here in a later phase. No prices are stored yet."
-      />
-    </main>
+    <ProtectedArea role="CANTEEN_MANAGER" loginHref="/admin/login">
+      {(user) => (
+        <AccountHome user={user} note="Menu editing arrives in a later phase." extra={<LaterPhase title="No menu items" />} />
+      )}
+    </ProtectedArea>
   );
 }

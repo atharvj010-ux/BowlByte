@@ -8,6 +8,24 @@ const nextConfig: NextConfig = {
   output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
+  async headers() {
+    const noStore = [
+      { key: "Cache-Control", value: "private, no-store" },
+      { key: "Pragma", value: "no-cache" },
+    ];
+    const sources = [
+      "/student",
+      "/student/:path*",
+      "/staff",
+      "/staff/:path*",
+      "/cashier",
+      "/cashier/:path*",
+      "/admin",
+      "/admin/:path*",
+      "/invite/:path*",
+    ];
+    return sources.map((source) => ({ source, headers: noStore }));
+  },
   turbopack: {
     root: appRoot,
     rules: {
