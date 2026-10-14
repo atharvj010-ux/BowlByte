@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Manager" };
 const links = [
   ["/admin/menu", "Menu"],
   ["/admin/stations", "Stations"],
+  ["/admin/kitchen", "Kitchen"],
   ["/admin/stock", "Stock"],
   ["/admin/orders", "Orders"],
   ["/admin/staff", "Staff"],

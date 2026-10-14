@@ -24,6 +24,7 @@ from app.models.ordering import (
     OrderIdempotencyRecord,
     OrderItem,
     OrderPayment,
+    PreparationTask,
 )
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     "OrderIdempotencyRecord",
     "OrderItem",
     "OrderPayment",
+    "PreparationTask",
     "Session",
     "StaffInvitation",
     "StaffMembership",

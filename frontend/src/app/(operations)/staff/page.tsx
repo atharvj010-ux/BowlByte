@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { AccountHome } from "@/components/account-home";
-import { IncomingOrders } from "@/components/orders/order-views";
+import { KitchenDesk } from "@/components/kitchen/kitchen-desk";
 import { ProtectedArea } from "@/components/protected-area";
 
 export const metadata: Metadata = { title: "Kitchen" };
@@ -12,8 +12,8 @@ export default function StaffPage() {
       {(user) => (
         <AccountHome
           user={user}
-          note="These are new placed orders for your canteen. Marking them ready is a later phase."
-          extra={<IncomingOrders />}
+          note="Accept tickets, prepare them at the station, and mark the order ready after packing. Cash collection is a later step."
+          extra={<KitchenDesk />}
         />
       )}
     </ProtectedArea>

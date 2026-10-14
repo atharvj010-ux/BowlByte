@@ -29,10 +29,10 @@ export const releaseNotes = {
     "Student registration, email confirmation, and server sessions",
     "Manager bootstrap and staff invitations",
     "Menu, daily portions, and cash-pending orders",
+    "Kitchen queue, preparation tracking, and approximate readiness estimates",
     "API liveness and readiness checks against PostgreSQL and Redis",
   ],
   unavailable: [
-    "Kitchen preparation, ready times, and pickup",
     "Cash recording, receipts, and QR pickup",
     "Web Push notifications",
     "Demand forecasting",

@@ -16,12 +16,12 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.3.0",
+        version="0.4.0",
         summary="Canteen operations API.",
         description=(
-            "Authentication, menus, stock reservations, and cash-on-pickup "
-            "placement are implemented. Cash recording, kitchen preparation, "
-            "QR pickup, notifications, and forecasting are not."
+            "Authentication, menus, stock, cash-pending orders, kitchen "
+            "preparation, and readiness estimates are implemented. Cash "
+            "recording, QR pickup, phone push, and forecasting are not."
         ),
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url=None,

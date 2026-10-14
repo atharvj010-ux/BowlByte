@@ -1,6 +1,6 @@
 # BowlByte
 
-BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phase P001 is the foundation. Phase P002 adds database accounts, email verification, sessions, and role checks. Ordering, cash recording, QR pickup, notifications, and forecasting are not implemented.
+BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Cash recording, QR pickup, notifications, and forecasting are not implemented.
 
 ## Stack
 
@@ -27,7 +27,7 @@ docker compose up --build
 | Worker | no host port | Celery worker |
 | Mailpit | http://127.0.0.1:8025 | Local mailbox UI. SMTP is on 127.0.0.1:1025 |
 
-The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables.
+The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. The web container proxies `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
 
 ## Development menu sample
 
@@ -148,6 +148,13 @@ npm run test:e2e
 | `docs/P003_INVENTORY_CONCURRENCY.md` | Stock locks and idempotency |
 | `docs/P003_ORDER_LIFECYCLE.md` | P003 states and the P004 handoff |
 | `docs/P003_TEST_RESULTS.md` | Commands that were run for P003 |
+| `docs/P004_KITCHEN_ENGINE.md` | Kitchen desk, capacity, and recovery |
+| `docs/P004_ORDER_STATE_MACHINE.md` | Order and task transitions |
+| `docs/P004_ETA_ALGORITHM.md` | Station-aware readiness estimates |
+| `docs/P004_REALTIME_ARCHITECTURE.md` | WebSockets, Redis, and polling |
+| `docs/P004_INVENTORY_CONSUMPTION.md` | Reserved stock becomes consumed |
+| `docs/P004_TEST_RESULTS.md` | Commands that were run for P004 |
+| `docs/P004_KNOWN_LIMITATIONS.md` | What this phase does not do |
 
 ## Pilot limits
 

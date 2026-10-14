@@ -1,15 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { apiFetch, readError } from "@/lib/auth";
+import { formatEta, trackedOrderSchema } from "@/lib/kitchen";
+import { useLiveResource } from "@/lib/live";
 import { formatInrFromPaise } from "@/lib/money";
 import { orderSchema, type CanteenOrder } from "@/lib/ordering";
 
 const listSchema = z.object({ orders: z.array(orderSchema) });
+
+function labelStep(step: string) {
+  switch (step) {
+    case "PLACED":
+      return "Order placed";
+    case "ACCEPTED":
+      return "Kitchen accepted";
+    case "QUEUED":
+      return "Waiting in preparation queue";
+    case "PREPARING":
+      return "Preparing";
+    case "READY":
+      return "Ready for collection";
+    default:
+      return step;
+  }
+}
 
 function paymentLabel(order: CanteenOrder) {
   return `${order.payment.method} · ${order.payment.status}`;
@@ -52,17 +71,23 @@ export function OrderHistory() {
   );
 }
 
+const progress = ["PLACED", "ACCEPTED", "QUEUED", "PREPARING", "READY"] as const;
+
 export function OrderDetail({ orderId }: { orderId: string }) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  const refresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+  }, [orderId, queryClient]);
+  const live = useLiveResource(`/api/v1/ws/orders/${orderId}`, refresh);
   const order = useQuery({
     queryKey: ["order", orderId],
     queryFn: async () => {
-      const response = await apiFetch(`/api/v1/orders/${orderId}`);
+      const response = await apiFetch(`/api/v1/orders/${orderId}/tracking`);
       if (!response.ok) {
         throw new Error(await readError(response));
       }
-      return orderSchema.parse(await response.json());
+      return trackedOrderSchema.parse(await response.json());
     },
   });
 
@@ -77,10 +102,10 @@ export function OrderDetail({ orderId }: { orderId: string }) {
     setMessage("The order is cancelled and its portions were released.");
   }
 
-  if (order.isLoading) {
+  if (order.isLoading && !order.data) {
     return <p>Loading the order.</p>;
   }
-  if (order.isError) {
+  if (order.isError && !order.data) {
     return (
       <p role="alert" className="text-sm text-destructive" data-testid="order-denied">
         {order.error.message}
@@ -95,8 +120,29 @@ export function OrderDetail({ orderId }: { orderId: string }) {
     <article className="space-y-4">
       <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">Ticket</p>
       <h2 className="font-display text-4xl">{current.ticket_number}</h2>
-      <p>
+      <p data-testid="order-status">
         {current.status} · {paymentLabel(current)}
+      </p>
+      <p className="text-sm text-muted-foreground" data-testid="connection-state">
+        {order.isError
+          ? "Showing the last confirmed order while updates are unavailable"
+          : live === "live"
+            ? "Live updates connected"
+            : "Checking for updates"}{" "}
+        · updated {new Date(current.updated_at).toLocaleTimeString()}
+      </p>
+      <ol className="grid gap-1 text-sm">
+        {progress.map((step) => (
+          <li key={step}>{step === current.status || progress.indexOf(step) < progress.indexOf(current.status as (typeof progress)[number]) ? "Done" : "Pending"} · {labelStep(step)}</li>
+        ))}
+      </ol>
+      <p className="text-sm" data-testid="eta">
+        Approximate ready time {formatEta(current.eta_ready_at)}
+        {current.eta_earliest_at && current.eta_latest_at
+          ? `, between ${formatEta(current.eta_earliest_at)} and ${formatEta(current.eta_latest_at)}`
+          : ""}
+        {current.eta_overdue ? ". Preparation is running longer than expected." : ""}
+        {current.eta_blocked ? ". A station is unavailable, so there is no readiness time." : ""}
       </p>
       <p className="text-sm text-muted-foreground">
         Placed {new Date(current.created_at).toLocaleString()}
@@ -112,10 +158,23 @@ export function OrderDetail({ orderId }: { orderId: string }) {
         ))}
       </ul>
       <p className="font-medium">Total {formatInrFromPaise(current.total_paise)}</p>
+      {current.tasks
+        .filter((task) => task.delay_reason)
+        .map((task) => (
+          <p key={task.id} className="text-sm" data-testid="delay-message">
+            {task.item_name}: {task.delay_reason}
+          </p>
+        ))}
       {current.note ? <p className="text-sm">Note: {current.note}</p> : null}
-      <p className="text-sm text-muted-foreground">
-        Cash has not been collected. Payment stays pending until a later cashier step.
-      </p>
+      {current.status === "READY" ? (
+        <p className="text-sm">
+          Your food is ready. Please pay cash at the canteen counter when collecting your order.
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Cash has not been collected. Payment stays pending until a later cashier step.
+        </p>
+      )}
       {current.status === "PLACED" ? (
         <Button type="button" variant="outline" onClick={cancel}>
           Cancel order
@@ -153,7 +212,7 @@ export function IncomingOrders() {
         Incoming orders
       </h2>
       <p className="text-sm text-muted-foreground">
-        New placed tickets only. Preparation, ready times, and cash collection are later phases.
+        New placed tickets. Accept them from the kitchen desk. Cash collection is a later phase.
       </p>
       {!orders.data || orders.data.orders.length === 0 ? (
         <p className="text-sm text-muted-foreground">No new orders.</p>

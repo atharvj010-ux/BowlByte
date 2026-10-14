@@ -26,6 +26,7 @@ from app.schemas.ordering import (
     StockUpdateRequest,
 )
 from app.services.identity import Principal
+from app.services.kitchen import refresh_after_station_change
 from app.services.ordering import (
     create_category,
     create_menu_item,
@@ -165,6 +166,7 @@ def edit_station(
         parallel_capacity=body.parallel_capacity,
         is_active=body.is_active,
     )
+    refresh_after_station_change(db, canteen_id=row.canteen_id)
     return StationResponse(
         id=row.id,
         name=row.name,

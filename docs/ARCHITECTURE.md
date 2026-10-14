@@ -105,9 +105,9 @@ OpenAPI is served at `/docs` outside production and disabled when `ENVIRONMENT=p
 
 ## Persistence boundary
 
-PostgreSQL stores durable canteen state. Redis does not. A future WebSocket fan-out or cache may use Redis, and losing Redis may delay a job, but it must not be the only copy of an order or a payment.
+PostgreSQL stores durable canteen state, including preparation tasks and readiness estimates. Redis Pub/Sub distributes live hints after commit. Losing a Pub/Sub message does not change an order. Clients refetch the row.
 
-Alembic revision `0001_baseline` creates no domain tables. The target schema in `DATABASE_DESIGN.md` is the design, not a migrated database.
+Alembic revisions through `0004_kitchen_queue` are applied by the API container on startup. The target notes in `DATABASE_DESIGN.md` still describe later pickup and notification tables that are not migrated.
 
 ## Multi-canteen boundary
 

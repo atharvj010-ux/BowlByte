@@ -34,11 +34,14 @@ Implemented. See `docs/P003_MENU_ORDERING.md`, `docs/P003_INVENTORY_CONCURRENCY.
 
 ## P004 — Kitchen queue and preparation
 
-- Fulfillment transitions from `PLACED` through `READY`, except pickup
-- Kitchen screen updates through the API, then WebSockets when the polling version is correct
-- ETA from workload, station `parallel_capacity`, and item `prep_seconds`
-- Move reserved portions toward consumed portions when preparation starts
-- Concurrency tests for conflicting transitions
+Implemented. See `docs/P004_KITCHEN_ENGINE.md`, `docs/P004_ORDER_STATE_MACHINE.md`, `docs/P004_ETA_ALGORITHM.md`, `docs/P004_REALTIME_ARCHITECTURE.md`, `docs/P004_INVENTORY_CONSUMPTION.md`, `docs/P004_TEST_RESULTS.md`, and `docs/P004_KNOWN_LIMITATIONS.md`.
+
+- Accept, reject, start, complete, delay, and packed-ready transitions
+- One preparation task per ordered unit, station snapshot, and capacity locks
+- Reserved stock becomes consumed when a task starts
+- Station-aware ETA with an uncertainty range
+- WebSocket hints plus polling, with PostgreSQL as the record
+- No cash confirmation, QR pickup, or Web Push
 
 ## P005 — Cash receipt and pickup
 

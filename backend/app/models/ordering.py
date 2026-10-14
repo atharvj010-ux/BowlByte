@@ -239,6 +239,19 @@ class Order(Base):
     note: Mapped[str | None] = mapped_column(Text)
     service_date: Mapped[date] = mapped_column(Date, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eta_ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eta_earliest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eta_latest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eta_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eta_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    eta_overdue: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    eta_blocked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -318,6 +331,59 @@ class OrderPayment(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
     amount_paise: Mapped[int] = mapped_column(BigInteger, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class PreparationTask(Base):
+    __tablename__ = "preparation_tasks"
+    __table_args__ = (
+        UniqueConstraint("order_item_id", "unit_index", name="uq_preparation_tasks_unit"),
+        CheckConstraint("unit_index >= 1", name="ck_preparation_tasks_unit"),
+        CheckConstraint(
+            "expected_duration_seconds >= 30 AND expected_duration_seconds <= 7200",
+            name="ck_preparation_tasks_duration",
+        ),
+        CheckConstraint("extra_delay_seconds >= 0", name="ck_preparation_tasks_delay"),
+        CheckConstraint(
+            "status in ('QUEUED', 'IN_PROGRESS', 'DONE', 'CANCELLED')",
+            name="ck_preparation_tasks_status",
+        ),
+        Index("ix_preparation_tasks_order_id", "order_id"),
+        Index("ix_preparation_tasks_station_status", "kitchen_station_id", "status"),
+        Index("ix_preparation_tasks_canteen_status", "canteen_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
+    )
+    order_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("order_items.id"), nullable=False
+    )
+    canteen_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("canteens.id"), nullable=False
+    )
+    kitchen_station_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("kitchen_stations.id"), nullable=False
+    )
+    station_name: Mapped[str] = mapped_column(Text, nullable=False)
+    item_name: Mapped[str] = mapped_column(Text, nullable=False)
+    unit_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    expected_duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    extra_delay_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    delay_reason: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    completed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 

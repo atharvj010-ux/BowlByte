@@ -55,9 +55,9 @@ test("student places an order and kitchen sees the pending ticket", async ({ pag
   await signIn(page, studentEmail);
   await page.goto("/student/menu");
   await page.getByLabel("Search menu").fill(`Veg Sandwich ${suffix}`);
-  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.locator("article").filter({ hasText: `Veg Sandwich ${suffix}` }).getByRole("button", { name: "Add to cart" }).click();
   await page.getByLabel("Search menu").fill(`Masala Chai ${suffix}`);
-  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.locator("article").filter({ hasText: `Masala Chai ${suffix}` }).getByRole("button", { name: "Add to cart" }).click();
   await page.goto("/student/cart");
   await expect(page.getByText(`Veg Sandwich ${suffix}`)).toBeVisible();
   await expect(page.getByText(`Masala Chai ${suffix}`)).toBeVisible();
@@ -243,7 +243,7 @@ function clearStaff() {
       "-v",
       "ON_ERROR_STOP=1",
       "-c",
-      "DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
+      "DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
     ],
     { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
   );

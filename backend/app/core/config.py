@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     resend_rate_limit: int = 3
     resend_rate_window_seconds: int = 15 * 60
     enrollment_code_min_length: int = 20
+    kitchen_packing_buffer_seconds: int = 120
+    kitchen_eta_uncertainty_ratio: float = 0.2
+    kitchen_eta_min_uncertainty_seconds: int = 60
+    kitchen_overdue_remainder_seconds: int = 60
+    kitchen_max_tasks_per_order: int = 40
 
     @property
     def cors_origin_list(self) -> list[str]:

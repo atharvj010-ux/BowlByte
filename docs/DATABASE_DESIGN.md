@@ -215,6 +215,14 @@ Unique on `(user_id, canteen_id, role)` where `disabled_at` is null.
 - `pickup_tokens (token_hash)` unique
 - `menu_items (canteen_id, is_published)`
 
+## Implemented kitchen queue (`0004_kitchen_queue`)
+
+`orders` gained nullable `accepted_at`, `ready_at`, `eta_ready_at`, `eta_earliest_at`, `eta_latest_at`, and `eta_computed_at`, plus `eta_version`, `eta_overdue`, and `eta_blocked`. Timestamps are `timestamptz`.
+
+`preparation_tasks` has a UUID primary key and foreign keys to `orders`, `order_items`, `canteens`, `kitchen_stations`, and `users` (`started_by`, `completed_by`). Unique `(order_item_id, unit_index)`. Status is `QUEUED`, `IN_PROGRESS`, `DONE`, or `CANCELLED`. Duration is 30–7200 seconds. Indexes cover `order_id`, `(kitchen_station_id, status)`, and `(canteen_id, status)`. Station name, item name, and expected duration are copied onto the task.
+
+The earlier target names (`stations.concurrent_capacity`, `fulfillment_status`, `public_number`) are the design vocabulary. The migrated tables use `kitchen_stations.parallel_capacity`, `orders.status`, and `orders.ticket_number`.
+
 ## Migration policy
 
 A phase that introduces a table adds one Alembic revision reviewed with the code that writes it. Autogenerate is a draft. Money columns, check constraints, and unique partial indexes are confirmed by hand. Downgrades are written for schema changes that can be reversed without deleting recorded payments. A revision that would drop `payment_events` or `audit_log` is not an acceptable downgrade once those tables contain pilot data.

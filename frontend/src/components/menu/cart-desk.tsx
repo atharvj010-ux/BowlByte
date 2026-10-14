@@ -29,13 +29,25 @@ export function CartDesk() {
   const [pending, setPending] = useState(false);
   const [key] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   const menu = useQuery({
-    queryKey: ["menu", "checkout"],
+    queryKey: ["menu", "checkout", lines.map((line) => line.menuItemId).join(",")],
     queryFn: async () => {
       const response = await apiFetch("/api/v1/menu/items?limit=50");
       if (!response.ok) {
         throw new Error(await readError(response));
       }
-      return menuResponse.parse(await response.json());
+      const listed = menuResponse.parse(await response.json());
+      const found = new Set(listed.items.map((item) => item.id));
+      const missing = lines.filter((line) => !found.has(line.menuItemId));
+      const extras = await Promise.all(
+        missing.map(async (line) => {
+          const one = await apiFetch(`/api/v1/menu/items/${line.menuItemId}`);
+          if (!one.ok) {
+            return null;
+          }
+          return menuItemSchema.parse(await one.json());
+        }),
+      );
+      return { items: [...listed.items, ...extras.filter((item) => item !== null)] };
     },
   });
 

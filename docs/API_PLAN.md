@@ -77,7 +77,7 @@ Implemented in P002. Clients cannot submit a role on student registration. Invit
 
 ## Menu, stock, and placement
 
-Implemented in P003. Prices are integer paise. Unsafe methods keep the existing origin and CSRF checks. There is no route that sets payment to `PAID` or fulfillment to `READY` or `PICKED_UP`.
+Implemented in P003. Prices are integer paise. Unsafe methods keep the existing origin and CSRF checks. No route sets payment to `PAID` or fulfillment to `PICKED_UP`. Kitchen staff can set fulfillment to `READY` after every preparation task is done.
 
 | Method | Path | Actor |
 | --- | --- | --- |
@@ -97,6 +97,29 @@ Implemented in P003. Prices are integer paise. Unsafe methods keep the existing 
 | GET, PATCH | `/api/v1/admin/stock` and `/api/v1/admin/stock/{item_id}` | Manager |
 | GET | `/api/v1/admin/orders` | Manager, own canteen |
 
+## Kitchen queue and tracking
+
+Implemented in P004. Mutations require the kitchen role, the staff member's canteen, and CSRF. Students can read only their own tracking resource. Cashiers cannot call these mutations.
+
+| Method | Path | Actor |
+| --- | --- | --- |
+| GET | `/api/v1/staff/orders` | Kitchen, `PLACED` tickets |
+| GET | `/api/v1/staff/queue` | Kitchen, queued, preparing, and ready tickets plus station workload |
+| GET | `/api/v1/staff/stations` | Kitchen, station workload |
+| GET | `/api/v1/staff/preparation-tasks` | Kitchen |
+| POST | `/api/v1/staff/orders/{id}/accept` | Kitchen |
+| POST | `/api/v1/staff/orders/{id}/reject` | Kitchen. Body `{ "reason": "..." }` |
+| POST | `/api/v1/staff/preparation-tasks/{id}/start` | Kitchen |
+| POST | `/api/v1/staff/preparation-tasks/{id}/complete` | Kitchen |
+| POST | `/api/v1/staff/preparation-tasks/{id}/delay` | Kitchen. `extra_seconds` 30–3600 and a reason |
+| POST | `/api/v1/staff/orders/{id}/ready` | Kitchen. Body `{ "packed": true }` |
+| GET | `/api/v1/orders/{id}/tracking` | Owning student |
+| GET | `/api/v1/admin/kitchen/overview` | Manager |
+| WebSocket | `/api/v1/ws/kitchen` | Kitchen session cookie, trusted origin |
+| WebSocket | `/api/v1/ws/orders/{id}` | Owning student |
+
+Changing a station's capacity or active flag recalculates estimates for that canteen. The response does not include a payment-status field the client can set.
+
 ## Planned
 
 These routes arrive with the phase that enforces their rules. Money fields are integers in paise.
@@ -105,7 +128,7 @@ These routes arrive with the phase that enforces their rules. Money fields are i
 
 | Method | Path | Actor | Notes |
 | --- | --- | --- | --- |
-| POST | `/api/v1/orders/{order_id}/transitions` | Role depends on the target state | Not implemented. P004 will carry the target state, expected version, and reason |
+| POST | `/api/v1/orders/{order_id}/transitions` | Not used | P004 uses the kitchen routes above instead of one generic transition route |
 | POST | `/api/v1/orders/{order_id}/unclaimed` | Cashier, manager | READY to UNCLAIMED after the hold window |
 
 The transition route will be the fulfillment writer. It must refuse a target the state machine does not allow, including `PICKED_UP` while payment is not `PAID`.
@@ -129,7 +152,7 @@ The student order resource can show payment status. It does not accept a payment
 | GET | `/api/v1/notifications` | In-app list for the current user |
 | POST | `/api/v1/push-subscriptions` | Store a real browser push subscription |
 | DELETE | `/api/v1/push-subscriptions/{id}` | Remove it |
-| WebSocket | `/api/v1/ws` | Later live queue updates |
+| WebSocket | `/api/v1/ws/kitchen` and `/api/v1/ws/orders/{id}` | Implemented. Payloads are id, version, and time. Push subscriptions are still later |
 
 A notification row is `SENT` only after the push send or the in-app write succeeds. A worker exception stores `FAILED` and leaves the order alone.
 
@@ -148,7 +171,7 @@ The summary counts orders and payments from PostgreSQL. It does not invent forec
 | `bowlbyte.worker_ping` | Implemented. Returns `ok`. No side effects | Remains an infrastructure probe |
 | Notification delivery | Not registered | Sends Web Push and records the attempt |
 | Unclaimed sweep | Not registered | Finds READY orders past the hold window and records candidates for staff. It does not mark PICKED_UP |
-| ETA refresh | Not registered | Recomputes preparation estimates from workload, capacity, and prep minutes |
+| ETA refresh | Not a Celery task | Recalculated inside the kitchen transaction that changes workload |
 
 ## Compatibility
 

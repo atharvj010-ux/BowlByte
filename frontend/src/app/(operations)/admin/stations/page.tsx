@@ -12,8 +12,8 @@ export default function StationsPage() {
         <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-10 sm:px-6">
           <h1 className="font-display text-4xl">Stations</h1>
           <p className="text-sm text-muted-foreground">
-            Capacity and preparation time are stored for the later kitchen estimate. This page does
-            not schedule the queue.
+            Capacity changes apply to new task starts and the readiness estimate. Tasks already
+            cooking keep their station until staff finish them.
           </p>
           <StationDesk />
         </main>
