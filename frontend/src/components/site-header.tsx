@@ -62,14 +62,14 @@ export function SiteHeader() {
           <BowlMark />
           BowlByte
         </Link>
-        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
           {links}
         </nav>
         {me.data?.role === "STUDENT" ? <NotificationBell /> : null}
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden min-w-0 items-center gap-2 lg:flex">
           {me.data ? (
             <>
-              <span className="text-sm">
+              <span className="max-w-48 truncate text-sm">
                 {me.data.full_name}
                 <span className="text-muted-foreground"> · {roleLabel(me.data.role)}</span>
               </span>
@@ -83,7 +83,7 @@ export function SiteHeader() {
             </Link>
           )}
         </div>
-        <details className="relative md:hidden">
+        <details className="relative lg:hidden">
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-full border border-border bg-card px-4 text-sm">
             Menu
           </summary>

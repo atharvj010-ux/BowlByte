@@ -380,6 +380,7 @@ def mark_ready(
 
 def kitchen_queue(db: Session, *, staff: User, limit: int) -> dict:
     canteen_id = kitchen_canteen_id(db, staff)
+
     def listed(*statuses: str) -> list[Order]:
         return list(
             db.scalars(

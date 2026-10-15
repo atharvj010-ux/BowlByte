@@ -1,8 +1,17 @@
+import sys
+
 from celery import Celery
 
 from app.core.config import get_settings
 
 settings = get_settings()
+if (
+    settings.environment == "production"
+    and "worker" in sys.argv
+    and "beat" not in sys.argv
+    and (not settings.vapid_private_key or settings.vapid_private_key.startswith("replace-with"))
+):
+    raise RuntimeError("VAPID_PRIVATE_KEY is required on the Celery worker in production.")
 
 celery_app = Celery(
     "bowlbyte",

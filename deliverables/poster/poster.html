@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BowlByte A1 poster source</title>
+  <style>
+    @page { size: A1 portrait; margin: 16mm; }
+    body { font-family: Georgia, serif; color: #1c2430; margin: 0; }
+    main { min-height: 100vh; padding: 24px; background: #f4efe6; }
+    h1 { font-size: 42px; margin-bottom: 0; }
+    h2 { font-size: 22px; color: #1d6b64; }
+    p, li { font-size: 16px; line-height: 1.35; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: white; border: 1px solid #d9d0c3; padding: 12px 16px; }
+    .warn { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p>BowlByte</p>
+    <h1>Intelligent canteen automation, smart queues, and food waste records</h1>
+    <p>Team: [not recorded] · Guide: [not recorded] · College: [not confirmed in the repository]</p>
+    <div class="grid">
+      <section class="card">
+        <h2>Problem</h2>
+        <p>Counters guess readiness, can promise the last portion twice, and rarely keep an audit of cash or discarded food.</p>
+      </section>
+      <section class="card">
+        <h2>Proposal</h2>
+        <p>Students order in the browser. The kitchen works by station. Cashiers record cash and scan a one-time QR. Managers record production, waste, and a forecast they must approve.</p>
+      </section>
+      <section class="card">
+        <h2>Architecture</h2>
+        <p>Next.js and FastAPI, PostgreSQL, Redis, Celery. The browser stays on one origin. Money and stock change only inside database transactions.</p>
+      </section>
+      <section class="card">
+        <h2>Modules</h2>
+        <ul>
+          <li>Accounts and canteen roles</li>
+          <li>Menu, reservation, kitchen ETA</li>
+          <li>Cash receipts and QR pickup</li>
+          <li>Unclaimed-order hold</li>
+          <li>Forecast and preparation advice</li>
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Evidence</h2>
+        <p>Automated tests cover ordering, cash races, and one-time pickup. On a seeded series, seasonal naive validation MAE was 2.143 and was kept over gradient boosting at 3.000.</p>
+      </section>
+      <section class="card">
+        <h2>Conclusion</h2>
+        <p>Ready for a local demonstration and a supervised counter if a roster is supplied. Not a public site. Phone notifications were not observed. No waste reduction is claimed.</p>
+      </section>
+    </div>
+    <p class="warn">A1 portrait PDF: BOWLBYTE_POSTER.pdf (page size about 1684 by 2385 points). Editable source is this HTML file. Edge's default print was letter size and was replaced.</p>
+  </main>
+</body>
+</html>

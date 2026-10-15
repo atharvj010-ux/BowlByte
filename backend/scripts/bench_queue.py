@@ -34,7 +34,8 @@ def main() -> None:
     db = SessionLocal()
     db.execute(
         text(
-            "TRUNCATE order_hold_events, preparation_tasks, order_idempotency_records, inventory_adjustments, "
+            "TRUNCATE order_hold_events, preparation_tasks, order_idempotency_records, "
+            "inventory_adjustments, "
             "order_payments, order_events, order_items, orders, daily_stock, "
             "menu_item_station_assignments, menu_items, kitchen_stations, menu_categories, "
             "audit_log, sessions, staff_invitations, email_verification_tokens, "
@@ -67,7 +68,8 @@ def main() -> None:
                     errors += 1
             elapsed = time.perf_counter() - started
             print(
-                f"count={count} seconds={elapsed:.3f} per_order_ms={elapsed / count * 1000:.1f} errors={errors}",
+                f"count={count} seconds={elapsed:.3f} "
+                f"per_order_ms={elapsed / count * 1000:.1f} errors={errors}",
                 flush=True,
             )
 

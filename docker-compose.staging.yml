@@ -1,38 +1,190 @@
-# Staging overlay. Use with the base file:
-#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+# Isolated BowlByte staging. Do not combine this file with docker-compose.yml.
+# That combination can merge the development project. This file is a separate project:
 #
-# This does not publish PostgreSQL, Redis, or Mailpit. It does not create a
-# public DNS name. Caddy uses an internal certificate until a real hostname
-# and certificate are configured in deploy/Caddyfile.
+#   docker compose --env-file deploy/staging.env.example -f docker-compose.staging.yml config
+#
+# Do not start it with the development .env. It uses its own volumes and does not
+# publish PostgreSQL, Redis, or Mailpit. It was not started in P008 because no
+# public hostname or production secrets were supplied.
+
+name: bowlbyte-staging
+
+x-push-env: &push-env
+  PICKUP_HASH_KEY: ${PICKUP_HASH_KEY:?set PICKUP_HASH_KEY}
+  PICKUP_CREDENTIAL_TTL_SECONDS: ${PICKUP_CREDENTIAL_TTL_SECONDS:-600}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:?set VAPID_PUBLIC_KEY}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:?set VAPID_SUBJECT}
+  PUSH_ENCRYPTION_KEY: ${PUSH_ENCRYPTION_KEY:?set PUSH_ENCRYPTION_KEY}
+  PUSH_ALLOW_TEST_ENDPOINTS: "false"
+  PUSH_MAX_ATTEMPTS: ${PUSH_MAX_ATTEMPTS:-5}
+  PUSH_BACKOFF_BASE_SECONDS: ${PUSH_BACKOFF_BASE_SECONDS:-30}
+  NOTIFICATION_BEAT_SECONDS: ${NOTIFICATION_BEAT_SECONDS:-15}
 
 services:
   postgres:
-    ports: !reset []
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-bowlbyte}
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - staging
+
   redis:
-    ports: !reset []
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - staging_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - staging
+
   mailpit:
-    ports: !reset []
+    image: axllent/mailpit:v1.27
+    networks:
+      - staging
+
   backend:
+    build:
+      context: ./backend
     environment:
       ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bowlbyte}
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: ${PUBLIC_APP_URL:?set PUBLIC_APP_URL}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
       COOKIE_SECURE: "true"
       TRUST_PROXY: "true"
-  frontend:
+      COLLEGE_ELIGIBILITY_MODE: ${COLLEGE_ELIGIBILITY_MODE:-roster}
+      COLLEGE_NAME: ${COLLEGE_NAME:-Pilot College}
+      COLLEGE_SLUG: ${COLLEGE_SLUG:-pilot}
+      COLLEGE_EMAIL_DOMAIN: ${COLLEGE_EMAIL_DOMAIN:-}
+      CANTEEN_NAME: ${CANTEEN_NAME:-Pilot Canteen}
+      CANTEEN_SLUG: ${CANTEEN_SLUG:-pilot}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-BowlByte <noreply@bowlbyte.local>}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
+      PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:?set PROXY_SHARED_SECRET}
+      <<: *push-env
+    volumes:
+      - staging_forecast_artifacts:/app/var/forecast_artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    networks:
+      - staging
+
+  worker:
+    build:
+      context: ./backend
+    command:
+      ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
     environment:
-      TRUST_PROXY: "true"
+      ENVIRONMENT: production
+      BOWLBYTE_PROCESS: worker
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bowlbyte}
+      REDIS_URL: redis://redis:6379/0
+      <<: *push-env
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?set VAPID_PRIVATE_KEY}
+    volumes:
+      - staging_forecast_artifacts:/app/var/forecast_artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - staging
+
+  beat:
+    build:
+      context: ./backend
+    command:
+      [
+        "celery",
+        "-A",
+        "app.worker.celery_app",
+        "beat",
+        "--loglevel=INFO",
+        "--schedule=/tmp/celerybeat-schedule",
+      ]
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bowlbyte}
+      REDIS_URL: redis://redis:6379/0
+      <<: *push-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - staging
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_APP_URL}
+        NEXT_PUBLIC_COOKIE_SECURE: "true"
+    environment:
+      API_INTERNAL_URL: http://backend:8000
       COOKIE_SECURE: "true"
-    ports: !reset []
+      NEXT_PUBLIC_COOKIE_SECURE: "true"
+      PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET}
+      TRUST_PROXY: "true"
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    depends_on:
+      - backend
+    networks:
+      - staging
+
   caddy:
     image: caddy:2.8-alpine
     ports:
-      - "127.0.0.1:8443:443"
+      - "127.0.0.1:${STAGING_HTTPS_PORT:-8443}:443"
+    environment:
+      BOWLBYTE_SITE_ADDRESS: ${BOWLBYTE_SITE_ADDRESS:-:443}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
+      - staging_caddy_data:/data
+      - staging_caddy_config:/config
     depends_on:
       - frontend
     networks:
-      - bowlbyte
+      - staging
+
+networks:
+  staging:
+    name: bowlbyte-staging
 
 volumes:
-  caddy_data:
+  staging_postgres_data:
+    name: bowlbyte-staging-postgres
+  staging_redis_data:
+    name: bowlbyte-staging-redis
+  staging_forecast_artifacts:
+    name: bowlbyte-staging-forecasts
+  staging_caddy_data:
+    name: bowlbyte-staging-caddy
+  staging_caddy_config:
+    name: bowlbyte-staging-caddy-config

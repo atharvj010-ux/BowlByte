@@ -122,12 +122,26 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _production_guards(self) -> Self:
         if self.environment == "production":
+            if not self.cookie_secure:
+                raise ValueError("COOKIE_SECURE must be true in production.")
             if self.push_allow_test_endpoints:
                 raise ValueError("PUSH_ALLOW_TEST_ENDPOINTS must be false in production.")
+            if len(self.proxy_shared_secret) < 24 or self.proxy_shared_secret.startswith(
+                ("change-me", "replace-with")
+            ):
+                raise ValueError("Set a long PROXY_SHARED_SECRET in production.")
+            if self.pickup_hash_key.startswith(
+                "replace-with"
+            ) or self.push_encryption_key.startswith("replace-with"):
+                raise ValueError("Replace the staging placeholder keys before production.")
+            if ":bowlbyte@" in self.database_url:
+                raise ValueError("Replace the default database password in production.")
             if self.pickup_hash_key.startswith("dev-only") or self.push_encryption_key.startswith(
                 "dev-only"
             ):
                 raise ValueError("Set PICKUP_HASH_KEY and PUSH_ENCRYPTION_KEY in production.")
+            if not self.vapid_public_key or self.vapid_public_key.startswith("replace-with"):
+                raise ValueError("Set VAPID_PUBLIC_KEY in production.")
         return self
 
     @property

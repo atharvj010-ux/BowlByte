@@ -1,7 +1,9 @@
+import pytest
+from pydantic import ValidationError
 from starlette.requests import Request
 
 from app.api.deps import client_key
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.security import hash_password, hash_secret, verify_password
 
 
@@ -97,3 +99,17 @@ def test_proxy_label_that_is_not_an_ip_is_ignored() -> None:
     )
 
     assert client_key(request) == "127.0.0.1"
+
+
+def test_production_rejects_development_defaults() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            environment="production",
+            cookie_secure=False,
+            proxy_shared_secret="change-me-proxy-secret",
+            database_url="postgresql+psycopg://bowlbyte:bowlbyte@postgres/bowlbyte",
+            pickup_hash_key="dev-only-pickup-hash-key-change-me",
+            push_encryption_key="dev-only-push-encryption-key-change-me",
+            vapid_public_key="",
+        )

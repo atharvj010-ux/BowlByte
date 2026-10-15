@@ -40,6 +40,12 @@ target-version = "py312"
 line-length = 100
 src = ["."]
 
+[tool.ruff.format]
+# Applied migration 0006 is frozen. Formatting it would change an already-applied file.
+# `ruff format --check alembic/versions/0006_food_intelligence.py` still fails.
+# Every other file stays in the formatter.
+exclude = ["alembic/versions/0006_food_intelligence.py"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 known-third-party = ["alembic"]
@@ -49,6 +55,9 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "app/api/**/*.py" = ["B008"]
+# Frozen applied migration. E501 remains if this ignore is removed.
+# `ruff format --check alembic/versions/0006_food_intelligence.py` still fails.
+"alembic/versions/0006_food_intelligence.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -77,7 +77,7 @@ export function MenuBoard() {
           />
         </label>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
         <Button type="button" variant={categoryId ? "outline" : "default"} onClick={() => setCategoryId("")}>
           All
         </Button>

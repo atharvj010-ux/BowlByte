@@ -1,0 +1,17 @@
+# Public hostname. Caddy obtains a publicly trusted certificate when this
+# host can answer ACME HTTP-01 or TLS-ALPN-01 on the internet.
+# Mount this file instead of deploy/Caddyfile. Do not use tls internal here.
+# Do not treat a successful local config check as a completed deployment.
+
+{$BOWLBYTE_SITE_ADDRESS} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "frame-ancestors 'none'"
+		-Server
+	}
+	reverse_proxy frontend:3000
+}

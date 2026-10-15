@@ -63,9 +63,9 @@ Implemented. Production batches, recorded waste, demand history, a seasonal-naiv
 
 Implemented. See `docs/P007_RELEASE_READINESS.md`. Pickup holds and manager review are in `docs/P007_UNCLAIMED_ORDERS.md`. The canteen-wide queue lock was measured and kept. Real-device push is still not tested. Cash shift close is still not built. The five high ESLint findings remain in development dependencies only.
 
-## P008
+## P008 — Deployment readiness and academic handover
 
-Not scheduled. Do not treat a later phase as a place to invent payment or forecast behaviour that P006 already defined.
+Implemented as documentation, an isolated staging Compose project, and production startup checks. See `docs/P008_HANDOVER.md`. No public website was deployed. Phone push remains NOT TESTED. Academic binaries that could not be generated are marked in `docs/P008_FINAL_TEST_RESULTS.md`.
 
 ## Test commands
 

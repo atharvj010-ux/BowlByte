@@ -31,12 +31,15 @@ export const releaseNotes = {
     "Menu, daily portions, and cash-pending orders",
     "Kitchen queue, preparation tracking, and approximate readiness estimates",
     "Cash confirmation, one-time QR pickup, and in-app notifications",
-    "Web Push notifications for installed or enabled browsers",
+    "Web Push delivery to a browser push service when the site is on HTTPS",
+    "Unclaimed-order holds and a manager review or extension",
+    "Production and waste records, plus a manager-approved demand forecast",
     "API liveness and readiness checks against PostgreSQL and Redis",
   ],
   unavailable: [
     "Online payments of any kind",
-    "Demand forecasting",
+    "A public HTTPS site and observed phone notifications",
+    "A measured reduction in food waste",
   ],
 } as const;
 
