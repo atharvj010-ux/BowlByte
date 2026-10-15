@@ -46,7 +46,7 @@ Short answers are the first sentence. The rest is the detail an examiner can ask
 
 22. **How are roles separated?** Students see their own orders. Cashiers record cash for their canteen. Kitchen staff move preparation. Only a manager reverses cash or approves a plan. The check is on the API, not only on the page.
 
-23. **How does the proxy rate limit work?** The Next.js server strips client `x-bowlbyte-*` headers and sets a client IP only with a shared secret. The API ignores `X-Forwarded-For` unless that secret matches. Locally the label is `0.0.0.0` because the route handler cannot see the TCP peer. Per-email limits still apply.
+23. **How does the proxy rate limit work?** The Next.js server strips client `x-bowlbyte-*` headers. When `TRUST_PROXY` is set it reads the rightmost `X-Forwarded-For` hop; otherwise it sends `0.0.0.0`. The API accepts `x-bowlbyte-client` only when `x-bowlbyte-proxy` matches the shared secret and the value is an IP. The API does not read `X-Forwarded-For`. Locally the label is `0.0.0.0` because the route handler cannot see the TCP peer. Per-email limits still apply.
 
 24. **What is UNCLAIMED?** A ready order past the canteen hold. Payment and stock stay as they were. The old QR fails. A manager can extend the hold, which requires a new QR.
 
@@ -56,7 +56,7 @@ Short answers are the first sentence. The rest is the detail an examiner can ask
 
 27. **Where do images and models live?** Menu images are bytes in PostgreSQL. Forecast artifacts are files under the artifact directory, checked by path and SHA-256. Staging mounts that directory on a named volume.
 
-28. **How do you recover the database?** `pg_dump` from the BowlByte Postgres container and `pg_restore` into a new database. P007 restored a dump in about 2.4 seconds and then dropped the disposable database. The live database was not wiped.
+28. **How do you recover the database?** `pg_dump` from the BowlByte Postgres container and `pg_restore` into a new database. On 16 October 2026 that restore took 1728 ms and matched revision `0007_pickup_holds`. The disposable database was dropped. The live database was not wiped.
 
 29. **What would you do next?** A college hostname and certificate, a real roster, and one observed Android or iPhone notification. Not a new payment method.
 
