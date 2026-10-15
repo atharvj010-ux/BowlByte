@@ -24,6 +24,7 @@ export const counterOrderSchema = z.object({
 export const cashierBoardSchema = z.object({
   awaiting_payment: z.array(counterOrderSchema),
   awaiting_handover: z.array(counterOrderSchema),
+  overdue: z.array(counterOrderSchema).default([]),
   completed: z.array(counterOrderSchema),
   totals: z.object({
     awaiting_payment_paise: z.number().int(),

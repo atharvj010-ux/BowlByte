@@ -242,6 +242,12 @@ The earlier target names (`stations.concurrent_capacity`, `fulfillment_status`, 
 
 Lock order for the new transactions: order, then payment, then receipt or credential. Cash confirmation, reversal and redemption all follow it.
 
+## Pickup holds (`0007_pickup_holds`)
+
+`canteens.pickup_hold_minutes` defaults to 30 and must be between 5 and 180. When an order becomes READY, `orders.pickup_hold_until` is set from that policy. The 10-minute QR lifetime is a different column on `pickup_credentials` and is not this deadline.
+
+`UNCLAIMED` was already allowed by `ck_orders_status`. The sweep sets that status, `unclaimed_at`, and an `order_hold_events` row. It does not write cash, waste, or stock. A manager extension sets the status back to READY with a new deadline. An old QR still fails the READY check until a new credential is issued.
+
 ## Implemented food intelligence (`0006_food_intelligence`)
 
 Production batches are not `daily_stock`. Recording a batch does not change saleable stock. Online pickups are not added into the batch equation. Demo demand lives only in `demo_demand_days` and is not an order or a cash receipt.

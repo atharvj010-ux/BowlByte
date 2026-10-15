@@ -251,6 +251,12 @@ def to_observations(rows: list[dict]) -> list[Observation]:
     ]
 
 
+def _csv_cell(value: object) -> object:
+    if isinstance(value, str) and value[:1] in {"=", "+", "-", "@"}:
+        return "'" + value
+    return value
+
+
 def history_csv(rows: list[dict]) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -275,11 +281,11 @@ def history_csv(rows: list[dict]) -> str:
     for row in rows:
         writer.writerow(
             [
-                row["source"],
+                _csv_cell(row["source"]),
                 row["service_date"].isoformat(),
                 row["menu_item_id"],
-                row["item_name"],
-                row["quality"],
+                _csv_cell(row["item_name"]),
+                _csv_cell(row["quality"]),
                 row["observed_demand_qty"],
                 row["qty_ordered"],
                 row["qty_cancelled"],

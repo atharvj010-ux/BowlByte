@@ -45,6 +45,7 @@ export function KitchenDesk() {
       }
       return queueSchema.parse(await response.json());
     },
+    refetchInterval: 3000,
   });
 
   async function act(path: string, body?: unknown) {
@@ -57,7 +58,8 @@ export function KitchenDesk() {
       setMessage(await readError(response));
       return;
     }
-    refresh();
+    await queryClient.invalidateQueries({ queryKey: ["kitchen-queue"] });
+    await queryClient.invalidateQueries({ queryKey: ["incoming-orders"] });
   }
 
   useEffect(() => {
@@ -86,6 +88,7 @@ export function KitchenDesk() {
   const waiting = orders.filter((order) => order.status === "QUEUED");
   const preparing = orders.filter((order) => order.status === "PREPARING");
   const ready = orders.filter((order) => order.status === "READY");
+  const unclaimed = orders.filter((order) => order.status === "UNCLAIMED");
 
   return (
     <div className="space-y-8">
@@ -159,6 +162,19 @@ export function KitchenDesk() {
             <p className="text-sm">READY · {order.payment.method} · {order.payment.status}</p>
           </article>
         ))}
+      </section>
+      <section className="space-y-3" aria-labelledby="unclaimed-heading">
+        <h2 id="unclaimed-heading" className="font-display text-3xl">Pickup hold ended</h2>
+        {unclaimed.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No ready orders are past their pickup hold.</p>
+        ) : (
+          unclaimed.map((order) => (
+            <article key={order.id} className="rounded-2xl border border-destructive/40 bg-card p-4" data-testid="unclaimed-order">
+              <h3 className="font-display text-2xl">{order.ticket_number}</h3>
+              <p className="text-sm">UNCLAIMED · prepared food stays recorded · a manager reviews collection</p>
+            </article>
+          ))
+        )}
       </section>
       <section className="space-y-3" aria-labelledby="station-heading">
         <h2 id="station-heading" className="font-display text-3xl">Station workload</h2>

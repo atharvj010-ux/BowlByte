@@ -151,7 +151,11 @@ Idempotency keys match `^[A-Za-z0-9_-]{8,80}$`. Error codes include `ORDER_NOT_R
 | GET | `/api/v1/admin/cash/summary` | `date_from`, `date_to`. Order value, gross cash, reversals, net cash, awaiting payment and pickup |
 | GET | `/api/v1/admin/cash/transactions` | Receipts with cashier and reversal. `limit`, `offset` |
 | POST | `/api/v1/admin/cash/{receipt_id}/reverse` | Body `{ "reason", "kind", "confirm": true, "idempotency_key" }`. READY and PAID orders only |
-| GET | `/api/v1/admin/push/metrics` | Delivery counts and latency |
+| GET | `/api/v1/admin/push/metrics` | Counts, oldest pending age, last push-service acceptance. No endpoints |
+| GET | `/api/v1/admin/orders/unclaimed` | READY orders whose pickup hold elapsed |
+| POST | `/api/v1/admin/orders/{id}/hold/extend` | Body `{ minutes, note }`. Returns the order to READY. Does not revive a QR |
+| POST | `/api/v1/admin/orders/{id}/hold/review` | Body `{ note }`. Audit only. No refund and no waste |
+| PUT | `/api/v1/admin/canteen/pickup-hold` | Body `{ minutes }` between 5 and 180 |
 
 ### Push and notifications (students)
 

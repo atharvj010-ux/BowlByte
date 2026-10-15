@@ -60,7 +60,7 @@ def reset_tables():
     db.execute(
         text(
             "TRUNCATE push_deliveries, notification_outbox, notifications, push_subscriptions, "
-            "pickup_events, pickup_credentials, cash_reversals, cash_receipts, "
+            "order_hold_events, pickup_events, pickup_credentials, cash_reversals, cash_receipts, "
             "preparation_tasks, order_idempotency_records, inventory_adjustments, "
             "order_payments, order_events, order_items, orders, daily_stock, "
             "menu_item_station_assignments, menu_items, kitchen_stations, menu_categories, "

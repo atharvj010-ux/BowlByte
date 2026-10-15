@@ -61,14 +61,7 @@ Implemented. Production batches, recorded waste, demand history, a seasonal-naiv
 
 ## P007 — Security and performance hardening
 
-Not started. Carry forward the open P005 items and the P006 limits in `docs/P006_KNOWN_LIMITATIONS.md`.
-
-- Real-device push validation on HTTPS staging
-- Hold window and `UNCLAIMED` for READY orders nobody collects
-- Cash shift close
-- Dead-letter alerting for failed push deliveries
-- The P004 canteen-wide queue lock
-- The five high ESLint development findings, without `npm audit fix --force`
+Implemented. See `docs/P007_RELEASE_READINESS.md`. Pickup holds and manager review are in `docs/P007_UNCLAIMED_ORDERS.md`. The canteen-wide queue lock was measured and kept. Real-device push is still not tested. Cash shift close is still not built. The five high ESLint findings remain in development dependencies only.
 
 ## P008
 

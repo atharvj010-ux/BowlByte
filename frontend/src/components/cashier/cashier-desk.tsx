@@ -342,6 +342,17 @@ export function CashierDesk() {
                 )}
               />
               <OrderList
+                id="overdue"
+                title="Pickup hold ended"
+                empty="No orders are past their pickup hold."
+                orders={data.overdue}
+                render={() => (
+                  <p className="text-sm text-muted-foreground">
+                    Do not hand this over with an old QR. A manager reviews it. Cash is not reversed automatically.
+                  </p>
+                )}
+              />
+              <OrderList
                 id="completed"
                 title="Picked up (last 24 hours)"
                 empty="No orders collected yet."

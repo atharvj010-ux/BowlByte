@@ -97,6 +97,66 @@ def enqueue_order_ready(db: Session, order: Order, now: datetime) -> UUID | None
     return notification_id
 
 
+def enqueue_student_notice(
+    db: Session,
+    order: Order,
+    now: datetime,
+    *,
+    kind: str,
+    title: str,
+    body: str,
+) -> UUID | None:
+    """One notice per order and kind. Does not commit and does not change payment."""
+
+    key = f"{kind}:{order.id}"
+    notification_id = db.scalar(
+        pg_insert(Notification)
+        .values(
+            id=uuid4(),
+            user_id=order.student_user_id,
+            order_id=order.id,
+            kind=kind,
+            title=title,
+            body=body[:300],
+            dedupe_key=key,
+            created_at=now,
+        )
+        .on_conflict_do_nothing(constraint="uq_notifications_user_dedupe")
+        .returning(Notification.id)
+    )
+    if notification_id is None:
+        return None
+    event_id = uuid4()
+    db.execute(
+        pg_insert(NotificationOutbox)
+        .values(
+            id=event_id,
+            event_key=key,
+            event_type=kind,
+            recipient_user_id=order.student_user_id,
+            order_id=order.id,
+            order_version=order.version,
+            notification_id=notification_id,
+            payload={
+                "v": 1,
+                "event_id": str(event_id),
+                "type": kind,
+                "order_id": str(order.id),
+                "tag": f"order-{order.id}",
+                "title": title,
+                "body": body[:300],
+                "url": f"/student/orders/{order.id}",
+            },
+            status="PENDING",
+            attempt_count=0,
+            next_attempt_at=now,
+            created_at=now,
+        )
+        .on_conflict_do_nothing(constraint="uq_notification_outbox_event")
+    )
+    return notification_id
+
+
 def after_ready_commit(order: Order) -> None:
     """Best-effort follow-ups after the READY commit. Failures never undo the transition."""
 

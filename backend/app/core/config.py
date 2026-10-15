@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     push_test_limit: int = 3
     push_test_window_seconds: int = 600
     notification_beat_seconds: int = 15
+    pickup_hold_default_minutes: int = 30
+    pickup_hold_warn_lead_minutes: int = 10
+    unclaimed_beat_seconds: int = 60
+    push_backlog_warn_events: int = 25
+    push_oldest_pending_warn_seconds: int = 300
 
     # P006 food intelligence. Dates for new records use this timezone.
     # Order service_date is still the UTC date stored by P003.

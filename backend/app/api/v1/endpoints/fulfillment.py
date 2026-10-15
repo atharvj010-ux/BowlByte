@@ -33,7 +33,7 @@ from app.schemas.fulfillment import (
     ReverseCashResponse,
     UnreadResponse,
 )
-from app.services import cash, notifications, pickup, push
+from app.services import cash, notifications, pickup, push, unclaimed
 from app.services.identity import Principal
 from app.services.push_delivery import outbox_metrics
 
@@ -364,3 +364,58 @@ def reverse_cash(
 @router.get("/admin/push/metrics")
 def push_metrics(_: Principal = Depends(_manager), db: Session = Depends(get_db)) -> dict:
     return outbox_metrics(db)
+
+
+@router.get("/admin/orders/unclaimed")
+def unclaimed_orders(
+    limit: int = Query(default=50, ge=1, le=100),
+    principal: Principal = Depends(_manager),
+    db: Session = Depends(get_db),
+) -> dict:
+    return {"orders": unclaimed.list_unclaimed(db, manager=principal.user, limit=limit)}
+
+
+@router.post("/admin/orders/{order_id}/hold/extend")
+def extend_pickup_hold(
+    order_id: UUID,
+    payload: dict,
+    principal: Principal = Depends(_manager_write),
+    db: Session = Depends(get_db),
+) -> dict:
+    minutes = int(payload.get("minutes", 30))
+    note = str(payload.get("note", ""))
+    return unclaimed.extend_hold(
+        db,
+        manager=principal.user,
+        order_id=order_id,
+        minutes=minutes,
+        note=note,
+        now=datetime.now(UTC),
+    )
+
+
+@router.post("/admin/orders/{order_id}/hold/review")
+def review_pickup_hold(
+    order_id: UUID,
+    payload: dict,
+    principal: Principal = Depends(_manager_write),
+    db: Session = Depends(get_db),
+) -> dict:
+    return unclaimed.review_hold(
+        db,
+        manager=principal.user,
+        order_id=order_id,
+        note=str(payload.get("note", "")),
+        now=datetime.now(UTC),
+    )
+
+
+@router.put("/admin/canteen/pickup-hold")
+def set_pickup_hold(
+    payload: dict,
+    principal: Principal = Depends(_manager_write),
+    db: Session = Depends(get_db),
+) -> dict:
+    return unclaimed.update_hold_policy(
+        db, manager=principal.user, minutes=int(payload.get("minutes", 30))
+    )

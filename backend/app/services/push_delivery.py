@@ -483,10 +483,41 @@ def outbox_metrics(db: Session) -> dict:
             func.avg(PushDelivery.attempt_count),
         ).where(PushDelivery.last_attempt_at.is_not(None))
     ).one()
+    settings = get_settings()
+    oldest = db.scalar(
+        select(func.min(NotificationOutbox.created_at)).where(
+            NotificationOutbox.status == "PENDING"
+        )
+    )
+    last_accepted = db.scalar(
+        select(func.max(PushDelivery.accepted_at)).where(PushDelivery.status == "ACCEPTED")
+    )
+    expired_subs = db.scalar(
+        select(func.count())
+        .select_from(PushSubscription)
+        .where(
+            PushSubscription.enabled.is_(False),
+            PushSubscription.disabled_reason.in_(("gone", "expired")),
+        )
+    )
+    permanent = int(by_status.get("REJECTED", 0)) + int(by_status.get("FAILED", 0))
+    pending_count = int(pending_events or 0)
+    oldest_age = int((utcnow() - oldest).total_seconds()) if oldest is not None else None
     return {
         "deliveries_by_status": {key: int(value) for key, value in by_status.items()},
-        "pending_events": int(pending_events or 0),
+        "pending_events": pending_count,
+        "retryable_failures": int(by_status.get("PENDING", 0)),
+        "permanent_failures": permanent,
+        "expired_subscriptions": int(expired_subs or 0),
+        "last_push_service_acceptance_at": last_accepted,
+        "oldest_pending_age_seconds": oldest_age,
+        "backlog_warning": pending_count >= settings.push_backlog_warn_events
+        or (oldest_age is not None and oldest_age >= settings.push_oldest_pending_warn_seconds),
         "avg_latency_ms": float(latency[0]) if latency[0] is not None else None,
         "max_latency_ms": int(latency[1]) if latency[1] is not None else None,
         "avg_attempts": float(latency[2]) if latency[2] is not None else None,
+        "note": (
+            "last_push_service_acceptance_at means the push service returned 2xx. "
+            "It does not mean a phone displayed the notification."
+        ),
     }

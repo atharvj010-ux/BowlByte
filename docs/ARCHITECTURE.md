@@ -117,7 +117,7 @@ OpenAPI is served at `/docs` outside production and disabled when `ENVIRONMENT=p
 
 PostgreSQL stores durable canteen state, including preparation tasks and readiness estimates. Redis Pub/Sub distributes live hints after commit. Losing a Pub/Sub message does not change an order. Clients refetch the row.
 
-Alembic revisions through `0006_food_intelligence` are applied by the API container on startup. `cash_receipts`, `cash_reversals` and `pickup_events` are append-only, enforced by a database trigger. Notifications are written in the same transaction as the READY change, and a worker delivers them afterwards, so a push failure cannot touch order or payment state. Forecast training is the Celery task `bowlbyte.train_forecast`. A forecast or a preparation plan does not write orders, payments, daily stock, or production batches.
+Alembic revisions through `0007_pickup_holds` are applied by the API container on startup. A Celery Beat task marks overdue READY orders `UNCLAIMED`. That task does not reverse cash or write waste. The browser never sets the login rate-limit address: the Next.js proxy strips `x-bowlbyte-*` and, when the shared secret matches, sends a canonical IP. `X-Forwarded-For` is ignored by the API. `cash_receipts`, `cash_reversals` and `pickup_events` are append-only, enforced by a database trigger. Notifications are written in the same transaction as the READY change, and a worker delivers them afterwards, so a push failure cannot touch order or payment state. Forecast training is the Celery task `bowlbyte.train_forecast`. A forecast or a preparation plan does not write orders, payments, daily stock, or production batches.
 
 ## Multi-canteen boundary
 

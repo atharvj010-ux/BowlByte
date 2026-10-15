@@ -164,6 +164,32 @@ def test_capacity_and_inactive_station_limit_the_plan() -> None:
     assert "should be cooked" in stopped[0].explanation
 
 
+def test_csv_export_neutralizes_formula_text() -> None:
+    from app.services.demand import history_csv
+
+    text = history_csv(
+        [
+            {
+                "source": "demo",
+                "service_date": date(2026, 10, 15),
+                "menu_item_id": "item",
+                "item_name": "=cmd()",
+                "quality": "COMPLETE",
+                "observed_demand_qty": 1,
+                "qty_ordered": 1,
+                "qty_cancelled": 0,
+                "qty_rejected": 0,
+                "qty_picked_up": None,
+                "qty_prepared": None,
+                "produced_qty": 1,
+                "discarded_qty": 0,
+                "cash_confirmed_paise": None,
+            }
+        ]
+    )
+    assert "'=cmd()" in text
+
+
 def test_untrusted_artifact_path_is_rejected(tmp_path) -> None:
     rogue = tmp_path / "model.joblib"
     rogue.write_bytes(b"not-a-model")

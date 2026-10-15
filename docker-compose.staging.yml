@@ -1,0 +1,38 @@
+# Staging overlay. Use with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# This does not publish PostgreSQL, Redis, or Mailpit. It does not create a
+# public DNS name. Caddy uses an internal certificate until a real hostname
+# and certificate are configured in deploy/Caddyfile.
+
+services:
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  mailpit:
+    ports: !reset []
+  backend:
+    environment:
+      ENVIRONMENT: production
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "true"
+  frontend:
+    environment:
+      TRUST_PROXY: "true"
+      COOKIE_SECURE: "true"
+    ports: !reset []
+  caddy:
+    image: caddy:2.8-alpine
+    ports:
+      - "127.0.0.1:8443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - frontend
+    networks:
+      - bowlbyte
+
+volumes:
+  caddy_data:

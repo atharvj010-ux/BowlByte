@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -53,7 +54,13 @@ class College(Base):
 
 class Canteen(Base):
     __tablename__ = "canteens"
-    __table_args__ = (Index("ix_canteens_college_id", "college_id"),)
+    __table_args__ = (
+        Index("ix_canteens_college_id", "college_id"),
+        CheckConstraint(
+            "pickup_hold_minutes >= 5 AND pickup_hold_minutes <= 180",
+            name="ck_canteens_pickup_hold",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     college_id: Mapped[uuid.UUID] = mapped_column(
@@ -63,6 +70,9 @@ class Canteen(Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     slug: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
+    pickup_hold_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=30, server_default="30"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

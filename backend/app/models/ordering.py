@@ -223,6 +223,7 @@ class Order(Base):
         CheckConstraint("note IS NULL OR char_length(note) <= 240", name="ck_orders_note"),
         Index("ix_orders_student_created", "student_user_id", "created_at"),
         Index("ix_orders_canteen_status_created", "canteen_id", "status", "created_at"),
+        Index("ix_orders_status_hold", "status", "pickup_hold_until"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -256,6 +257,9 @@ class Order(Base):
     eta_blocked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    pickup_hold_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unclaimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unclaimed_warned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -413,6 +417,35 @@ class OrderIdempotencyRecord(Base):
     order_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class OrderHoldEvent(Base):
+    """Audited pickup-hold decisions. Never a payment, waste, or stock record."""
+
+    __tablename__ = "order_hold_events"
+    __table_args__ = (
+        CheckConstraint(
+            "action in ('WARNED', 'UNCLAIMED', 'EXTENDED', 'REVIEWED')",
+            name="ck_order_hold_events_action",
+        ),
+        Index("ix_order_hold_events_order_id", "order_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
+    )
+    canteen_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("canteens.id"), nullable=False
+    )
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(240))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -26,7 +26,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const secret = process.env.PROXY_SHARED_SECRET;
   if (secret) {
     headers.set("x-bowlbyte-proxy", secret);
-    headers.set("x-bowlbyte-client", "web");
+    headers.set("x-bowlbyte-client", trustedClientAddress(request));
   }
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
@@ -54,6 +54,31 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     response.headers.append("set-cookie", cookie);
   }
   return response;
+}
+
+function isIp(value: string): boolean {
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) {
+    return value.split(".").every((part) => Number(part) <= 255);
+  }
+  return value.includes(":") && /^[0-9a-fA-F:]+$/.test(value);
+}
+
+function trustedClientAddress(request: NextRequest): string {
+  if (process.env.TRUST_PROXY === "true") {
+    const forwarded = request.headers.get("x-forwarded-for") ?? "";
+    const hops = forwarded
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const appended = hops.at(-1) ?? "";
+    if (isIp(appended)) {
+      return appended;
+    }
+  }
+  // Next.js 16 route handlers do not expose the TCP peer. Local Docker also
+  // NATs host browsers to one address. 0.0.0.0 is the shared fallback.
+  // Per-email login limits still apply. Staging sets TRUST_PROXY=true.
+  return "0.0.0.0";
 }
 
 export const GET = proxy;

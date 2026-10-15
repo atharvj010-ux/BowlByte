@@ -53,6 +53,7 @@ class CashierTotals(_Out):
 class CashierBoardResponse(_Out):
     awaiting_payment: list[CounterOrder]
     awaiting_handover: list[CounterOrder]
+    overdue: list[CounterOrder] = []
     completed: list[CounterOrder]
     totals: CashierTotals
 

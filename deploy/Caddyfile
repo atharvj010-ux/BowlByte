@@ -1,0 +1,19 @@
+# Local or staging TLS terminator for BowlByte.
+# The browser talks only to Caddy. Caddy talks to the Next.js frontend.
+# PostgreSQL, Redis, and Mailpit are not published by docker-compose.staging.yml.
+#
+# Replace the site address before a real deployment. `tls internal` is a local
+# certificate. A public pilot needs a real name and a certificate Caddy can obtain.
+
+:443 {
+	tls internal
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+	reverse_proxy frontend:3000
+}

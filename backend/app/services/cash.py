@@ -145,6 +145,15 @@ def confirm_cash(
         raise ApiError(
             code="CONFLICT", message="This order has already been collected.", status_code=409
         )
+    if order.status == "UNCLAIMED":
+        raise ApiError(
+            code="PICKUP_HOLD_EXPIRED",
+            message=(
+                "The pickup hold ended. Cash was not reversed. "
+                "A manager must review the order before collection."
+            ),
+            status_code=409,
+        )
     if order.status != "READY":
         raise ApiError(
             code="ORDER_NOT_READY",
@@ -369,6 +378,14 @@ def cashier_board(db: Session, *, cashier: User, limit: int) -> dict:
 
     awaiting_payment = ready_orders("PENDING")
     awaiting_handover = ready_orders("PAID")
+    overdue = list(
+        db.scalars(
+            select(Order)
+            .where(Order.canteen_id == canteen_id, Order.status == "UNCLAIMED")
+            .order_by(Order.unclaimed_at.asc().nulls_last(), Order.ticket_number)
+            .limit(limit)
+        )
+    )
     completed = list(
         db.scalars(
             select(Order)
@@ -404,6 +421,7 @@ def cashier_board(db: Session, *, cashier: User, limit: int) -> dict:
     return {
         "awaiting_payment": [order_payload(db, order) for order in awaiting_payment],
         "awaiting_handover": [order_payload(db, order) for order in awaiting_handover],
+        "overdue": [order_payload(db, order) for order in overdue],
         "completed": [order_payload(db, order) for order in completed],
         "totals": {
             "awaiting_payment_paise": int(pending_total or 0),

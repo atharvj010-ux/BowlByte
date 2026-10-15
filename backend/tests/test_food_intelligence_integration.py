@@ -34,7 +34,7 @@ def reset_tables() -> None:
     db = SessionLocal()
     db.execute(
         text(
-            "TRUNCATE preparation_tasks, order_idempotency_records, "
+            "TRUNCATE order_hold_events, preparation_tasks, order_idempotency_records, "
             "inventory_adjustments, order_payments, "
             "order_events, order_items, orders, daily_stock, menu_item_station_assignments, "
             "menu_items, kitchen_stations, menu_categories, "

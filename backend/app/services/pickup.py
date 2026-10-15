@@ -110,6 +110,15 @@ def issue_credential(db: Session, *, student: User, order_id: UUID, clock: Clock
         raise ApiError(
             code="CONFLICT", message="This order has already been collected.", status_code=409
         )
+    if order.status == "UNCLAIMED":
+        raise ApiError(
+            code="PICKUP_HOLD_EXPIRED",
+            message=(
+                "The pickup hold for this order has ended. "
+                "Ask the counter. A previous QR code cannot be used."
+            ),
+            status_code=409,
+        )
     if order.status != "READY":
         raise ApiError(
             code="ORDER_NOT_READY",
@@ -215,6 +224,8 @@ def pickup_status(db: Session, *, student: User, order_id: UUID, clock: Clock = 
     )
     if order.status == "PICKED_UP":
         state = "COLLECTED"
+    elif order.status == "UNCLAIMED":
+        state = "HOLD_EXPIRED"
     elif order.status != "READY":
         state = "NOT_READY"
     elif active is None:
@@ -432,6 +443,12 @@ def _credential_problem(
         return ("expired", 410, "This pickup code expired. Ask the student to refresh it.")
     if order.status == "PICKED_UP":
         return ("used", 409, "This order has already been collected.")
+    if order.status == "UNCLAIMED":
+        return (
+            "hold_expired",
+            409,
+            "The pickup hold ended. This QR cannot be used. A manager must review the order.",
+        )
     if order.status != "READY":
         return ("not_ready", 409, "This order is not ready for collection.")
     return None

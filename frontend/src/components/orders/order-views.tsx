@@ -224,6 +224,16 @@ function PaymentNotice({
       </div>
     );
   }
+  if (status === "UNCLAIMED") {
+    return (
+      <div className="rounded-2xl border border-destructive/40 bg-card p-4" data-testid="payment-notice" role="status">
+        <p className="font-medium">The pickup hold for this order has ended.</p>
+        <p className="text-sm text-muted-foreground">
+          Ask the counter. This is not a refund, and an old QR code cannot be used. A manager decides whether the food can still be handed over.
+        </p>
+      </div>
+    );
+  }
   if (status === "READY") {
     return (
       <div className="rounded-2xl border border-accent/60 bg-card p-4" data-testid="payment-notice" role="status">

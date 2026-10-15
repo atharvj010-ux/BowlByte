@@ -1,6 +1,6 @@
 # BowlByte
 
-BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Phase P005 adds cash recording by cashiers, one-time QR pickup credentials, a manager-only cash correction, in-app notifications, and Web Push through a database outbox. Phone delivery has **not** been tested on a real Android or iPhone device. Phase P006 adds production and waste records, demand history, a baseline forecast, a scikit-learn candidate, and preparation plans. Forecasts do not change orders, payments, or stock. There is no online payment.
+BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Phase P005 adds cash recording by cashiers, one-time QR pickup credentials, a manager-only cash correction, in-app notifications, and Web Push through a database outbox. Phone delivery has **not** been tested on a real Android or iPhone device. Phase P006 adds production and waste records, demand history, a baseline forecast, a scikit-learn candidate, and preparation plans. Phase P007 adds a canteen pickup hold for food that is ready and not collected, trusted proxy client labels for login limits, and operator push metrics. Forecasts do not change orders, payments, or stock. There is no online payment.
 
 ## Stack
 
@@ -182,6 +182,7 @@ npm run test:e2e
 | `docs/P006_PREPARATION_OPTIMIZATION.md` | Quantity rule and station minutes |
 | `docs/P006_TEST_RESULTS.md` | Commands that were run for P006 |
 | `docs/P006_KNOWN_LIMITATIONS.md` | What this phase does not do |
+| `docs/P007_RELEASE_READINESS.md` | Pilot decision and remaining blockers |
 
 ## Pilot limits
 

@@ -24,6 +24,7 @@ from app.services.eta import OrderEstimate, StationSlot, TaskWork, schedule
 from app.services.notifications import after_ready_commit, enqueue_order_ready
 from app.services.ordering import kitchen_canteen_id, manager_canteen_id
 from app.services.realtime import publish_kitchen_event
+from app.services.unclaimed import arm_pickup_hold
 
 Clock = Callable[[], datetime]
 ACTIVE = ("QUEUED", "PREPARING")
@@ -365,6 +366,7 @@ def mark_ready(
         )
     now = clock()
     order.ready_at = now
+    arm_pickup_hold(db, order, now)
     _transition(db, order, "READY", staff.id, "packed", now)
     _refresh(db, canteen_id, clock)
     # Same transaction as the READY transition: both commit or neither does.
@@ -378,14 +380,19 @@ def mark_ready(
 
 def kitchen_queue(db: Session, *, staff: User, limit: int) -> dict:
     canteen_id = kitchen_canteen_id(db, staff)
-    orders = list(
-        db.scalars(
-            select(Order)
-            .where(Order.canteen_id == canteen_id, Order.status.in_([*ACTIVE, "READY"]))
-            .order_by(Order.accepted_at.asc().nulls_last(), Order.created_at)
-            .limit(limit)
+    def listed(*statuses: str) -> list[Order]:
+        return list(
+            db.scalars(
+                select(Order)
+                .where(Order.canteen_id == canteen_id, Order.status.in_(statuses))
+                .order_by(Order.accepted_at.asc().nulls_last(), Order.created_at)
+                .limit(limit)
+            )
         )
-    )
+
+    # Ready and unclaimed orders have their own limit so they cannot push
+    # a ticket that still needs preparation off the board.
+    orders = [*listed(*ACTIVE), *listed("READY"), *listed("UNCLAIMED")]
     return {
         "orders": [_tracked(db, order, include_tasks=True) for order in orders],
         "stations": station_workload(db, canteen_id),
@@ -552,14 +559,6 @@ def _refresh(db: Session, canteen_id: UUID, clock: Clock) -> None:
     stations = list(
         db.scalars(select(KitchenStation).where(KitchenStation.canteen_id == canteen_id))
     )
-    tasks = list(
-        db.scalars(
-            select(PreparationTask).where(
-                PreparationTask.canteen_id == canteen_id,
-                PreparationTask.status.in_(("QUEUED", "IN_PROGRESS", "DONE")),
-            )
-        )
-    )
     orders = {
         order.id: order
         for order in db.scalars(
@@ -569,6 +568,23 @@ def _refresh(db: Session, canteen_id: UUID, clock: Clock) -> None:
             )
         )
     }
+    tasks = list(
+        db.scalars(
+            select(PreparationTask).where(
+                PreparationTask.canteen_id == canteen_id,
+                PreparationTask.status.in_(("QUEUED", "IN_PROGRESS")),
+            )
+        )
+    )
+    if orders:
+        tasks.extend(
+            db.scalars(
+                select(PreparationTask).where(
+                    PreparationTask.order_id.in_(list(orders)),
+                    PreparationTask.status == "DONE",
+                )
+            )
+        )
     work = []
     for task in tasks:
         order = orders.get(task.order_id)
@@ -780,6 +796,13 @@ def _release_reservations(
 
 
 def _lock_queue(db: Session, canteen_id: UUID) -> None:
+    """Lock open kitchen orders in id order before a mutation.
+
+    An advisory-lock replacement was measured on this machine and was slower
+    for 10 and 50 sequential accepts, so the row lock stays. SKIP LOCKED is
+    not used: it could skip a waiting ticket.
+    """
+
     db.scalars(
         select(Order)
         .where(
