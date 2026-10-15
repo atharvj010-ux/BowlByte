@@ -148,6 +148,7 @@ class PaymentResponse(_Strict):
     method: Literal["CASH"]
     status: Literal["PENDING", "PAID", "VOIDED"]
     amount_paise: int
+    paid_at: datetime | None = None
 
 
 class OrderResponse(_Strict):
@@ -158,6 +159,8 @@ class OrderResponse(_Strict):
     note: str | None
     created_at: datetime
     updated_at: datetime
+    ready_at: datetime | None = None
+    picked_up_at: datetime | None = None
     payment: PaymentResponse
     items: list[OrderItemResponse]
     canteen_id: UUID

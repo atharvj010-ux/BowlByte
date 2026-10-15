@@ -53,6 +53,7 @@ class TrackedOrderResponse(_Strict):
     eta_version: int
     eta_overdue: bool
     eta_blocked: bool
+    picked_up_at: datetime | None = None
     payment: PaymentResponse
     items: list[OrderItemResponse]
     tasks: list[TaskResponse]

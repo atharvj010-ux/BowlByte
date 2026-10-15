@@ -309,7 +309,12 @@ def test_order_rules_stock_snapshots_and_csrf(client: TestClient) -> None:
     assert placed.status_code == 201, placed.text
     body = placed.json()
     assert body["status"] == "PLACED"
-    assert body["payment"] == {"method": "CASH", "status": "PENDING", "amount_paise": 4000}
+    assert body["payment"] == {
+        "method": "CASH",
+        "status": "PENDING",
+        "amount_paise": 4000,
+        "paid_at": None,
+    }
     assert body["total_paise"] == 4000
     assert body["items"][0]["unit_price_paise"] == 4000
     assert isinstance(body["total_paise"], int)

@@ -120,41 +120,62 @@ Implemented in P004. Mutations require the kitchen role, the staff member's cant
 
 Changing a station's capacity or active flag recalculates estimates for that canteen. The response does not include a payment-status field the client can set.
 
-## Planned
+## Cash, pickup, and notifications
 
-These routes arrive with the phase that enforces their rules. Money fields are integers in paise.
+Implemented in P005. Every mutation needs a session of the right role and a CSRF token. Money fields are integers in paise. Responses for these paths are `private, no-store`. There is no `/checkout`, `/razorpay`, `/stripe`, `/upi`, or payment-intent route and none will be added.
 
-### Later fulfillment
-
-| Method | Path | Actor | Notes |
-| --- | --- | --- | --- |
-| POST | `/api/v1/orders/{order_id}/transitions` | Not used | P004 uses the kitchen routes above instead of one generic transition route |
-| POST | `/api/v1/orders/{order_id}/unclaimed` | Cashier, manager | READY to UNCLAIMED after the hold window |
-
-The transition route will be the fulfillment writer. It must refuse a target the state machine does not allow, including `PICKED_UP` while payment is not `PAID`.
-
-### Cash and pickup
-
-| Method | Path | Actor | Notes |
-| --- | --- | --- | --- |
-| POST | `/api/v1/orders/{order_id}/payments/cash` | Cashier, manager | PENDING to PAID after the amount matches |
-| POST | `/api/v1/orders/{order_id}/payments/void` | Manager | PAID to VOIDED with a reason |
-| POST | `/api/v1/orders/{order_id}/pickup` | Cashier, manager | READY and PAID, then PICKED_UP |
-
-There will be no `/checkout`, `/razorpay`, `/stripe`, `/upi`, or payment-intent route.
-
-The student order resource can show payment status. It does not accept a payment status in the request body.
-
-### Notifications and realtime
+### Cashier (role `CASHIER`, own canteen)
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `/api/v1/notifications` | In-app list for the current user |
-| POST | `/api/v1/push-subscriptions` | Store a real browser push subscription |
-| DELETE | `/api/v1/push-subscriptions/{id}` | Remove it |
-| WebSocket | `/api/v1/ws/kitchen` and `/api/v1/ws/orders/{id}` | Implemented. Payloads are id, version, and time. Push subscriptions are still later |
+| GET | `/api/v1/cashier/orders` | Board: READY and unpaid, paid and waiting, picked up in the last 24 hours, plus totals |
+| GET | `/api/v1/cashier/orders/{id}` | One order |
+| GET | `/api/v1/cashier/history` | The cashier's own receipts. `limit`, `offset` |
+| POST | `/api/v1/cashier/pickup/verify` | Body `{ "token": "..." }` or `{ "ticket_number": "B12", "code": "ABCD-EFGH-JKMN" }`. Read-only. Returns the order and `can_confirm_cash`, `can_complete_pickup` |
+| POST | `/api/v1/cashier/orders/{id}/confirm-cash` | Body `{ "amount_paise": 4000, "idempotency_key": "..." }`. READY only. Returns `receipt`, `order`, `replayed` |
+| POST | `/api/v1/cashier/orders/{id}/complete-pickup` | Body `{ "token" \| "code", "idempotency_key" }`. Needs READY, PAID and an unredeemed credential. Returns `order`, `replayed` |
 
-A notification row is `SENT` only after the push send or the in-app write succeeds. A worker exception stores `FAILED` and leaves the order alone.
+Idempotency keys match `^[A-Za-z0-9_-]{8,80}$`. Error codes include `ORDER_NOT_READY`, `ALREADY_PAID`, `AMOUNT_MISMATCH`, `NOT_FOUND`, `CONFLICT` and `429` on throttling.
+
+### Student
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/api/v1/orders/{id}/pickup-credential` | Owner, READY order. Returns the token, manual code and expiry once. Revokes any earlier credential |
+| GET | `/api/v1/orders/{id}/pickup-status` | State only (`NOT_READY`, `AVAILABLE`, `ACTIVE`, `EXPIRED`, `COLLECTED`). Never returns the secret |
+
+### Manager (role `CANTEEN_MANAGER`)
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/v1/admin/cash/summary` | `date_from`, `date_to`. Order value, gross cash, reversals, net cash, awaiting payment and pickup |
+| GET | `/api/v1/admin/cash/transactions` | Receipts with cashier and reversal. `limit`, `offset` |
+| POST | `/api/v1/admin/cash/{receipt_id}/reverse` | Body `{ "reason", "kind", "confirm": true, "idempotency_key" }`. READY and PAID orders only |
+| GET | `/api/v1/admin/push/metrics` | Delivery counts and latency |
+
+### Push and notifications (students)
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/v1/push/public-key` | `{ supported, public_key }` |
+| GET | `/api/v1/push/subscriptions` | The caller's devices, without endpoints or keys |
+| POST | `/api/v1/push/subscriptions` | Body `{ endpoint, keys: { p256dh, auth }, expiration_time, device_label }`. Validated and encrypted |
+| DELETE | `/api/v1/push/subscriptions` | Body `{ endpoint }` |
+| POST | `/api/v1/push/test` | Queues a test message. 3 per 10 minutes |
+| GET | `/api/v1/notifications` | In-app list with `unread_count` |
+| GET | `/api/v1/notifications/unread-count` | Count only |
+| POST | `/api/v1/notifications/read-all` | |
+| POST | `/api/v1/notifications/{id}/read` | |
+| WebSocket | `/api/v1/ws/cashier` | Cashier hints for the canteen |
+| WebSocket | `/api/v1/ws/notifications` | Hints for the signed-in user |
+
+The student order resource shows payment status, `paid_at` and `picked_up_at`. It does not accept a payment status in a request body. A push row is `ACCEPTED` only when the push service answered 200, 201 or 202. A worker error leaves the order alone.
+
+## Planned
+
+| Method | Path | Actor | Notes |
+| --- | --- | --- | --- |
+| POST | `/api/v1/orders/{order_id}/unclaimed` | Cashier, manager | READY to UNCLAIMED after the hold window |
 
 ### Analytics
 

@@ -1,5 +1,15 @@
 """Domain models registered with Alembic metadata."""
 
+from app.models.fulfillment import (
+    CashReceipt,
+    CashReversal,
+    Notification,
+    NotificationOutbox,
+    PickupCredential,
+    PickupEvent,
+    PushDelivery,
+    PushSubscription,
+)
 from app.models.identity import (
     AuditLog,
     Canteen,
@@ -30,6 +40,8 @@ from app.models.ordering import (
 __all__ = [
     "AuditLog",
     "Canteen",
+    "CashReceipt",
+    "CashReversal",
     "College",
     "DailyStock",
     "EmailVerificationToken",
@@ -38,12 +50,18 @@ __all__ = [
     "MenuCategory",
     "MenuItem",
     "MenuItemStationAssignment",
+    "Notification",
+    "NotificationOutbox",
     "Order",
     "OrderEvent",
     "OrderIdempotencyRecord",
     "OrderItem",
     "OrderPayment",
+    "PickupCredential",
+    "PickupEvent",
     "PreparationTask",
+    "PushDelivery",
+    "PushSubscription",
     "Session",
     "StaffInvitation",
     "StaffMembership",

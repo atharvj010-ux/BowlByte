@@ -12,7 +12,7 @@ export default function StaffPage() {
       {(user) => (
         <AccountHome
           user={user}
-          note="Accept tickets, prepare them at the station, and mark the order ready after packing. Cash collection is a later step."
+          note="Accept tickets, prepare them at the station, and mark the order ready after packing. The cashier records cash after the order is ready."
           extra={<KitchenDesk />}
         />
       )}

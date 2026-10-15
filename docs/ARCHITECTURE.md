@@ -10,15 +10,21 @@ flowchart LR
   subgraph host [Docker Compose network]
     Api[FastAPI modular monolith]
     Worker[Celery worker]
+    Beat[Celery beat]
     Db[(PostgreSQL 16)]
     Cache[(Redis)]
   end
+  Push[Browser push services]
   Web -->|HTTP /api/v1| Api
   Api --> Db
   Api --> Cache
+  Beat --> Cache
   Worker --> Cache
   Worker --> Db
+  Worker -->|Web Push, VAPID| Push
 ```
+
+Since P005 the worker sends Web Push from a PostgreSQL outbox, and beat schedules the drain every 15 seconds. Push services are outside the stack. See `P005_PUSH_ARCHITECTURE.md`.
 
 PostgreSQL and Redis publish ports on `127.0.0.1` only. They are not bound to every network interface. The API and web app are also bound to loopback in this development compose file.
 
@@ -45,9 +51,9 @@ The API is one deployable service with internal module boundaries.
 | `app/db` | Engine, session dependency, declarative base |
 | `app/models` | Identity tables plus menu, stock, orders, and payments |
 | `app/schemas` | Health, authentication, menu, and order models |
-| `app/services` | Readiness, registration, sessions, mail, rate limits, ordering |
-| `app/cli` | Manager bootstrap, roster import, and development menu seed |
-| `app/worker.py` | Celery application and `bowlbyte.worker_ping` |
+| `app/services` | Readiness, registration, sessions, mail, rate limits, ordering, kitchen, `cash`, `pickup`, `push`, `push_delivery`, `notifications` |
+| `app/cli` | Manager bootstrap, roster import, development menu seed, and `generate_vapid` |
+| `app/worker.py` | Celery application, `bowlbyte.worker_ping`, `bowlbyte.drain_outbox`, and the beat schedule |
 
 `bowlbyte.worker_ping` returns `ok` when a worker executes it. It does not send a notification or change an order.
 
@@ -61,10 +67,12 @@ Route handlers stay thin. When orders exist, a handler will authenticate the cal
 | Live process status | `/status` | Public |
 | Student registration and sign-in | `/student/register`, `/student/login`, `/student/verify-email` | Public |
 | Staff invitation | `/invite/accept` | Public. The token is the credential |
-| Student | `/student`, `/student/menu`, `/student/cart`, `/student/orders` | Student session, checked on the server and again by the API |
+| Student | `/student`, `/student/menu`, `/student/cart`, `/student/orders`, `/student/notifications`, `/student/profile` | Student session, checked on the server and again by the API |
 | Kitchen staff | `/staff`, `/staff/queue`, `/staff/login` | Kitchen session for the work pages |
-| Cashier | `/cashier`, `/cashier/login` | Cashier session for the work page |
-| Canteen manager | `/admin`, `/admin/staff`, `/admin/menu`, `/admin/login` | Manager session for the work pages |
+| Cashier | `/cashier`, `/cashier/history`, `/cashier/login` | Cashier session for the work pages |
+| Canteen manager | `/admin`, `/admin/staff`, `/admin/menu`, `/admin/cash`, `/admin/login` | Manager session for the work pages |
+
+`public/sw.js`, `public/manifest.webmanifest` and `public/offline.html` make the site installable and carry Web Push. The service worker caches only the offline page.
 
 The browser calls `/api/v1/*` on the web origin. A Next.js route handler forwards those requests to `API_INTERNAL_URL` and passes cookies through. `NEXT_PUBLIC_API_URL` is no longer the browser's API origin.
 
@@ -107,7 +115,7 @@ OpenAPI is served at `/docs` outside production and disabled when `ENVIRONMENT=p
 
 PostgreSQL stores durable canteen state, including preparation tasks and readiness estimates. Redis Pub/Sub distributes live hints after commit. Losing a Pub/Sub message does not change an order. Clients refetch the row.
 
-Alembic revisions through `0004_kitchen_queue` are applied by the API container on startup. The target notes in `DATABASE_DESIGN.md` still describe later pickup and notification tables that are not migrated.
+Alembic revisions through `0005_cash_pickup_notifications` are applied by the API container on startup. `cash_receipts`, `cash_reversals` and `pickup_events` are append-only, enforced by a database trigger. Notifications are written in the same transaction as the READY change, and a worker delivers them afterwards, so a push failure cannot touch order or payment state.
 
 ## Multi-canteen boundary
 
@@ -116,6 +124,6 @@ Every operational table in the target schema includes `canteen_id`. Staff author
 ## Explicit non-goals for the runtime
 
 - No payment provider container or SDK
-- No message that a push notification was delivered
+- No message that a push notification was displayed. The strongest claim is "accepted by the push service"
 - No forecast value
-- No QR token issuer
+- No QR payload that carries anything except an opaque one-time token

@@ -241,6 +241,10 @@ class Order(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    picked_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    picked_up_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
     eta_ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     eta_earliest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     eta_latest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -330,6 +334,8 @@ class OrderPayment(Base):
     method: Mapped[str] = mapped_column(String(16), nullable=False, default=CASH)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
     amount_paise: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paid_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -12,6 +12,7 @@ const links = [
   ["/admin/kitchen", "Kitchen"],
   ["/admin/stock", "Stock"],
   ["/admin/orders", "Orders"],
+  ["/admin/cash", "Cash"],
   ["/admin/staff", "Staff"],
 ] as const;
 
@@ -21,7 +22,7 @@ export default function AdminPage() {
       {(user) => (
         <AccountHome
           user={user}
-          note="Manage the menu, stations, and today's portions. Cash collection is not available yet."
+          note="Manage the menu, stations, and today's portions. Review cash recorded at the counter and correct mistakes."
           extra={
             <nav className="flex flex-wrap gap-3 text-sm" aria-label="Manager">
               {links.map(([href, label]) => (

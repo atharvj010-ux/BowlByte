@@ -21,6 +21,7 @@ from app.models.ordering import (
     PreparationTask,
 )
 from app.services.eta import OrderEstimate, StationSlot, TaskWork, schedule
+from app.services.notifications import after_ready_commit, enqueue_order_ready
 from app.services.ordering import kitchen_canteen_id, manager_canteen_id
 from app.services.realtime import publish_kitchen_event
 
@@ -366,9 +367,12 @@ def mark_ready(
     order.ready_at = now
     _transition(db, order, "READY", staff.id, "packed", now)
     _refresh(db, canteen_id, clock)
+    # Same transaction as the READY transition: both commit or neither does.
+    enqueue_order_ready(db, order, now)
     db.commit()
     db.refresh(order)
     _emit(order, "order.ready")
+    after_ready_commit(order)
     return _tracked(db, order, include_tasks=True)
 
 
@@ -682,7 +686,9 @@ def _tracked(db: Session, order: Order, *, include_tasks: bool) -> dict:
             "method": payment.method,
             "status": payment.status,
             "amount_paise": payment.amount_paise,
+            "paid_at": payment.paid_at,
         },
+        "picked_up_at": order.picked_up_at,
         "items": [
             {
                 "menu_item_id": line.menu_item_id,

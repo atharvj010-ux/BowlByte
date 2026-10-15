@@ -1,6 +1,6 @@
 # BowlByte
 
-BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Cash recording, QR pickup, notifications, and forecasting are not implemented.
+BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Phase P005 adds cash recording by cashiers, one-time QR pickup credentials, a manager-only cash correction, in-app notifications, and Web Push through a database outbox. Phone delivery has **not** been tested on a real Android or iPhone device. Online payments and forecasting are not implemented.
 
 ## Stack
 
@@ -24,10 +24,21 @@ docker compose up --build
 | API | http://127.0.0.1:8000 | FastAPI, including `/docs` in development |
 | PostgreSQL | `127.0.0.1:5432` | System of record. Loopback only |
 | Redis | `127.0.0.1:6379` | Celery broker. Not bound to a public interface |
-| Worker | no host port | Celery worker |
+| Worker | no host port | Celery worker. Sends Web Push |
+| Beat | no host port | Celery beat. Drains the notification outbox every 15 seconds |
 | Mailpit | http://127.0.0.1:8025 | Local mailbox UI. SMTP is on 127.0.0.1:1025 |
 
-The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. The web container proxies `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
+The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. `0005_cash_pickup_notifications` adds cash receipts and reversals, pickup credentials and events, push subscriptions, notifications, the outbox, and append-only protection for the ledgers. The web container proxies `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
+
+## Push keys
+
+Web Push needs VAPID keys. Generate them once and put the output in `.env`, which is gitignored:
+
+```powershell
+docker compose exec backend python -m app.cli.generate_vapid
+```
+
+The command prints the keys to the terminal only. Never commit them. The private key is passed only to the worker container, which signs and sends the pushes. Without keys the app still works and the profile page says phone notifications are not set up. Phones need HTTPS, so see `docs/P005_PWA_SETUP.md` and `docs/P005_REAL_DEVICE_TESTING.md` before expecting delivery.
 
 ## Development menu sample
 
@@ -155,6 +166,15 @@ npm run test:e2e
 | `docs/P004_INVENTORY_CONSUMPTION.md` | Reserved stock becomes consumed |
 | `docs/P004_TEST_RESULTS.md` | Commands that were run for P004 |
 | `docs/P004_KNOWN_LIMITATIONS.md` | What this phase does not do |
+| `docs/P005_CASH_PAYMENT.md` | Cash recording, audit, and manager correction |
+| `docs/P005_QR_SECURITY.md` | One-time pickup credentials |
+| `docs/P005_PUSH_ARCHITECTURE.md` | Outbox, worker, VAPID, SSRF controls |
+| `docs/P005_PWA_SETUP.md` | Manifest, service worker, install, permissions |
+| `docs/P005_NOTIFICATION_RELIABILITY.md` | Failure handling and what is guaranteed |
+| `docs/P005_SECURITY_TESTS.md` | Security and concurrency cases |
+| `docs/P005_REAL_DEVICE_TESTING.md` | Phone checklist. Status: NOT TESTED |
+| `docs/P005_TEST_RESULTS.md` | Commands that were run for P005 |
+| `docs/P005_KNOWN_LIMITATIONS.md` | What this phase does not do |
 
 ## Pilot limits
 
@@ -164,3 +184,6 @@ npm run test:e2e
 - An order may be prepared while payment is pending
 - An order cannot be marked picked up until payment is paid
 - Students cannot change payment status
+- Only cashiers record cash, and only for READY orders
+- A pickup code works once, expires after 10 minutes, and scanning it never marks an order paid
+- A push notification is a reminder. The order page is the truth

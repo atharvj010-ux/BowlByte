@@ -135,7 +135,7 @@ export function CartDesk() {
       </label>
       <p className="font-medium">Estimated total {formatInrFromPaise(total)}</p>
       <p className="text-sm text-muted-foreground">
-        Cash is collected at the counter later. This checkout stays unpaid.
+        You pay cash at the counter when the order is ready. This checkout is unpaid.
       </p>
       {error ? (
         <p role="alert" className="text-sm text-destructive">

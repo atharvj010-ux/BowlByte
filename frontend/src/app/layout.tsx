@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Outfit } from "next/font/google";
 
 import { Providers } from "@/components/providers";
+import { PwaRuntime } from "@/components/pwa/pwa-runtime";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -24,6 +25,22 @@ export const metadata: Metadata = {
   },
   description:
     "Foundation for a college canteen: counter pickup, kitchen queues, and cash payments.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "BowlByte",
+  appleWebApp: { capable: true, title: "BowlByte", statusBarStyle: "default" },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1d6b64",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -37,6 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           >
             Skip to content
           </a>
+          <PwaRuntime />
           <SiteHeader />
           <div id="content" className="flex-1">
             {children}

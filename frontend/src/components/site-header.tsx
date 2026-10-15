@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { apiFetch, fetchCurrentUser, roleLabel } from "@/lib/auth";
 import { roles } from "@/lib/content";
+import { releaseDeviceForLogout } from "@/lib/push";
 
 function BowlMark() {
   return (
@@ -27,6 +29,10 @@ export function SiteHeader() {
   const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
 
   async function logout() {
+    if (me.data?.role === "STUDENT") {
+      // Stop pushes to this device before the session ends, so the next person gets nothing.
+      await releaseDeviceForLogout();
+    }
     await apiFetch("/api/v1/auth/logout", { method: "POST" });
     queryClient.clear();
     router.push("/");
@@ -59,6 +65,7 @@ export function SiteHeader() {
         <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
           {links}
         </nav>
+        {me.data?.role === "STUDENT" ? <NotificationBell /> : null}
         <div className="hidden items-center gap-2 md:flex">
           {me.data ? (
             <>

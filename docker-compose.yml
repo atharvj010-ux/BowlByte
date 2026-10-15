@@ -1,5 +1,16 @@
 name: bowlbyte
 
+x-push-env: &push-env
+  PICKUP_HASH_KEY: ${PICKUP_HASH_KEY:-dev-only-pickup-hash-key-change-me}
+  PICKUP_CREDENTIAL_TTL_SECONDS: ${PICKUP_CREDENTIAL_TTL_SECONDS:-600}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@bowlbyte.local}
+  PUSH_ENCRYPTION_KEY: ${PUSH_ENCRYPTION_KEY:-dev-only-push-encryption-key-change-me}
+  PUSH_ALLOW_TEST_ENDPOINTS: ${PUSH_ALLOW_TEST_ENDPOINTS:-false}
+  PUSH_MAX_ATTEMPTS: ${PUSH_MAX_ATTEMPTS:-5}
+  PUSH_BACKOFF_BASE_SECONDS: ${PUSH_BACKOFF_BASE_SECONDS:-30}
+  NOTIFICATION_BEAT_SECONDS: ${NOTIFICATION_BEAT_SECONDS:-15}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -59,6 +70,7 @@ services:
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
       PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:-}
+      <<: *push-env
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,6 +112,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-bowlbyte}:${POSTGRES_PASSWORD:-bowlbyte}@postgres:5432/${POSTGRES_DB:-bowlbyte}
       REDIS_URL: redis://redis:6379/0
+      <<: *push-env
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,6 +131,30 @@ services:
       timeout: 5s
       retries: 10
       start_period: 25s
+    networks:
+      - bowlbyte
+
+  beat:
+    build:
+      context: ./backend
+    command:
+      [
+        "celery",
+        "-A",
+        "app.worker.celery_app",
+        "beat",
+        "--loglevel=INFO",
+        "--schedule=/tmp/celerybeat-schedule",
+      ]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-bowlbyte}:${POSTGRES_PASSWORD:-bowlbyte}@postgres:5432/${POSTGRES_DB:-bowlbyte}
+      REDIS_URL: redis://redis:6379/0
+      <<: *push-env
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - bowlbyte
 

@@ -1,0 +1,22 @@
+# P005 known limitations
+
+- **Real-device push is NOT TESTED.** No Android phone or iPhone was available. Browser tests use a stand-in push manager and the backend simulator. "Accepted" means the push service took a message, not that a phone showed it. See `P005_REAL_DEVICE_TESTING.md`.
+- **Real push service acceptance latency was not measured.** The measured acceptance figures use the simulator.
+- **HTTPS is required** for push and service workers outside `localhost`. The pilot needs a certificate. Staging with a real host is a prerequisite for the device checklist.
+- **iPhone** receives Web Push only for a Home Screen web app on iOS 16.4 or later.
+- **DNS rebinding** between the endpoint check and the connection is a residual risk. It is reduced by the host allowlist, no redirects, no proxy environment and a private-address check.
+- **No refund after handover.** A manager can reverse a cash entry only while the order is READY and PAID. After PICKED_UP the API says so.
+- **Cash is what cashiers recorded.** It is not a till count or a bank reconciliation, and the pages say so. There is no shift close, float or cash-up report.
+- **The manager cannot record cash or hand over an order.** Only cashiers can. This is stricter than the earlier design note that allowed managers.
+- **Cashier and manager dates use one canteen timezone** stated on the page. Multi-timezone canteens are not supported.
+- **One live session per account.** A second sign-in revokes the first, so a shared cashier login cannot be used at two counters. Use one account per cashier.
+- **QR screenshots.** A screenshot of a live code works until it expires (10 minutes) or is redeemed.
+- **Camera scanning** depends on the phone or webcam, light and a secure context. The manual code is the fallback and is tested. A fake-camera scan test was not run.
+- **No offline ordering.** The service worker only shows an offline page.
+- **Duplicate notifications** are possible if a worker crashes between sending and recording. They share a tag so phones replace them.
+- **No dead-letter alerting.** Failed deliveries are visible in the metrics endpoint only.
+- **Test icons.** The PWA icons are generated placeholders.
+- **`alembic check` fails with index drift that predates P005.** The database has six indexes the models do not declare (`ix_audit_log_actor_user_id`, `ix_audit_log_canteen_id`, `ix_canteens_college_id`, `ix_staff_invitations_canteen_id`, `ix_staff_memberships_canteen_id`, `ix_users_college_id`), all from the P002 migration. No P005 table is involved. It was not changed in P005.
+- **P004 queue scaling is unchanged.** The kitchen queue lock still makes 100 sequential place-and-accept calls take about 26 seconds in one process. P005 did not optimise it. See `P005_TEST_RESULTS.md`.
+- **`npm audit` still reports 5 high findings** through `eslint-config-next` and `braces`. The suggested fix downgrades Next.js tooling and breaks it. It was not applied.
+- **Out of scope by design:** online payments, forecasting, waste prediction, delivery, loyalty.

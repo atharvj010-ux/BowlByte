@@ -1,6 +1,6 @@
 # Roles and permissions
 
-Authorization is a server decision. A client cannot choose its role by sending a field, a header, or a hidden form value. P002 enforces the account, session, and staff rules below. Ordering and payment actions in the matrix are still future work.
+Authorization is a server decision. A client cannot choose its role by sending a field, a header, or a hidden form value. P002 enforces the account, session, and staff rules below. Ordering and kitchen actions are implemented. P005 implements cash recording, reversal and pickup, and it is stricter than the first design: managers cannot record cash or hand over an order, only cashiers can. Unclaimed handling is still future work.
 
 ## Accounts
 
@@ -31,9 +31,9 @@ Every staff assignment names one canteen. A kitchen employee, cashier, or manage
 | Accept, queue, prepare, mark READY | No | Yes | No | Yes |
 | Reject before preparation | No | Yes | No | Yes |
 | Cancel within the state rules | Own order, early states only | Queued orders | No | Yes, including the manager-only cases |
-| Record cash as PAID | No | No | Yes | Yes |
-| Void or correct a payment | No | No | No | Yes |
-| Mark PICKED_UP | No | No | Yes, only if PAID and READY | Yes, only if PAID and READY |
+| Record cash as PAID (P005: READY orders only) | No | No | Yes | No |
+| Reverse a cash entry before pickup (P005) | No | No | No | Yes |
+| Mark PICKED_UP (P005: also needs a one-time credential) | No | No | Yes, only if PAID and READY | No |
 | Mark UNCLAIMED after the hold window | No | No | Yes | Yes |
 | Read canteen analytics | No | No | No | Yes |
 

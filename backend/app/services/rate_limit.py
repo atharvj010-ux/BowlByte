@@ -9,6 +9,8 @@ from app.core.security import hash_secret
 
 logger = logging.getLogger(__name__)
 
+SIGN_IN_UNAVAILABLE = "Sign-in is temporarily unavailable."
+
 
 def _client() -> Redis:
     return Redis.from_url(get_settings().redis_url, socket_connect_timeout=2, socket_timeout=2)
@@ -18,14 +20,20 @@ def _key(bucket: str, value: str) -> str:
     return f"bowlbyte:rl:{bucket}:{hash_secret(value)}"
 
 
-def assert_allowance(*, bucket: str, value: str, limit: int) -> None:
+def assert_allowance(
+    *,
+    bucket: str,
+    value: str,
+    limit: int,
+    unavailable_message: str = SIGN_IN_UNAVAILABLE,
+) -> None:
     try:
         current = _client().get(_key(bucket, value))
     except RedisError as exc:
         logger.warning("rate limit store unavailable: %s", type(exc).__name__)
         raise ApiError(
             code="RATE_LIMIT_UNAVAILABLE",
-            message="Sign-in is temporarily unavailable.",
+            message=unavailable_message,
             status_code=503,
         ) from exc
     if current is not None and int(current) >= limit:
@@ -36,7 +44,13 @@ def assert_allowance(*, bucket: str, value: str, limit: int) -> None:
         )
 
 
-def record_attempt(*, bucket: str, value: str, window_seconds: int) -> None:
+def record_attempt(
+    *,
+    bucket: str,
+    value: str,
+    window_seconds: int,
+    unavailable_message: str = SIGN_IN_UNAVAILABLE,
+) -> None:
     try:
         client = _client()
         key = _key(bucket, value)
@@ -47,7 +61,7 @@ def record_attempt(*, bucket: str, value: str, window_seconds: int) -> None:
         logger.warning("rate limit store unavailable: %s", type(exc).__name__)
         raise ApiError(
             code="RATE_LIMIT_UNAVAILABLE",
-            message="Sign-in is temporarily unavailable.",
+            message=unavailable_message,
             status_code=503,
         ) from exc
 

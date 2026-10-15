@@ -6,6 +6,7 @@ const payment = z.object({
   method: z.literal("CASH"),
   status: z.enum(["PENDING", "PAID", "VOIDED"]),
   amount_paise: z.number().int(),
+  paid_at: z.string().nullable().optional(),
 });
 
 export const taskSchema = z.object({
@@ -42,6 +43,7 @@ export const trackedOrderSchema = z.object({
   eta_version: z.number().int(),
   eta_overdue: z.boolean(),
   eta_blocked: z.boolean(),
+  picked_up_at: z.string().nullable().optional(),
   payment,
   items: z.array(orderItemSchema),
   tasks: z.array(taskSchema),

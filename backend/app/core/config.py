@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EligibilityMode = Literal["disabled", "institutional_domain", "roster"]
@@ -65,6 +65,51 @@ class Settings(BaseSettings):
     kitchen_overdue_remainder_seconds: int = 60
     kitchen_max_tasks_per_order: int = 40
 
+    # P005: cash, pickup credentials, and notifications.
+    pickup_hash_key: str = "dev-only-pickup-hash-key-change-me"
+    pickup_credential_ttl_seconds: int = 600
+    pickup_issue_limit: int = 6
+    pickup_issue_window_seconds: int = 600
+    pickup_verify_failure_limit: int = 10
+    pickup_ticket_failure_limit: int = 5
+    pickup_failure_window_seconds: int = 900
+
+    # Web Push. The private key is read from the environment only.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@bowlbyte.local"
+    push_encryption_key: str = "dev-only-push-encryption-key-change-me"
+    push_allowed_hosts: str = (
+        "fcm.googleapis.com,updates.push.services.mozilla.com,"
+        "*.push.services.mozilla.com,*.notify.windows.com,"
+        "web.push.apple.com,*.push.apple.com"
+    )
+    # Non-production only. Lets controlled tests use the simulator host below.
+    push_allow_test_endpoints: bool = False
+    push_test_endpoint_enabled: bool = True
+    push_max_subscriptions_per_user: int = 10
+    push_max_attempts: int = 5
+    push_backoff_base_seconds: int = 30
+    push_backoff_max_seconds: int = 3600
+    push_timeout_seconds: float = 8.0
+    push_ttl_seconds: int = 1800
+    push_event_max_age_seconds: int = 1800
+    push_claim_seconds: int = 90
+    push_test_limit: int = 3
+    push_test_window_seconds: int = 600
+    notification_beat_seconds: int = 15
+
+    @model_validator(mode="after")
+    def _production_guards(self) -> Self:
+        if self.environment == "production":
+            if self.push_allow_test_endpoints:
+                raise ValueError("PUSH_ALLOW_TEST_ENDPOINTS must be false in production.")
+            if self.pickup_hash_key.startswith("dev-only") or self.push_encryption_key.startswith(
+                "dev-only"
+            ):
+                raise ValueError("Set PICKUP_HASH_KEY and PUSH_ENCRYPTION_KEY in production.")
+        return self
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
@@ -76,6 +121,19 @@ class Settings(BaseSettings):
         if public:
             origins.add(public)
         return origins
+
+    @property
+    def push_host_patterns(self) -> list[str]:
+        return [item.strip().lower() for item in self.push_allowed_hosts.split(",") if item.strip()]
+
+    @property
+    def push_configured(self) -> bool:
+        # The API only needs the public key. The private key lives in the worker alone.
+        return bool(self.vapid_public_key)
+
+    @property
+    def can_sign_push(self) -> bool:
+        return bool(self.vapid_public_key and self.vapid_private_key)
 
     @property
     def session_cookie_name(self) -> str:

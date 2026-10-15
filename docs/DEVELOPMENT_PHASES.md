@@ -41,22 +41,29 @@ Implemented. See `docs/P004_KITCHEN_ENGINE.md`, `docs/P004_ORDER_STATE_MACHINE.m
 - Reserved stock becomes consumed when a task starts
 - Station-aware ETA with an uncertainty range
 - WebSocket hints plus polling, with PostgreSQL as the record
-- No cash confirmation, QR pickup, or Web Push
+- No cash confirmation, QR pickup, or Web Push (these arrived in P005)
 
-## P005 — Cash receipt and pickup
+## P005 — Cash, QR pickup, and Web Push
 
-- Cashier receipt transaction
-- Separate pickup transaction that refuses PENDING and VOIDED payments
-- QR tokens stored as hashes
-- Manager void with a reason
+Implemented, with one open item: real Android and iPhone delivery is NOT TESTED. See `docs/P005_CASH_PAYMENT.md`, `docs/P005_QR_SECURITY.md`, `docs/P005_PUSH_ARCHITECTURE.md`, `docs/P005_PWA_SETUP.md`, `docs/P005_NOTIFICATION_RELIABILITY.md`, `docs/P005_SECURITY_TESTS.md`, `docs/P005_REAL_DEVICE_TESTING.md`, `docs/P005_TEST_RESULTS.md`, and `docs/P005_KNOWN_LIMITATIONS.md`.
+
+- Cashier receipt transaction with idempotency and numbered receipts
+- Separate pickup transaction that needs READY and PAID and a one-time credential
+- QR tokens and manual codes stored only as keyed hashes
+- Manager reversal with a reason, before pickup only, by appending a row
+- Cashier desk with camera scan and manual fallback, manager cash view
+- In-app notifications, a PWA manifest and service worker, VAPID Web Push through a Postgres outbox, Celery worker and beat
 - Tests that a student cannot change payment status and that READY plus PENDING cannot become PICKED_UP
 
-## P006 — Notifications
+## P006 — Operational hardening and unclaimed orders
 
-- In-app notification rows
-- VAPID Web Push with subscriptions created by the browser
-- Attempt status `PENDING`, `SENT`, and `FAILED` based on the real send result
-- No UI copy that says a push was delivered unless the attempt is `SENT`
+Proposed. See the P005 report for the reasoning.
+
+- Real-device push validation on HTTPS staging
+- Hold window and `UNCLAIMED` transition for READY orders nobody collects
+- Cash shift close and a till reconciliation report
+- Dead-letter alerting for failed push deliveries
+- Optimise the P004 canteen-wide queue lock before relying on large queues
 
 ## P007 — Waste, unclaimed orders, and manager analytics
 
@@ -91,6 +98,8 @@ pytest
 alembic upgrade head
 pytest -m integration
 ```
+
+Integration tests must point `DATABASE_URL` at the `bowlbyte_test` database. They truncate tables. The optional P005 latency report runs with `P005_PERF=1 pytest -o addopts="" -m integration -s tests/test_p005_performance.py`.
 
 `pytest` excludes the integration marker. The integration test calls the live readiness endpoint and fails if PostgreSQL or Redis is down. Export `DATABASE_URL` and `REDIS_URL` first. The Docker Compose defaults are in `.env.example`.
 

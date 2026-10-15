@@ -16,7 +16,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.4.0",
+        version="0.5.0",
         summary="Canteen operations API.",
         description=(
             "Authentication, menus, stock, cash-pending orders, kitchen "
@@ -59,6 +59,9 @@ def create_app() -> FastAPI:
             or path.startswith(f"{prefix}/menu")
             or path.startswith(f"{prefix}/admin")
             or path.startswith(f"{prefix}/staff")
+            or path.startswith(f"{prefix}/cashier")
+            or path.startswith(f"{prefix}/push")
+            or path.startswith(f"{prefix}/notifications")
             or path.endswith("/session")
         ):
             response.headers["Cache-Control"] = "private, no-store"

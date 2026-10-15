@@ -1,6 +1,6 @@
 # Database design
 
-PostgreSQL 16 is the system of record. Migration `0001_baseline` creates no tables. Migration `0002_identity` creates the identity tables. Migration `0003_menu_ordering` creates the menu, station, daily stock, order, payment, and idempotency tables. Forecast tables are still only a target.
+PostgreSQL 16 is the system of record. Migration `0001_baseline` creates no tables. Migration `0002_identity` creates the identity tables. Migration `0003_menu_ordering` creates the menu, station, daily stock, order, payment, and idempotency tables. Migration `0004_kitchen_queue` adds preparation tasks. Migration `0005_cash_pickup_notifications` adds cash, pickup and notification tables. Forecast tables are still only a target.
 
 Redis is not a system of record. It is the Celery broker. Later short-lived coordination may use it. Orders and payments are never stored only in Redis.
 
@@ -57,10 +57,10 @@ Idempotency keys for order placement will be unique per student. A retried place
 
 ## Safe QR pickup
 
-QR pickup is not implemented in P001. When it is added, the rules are:
+QR pickup is implemented in P005 (`0005_cash_pickup_notifications`, see `P005_QR_SECURITY.md`). The rules, with the P005 differences noted:
 
 - The token is at least 256 bits from a cryptographic random generator.
-- The database stores only a SHA-256 hash of the token. The raw token is returned once to the owning student.
+- The database stores only a hash of the token. P005 uses HMAC-SHA256 with a server key (`PICKUP_HASH_KEY`) rather than a bare SHA-256, and also stores a keyed hash of the manual fallback code. The raw token is returned once to the owning student.
 - The QR payload is the opaque token, or a URL that contains only that token. It does not contain the order number, the student name, the email address, or the price.
 - A token has an expiry and a consumed timestamp. Regenerating a token inserts a new hash and expires the previous row.
 - The pickup transaction locks the order and the payment, requires fulfillment `READY` and payment `PAID`, requires a cashier or manager of that canteen, checks that the hash matches an unconsumed unexpired token, then sets `PICKED_UP` and consumed time together.
@@ -222,6 +222,25 @@ Unique on `(user_id, canteen_id, role)` where `disabled_at` is null.
 `preparation_tasks` has a UUID primary key and foreign keys to `orders`, `order_items`, `canteens`, `kitchen_stations`, and `users` (`started_by`, `completed_by`). Unique `(order_item_id, unit_index)`. Status is `QUEUED`, `IN_PROGRESS`, `DONE`, or `CANCELLED`. Duration is 30–7200 seconds. Indexes cover `order_id`, `(kitchen_station_id, status)`, and `(canteen_id, status)`. Station name, item name, and expected duration are copied onto the task.
 
 The earlier target names (`stations.concurrent_capacity`, `fulfillment_status`, `public_number`) are the design vocabulary. The migrated tables use `kitchen_stations.parallel_capacity`, `orders.status`, and `orders.ticket_number`.
+
+## Implemented cash, pickup, and notifications (`0005_cash_pickup_notifications`)
+
+`orders` gained `picked_up_at` and `picked_up_by`. `order_payments` gained `paid_at` and `paid_by`. (The migrated payment table is `order_payments`. The target name `payments` is design vocabulary.) A reversal clears `paid_at` and `paid_by` and returns the status to `PENDING`. The `VOIDED` status and the `voided_*` columns in the target design are not used.
+
+| Table | Purpose and key constraints |
+| --- | --- |
+| `cash_receipts` | One row per cash confirmation. `receipt_no` from `cash_receipt_no_seq` (unique, shown as `CR-000123`). Unique `(payment_id, attempt_no)` and `(payment_id, idempotency_key)`. `amount_paise >= 0`. Keeps cashier, `received_at`, ticket number. Append-only |
+| `cash_reversals` | One row per reversed receipt (unique `receipt_id`). `kind` is `CASH_RETURNED` or `ERRONEOUS_ENTRY`. `reason` is 5 to 300 characters. Keeps the manager and time. Append-only |
+| `pickup_credentials` | `token_hash` (unique) and `code_hash`, never the raw values. `expires_at > created_at`. Partial unique index `uq_pickup_credentials_one_active` allows one live credential per order. Records revocation and redemption (who, when, key) |
+| `pickup_events` | `ISSUED`, `VERIFIED`, `VERIFY_REJECTED`, `REDEEMED`, `REDEEM_REJECTED` and `REVOKED`, with actor and outcome. Append-only |
+| `push_subscriptions` | Unique `endpoint_hash`. Endpoint, `p256dh` and `auth` are Fernet-encrypted. `enabled`, `disabled_reason`, last status and failure count |
+| `notifications` | In-app messages. Unique `(user_id, dedupe_key)` so a retry cannot duplicate one |
+| `notification_outbox` | Written in the READY transaction. Unique `event_key` (`ORDER_READY:{order}:{version}`). Status `PENDING` or `DONE` plus a result. `next_attempt_at` and `locked_until` for claiming |
+| `push_deliveries` | One row per event and device (unique). Status `PENDING`, `ACCEPTED`, `REJECTED`, `GONE`, `FAILED` or `SKIPPED`. Attempts, response status, latency, error code, transport |
+
+`bowlbyte_forbid_ledger_change()` is a trigger function attached to `cash_receipts`, `cash_reversals` and `pickup_events`. It rejects `UPDATE` and `DELETE`. Foreign keys from the three ledger tables to orders, users and canteens use no cascade, so history cannot disappear with a parent. The push and notification tables (`push_subscriptions`, `notifications`, `notification_outbox`, `push_deliveries`) cascade from their user, subscription or outbox row, because they are delivery state rather than a financial record.
+
+Lock order for the new transactions: order, then payment, then receipt or credential. Cash confirmation, reversal and redemption all follow it.
 
 ## Migration policy
 

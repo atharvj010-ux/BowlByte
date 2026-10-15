@@ -4,7 +4,16 @@ BowlByte takes cash at the counter. There is no online payment.
 
 The repository must not add Razorpay, Stripe, a UPI gateway, a payment-link API, or a checkout SDK. A client must not be told that a payment succeeded unless a cashier or manager committed a `PAID` row after checking the cash.
 
-P001 does not implement this flow. No route records money.
+P005 implements this flow with the changes listed below. The detailed, current description is `P005_CASH_PAYMENT.md`. Where this document and that one disagree, the P005 document describes what the code does.
+
+## What P005 changed from this design
+
+- Cash can be recorded only when the order is `READY`, not earlier.
+- Only a cashier of the canteen records cash. Managers do not.
+- Every confirmation inserts a numbered, append-only `cash_receipts` row (`CR-000123`). Retries use an idempotency key.
+- A correction does not set `VOIDED`. A manager appends a `cash_reversals` row, the payment returns to `PENDING`, and the order can be paid again as a new attempt. `VOIDED` is not used.
+- A reversal is allowed only while the order is `READY` and `PAID`. After pickup it is refused.
+- Pickup also needs a one-time credential (QR or manual code).
 
 ## States
 

@@ -12,8 +12,9 @@ vi.mock("next/link", () => ({
 }));
 
 describe("foundation copy", () => {
-  it("keeps cash recording out of this release", () => {
-    expect(releaseNotes.unavailable).toContain("Cash recording, receipts, and QR pickup");
+  it("lists cash pickup as available and keeps online payments out of the release", () => {
+    expect(releaseNotes.available).toContain("Cash confirmation, one-time QR pickup, and in-app notifications");
+    expect(releaseNotes.unavailable).toContain("Online payments of any kind");
     expect(JSON.stringify(releaseNotes).toLowerCase()).not.toContain("razorpay");
     expect(JSON.stringify(releaseNotes).toLowerCase()).not.toContain("stripe");
   });

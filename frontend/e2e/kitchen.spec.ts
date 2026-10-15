@@ -106,7 +106,7 @@ test("two stations prepare independently and the order becomes ready", async ({ 
   await expect(page.getByTestId("order-status")).toContainText("READY", { timeout: 15_000 });
   await expect(page.getByTestId("order-status")).toContainText("PENDING");
   await expect(
-    page.getByText("Your food is ready. Please pay cash at the canteen counter when collecting your order."),
+    page.getByText(/Your order is ready\. Pay .* in cash at the counter\./),
   ).toBeVisible();
   await expect(kitchenPage.getByRole("button", { name: /paid|picked up/i })).toHaveCount(0);
   await kitchen.close();
@@ -515,7 +515,7 @@ function clearStaff() {
       "-v",
       "ON_ERROR_STOP=1",
       "-c",
-      "DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
+      "TRUNCATE push_deliveries, notification_outbox, notifications, pickup_events, pickup_credentials, cash_reversals, cash_receipts; DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
     ],
     { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
   );

@@ -10,10 +10,10 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.identity import KITCHEN_STAFF, STUDENT
+from app.models.identity import CASHIER, KITCHEN_STAFF, STUDENT
 from app.models.ordering import Order
 from app.services.identity import load_principal
-from app.services.ordering import kitchen_canteen_id
+from app.services.ordering import cashier_canteen_id, kitchen_canteen_id
 
 router = APIRouter(tags=["live"])
 
@@ -21,6 +21,16 @@ router = APIRouter(tags=["live"])
 @router.websocket("/ws/kitchen")
 async def kitchen_stream(websocket: WebSocket) -> None:
     await _stream(websocket, channel_for=_kitchen_channel)
+
+
+@router.websocket("/ws/cashier")
+async def cashier_stream(websocket: WebSocket) -> None:
+    await _stream(websocket, channel_for=_cashier_channel)
+
+
+@router.websocket("/ws/notifications")
+async def notification_stream(websocket: WebSocket) -> None:
+    await _stream(websocket, channel_for=_notification_channel)
 
 
 @router.websocket("/ws/orders/{order_id}")
@@ -85,6 +95,23 @@ def _kitchen_channel(principal) -> str | None:
     finally:
         db.close()
     return f"bowlbyte:canteen:{canteen_id}"
+
+
+def _cashier_channel(principal) -> str | None:
+    if principal.user.role != CASHIER or principal.user.status != "ACTIVE":
+        return None
+    db = SessionLocal()
+    try:
+        canteen_id = cashier_canteen_id(db, principal.user)
+    finally:
+        db.close()
+    return f"bowlbyte:canteen:{canteen_id}"
+
+
+def _notification_channel(principal) -> str | None:
+    if principal.user.role != STUDENT or principal.user.status != "ACTIVE":
+        return None
+    return f"bowlbyte:user:{principal.user.id}"
 
 
 def _order_channel(principal, order_id: UUID) -> str | None:

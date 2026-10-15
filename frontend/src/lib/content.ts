@@ -30,11 +30,12 @@ export const releaseNotes = {
     "Manager bootstrap and staff invitations",
     "Menu, daily portions, and cash-pending orders",
     "Kitchen queue, preparation tracking, and approximate readiness estimates",
+    "Cash confirmation, one-time QR pickup, and in-app notifications",
+    "Web Push notifications for installed or enabled browsers",
     "API liveness and readiness checks against PostgreSQL and Redis",
   ],
   unavailable: [
-    "Cash recording, receipts, and QR pickup",
-    "Web Push notifications",
+    "Online payments of any kind",
     "Demand forecasting",
   ],
 } as const;

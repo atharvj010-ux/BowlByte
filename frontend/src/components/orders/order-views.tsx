@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { PickupPass } from "@/components/orders/pickup-pass";
 import { Button } from "@/components/ui/button";
 import { apiFetch, readError } from "@/lib/auth";
 import { formatEta, trackedOrderSchema } from "@/lib/kitchen";
@@ -25,6 +26,8 @@ function labelStep(step: string) {
       return "Preparing";
     case "READY":
       return "Ready for collection";
+    case "PICKED_UP":
+      return "Collected";
     default:
       return step;
   }
@@ -71,7 +74,7 @@ export function OrderHistory() {
   );
 }
 
-const progress = ["PLACED", "ACCEPTED", "QUEUED", "PREPARING", "READY"] as const;
+const progress = ["PLACED", "ACCEPTED", "QUEUED", "PREPARING", "READY", "PICKED_UP"] as const;
 
 export function OrderDetail({ orderId }: { orderId: string }) {
   const queryClient = useQueryClient();
@@ -166,15 +169,14 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           </p>
         ))}
       {current.note ? <p className="text-sm">Note: {current.note}</p> : null}
-      {current.status === "READY" ? (
-        <p className="text-sm">
-          Your food is ready. Please pay cash at the canteen counter when collecting your order.
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Cash has not been collected. Payment stays pending until a later cashier step.
-        </p>
-      )}
+      <PaymentNotice
+        status={current.status}
+        paymentStatus={current.payment.status}
+        amountPaise={current.payment.amount_paise}
+        paidAt={current.payment.paid_at ?? null}
+        pickedUpAt={current.picked_up_at ?? null}
+      />
+      <PickupPass orderId={orderId} orderStatus={current.status} />
       {current.status === "PLACED" ? (
         <Button type="button" variant="outline" onClick={cancel}>
           Cancel order
@@ -189,6 +191,57 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   );
 }
 
+function PaymentNotice({
+  status,
+  paymentStatus,
+  amountPaise,
+  paidAt,
+  pickedUpAt,
+}: {
+  status: string;
+  paymentStatus: string;
+  amountPaise: number;
+  paidAt: string | null;
+  pickedUpAt: string | null;
+}) {
+  if (status === "PICKED_UP") {
+    return (
+      <div className="rounded-2xl border border-primary/40 bg-secondary p-4" data-testid="payment-notice" role="status">
+        <p className="font-medium">Order collected successfully. Enjoy your meal!</p>
+        {pickedUpAt ? (
+          <p className="text-sm text-muted-foreground">Collected {new Date(pickedUpAt).toLocaleTimeString()}</p>
+        ) : null}
+      </div>
+    );
+  }
+  if (status === "READY" && paymentStatus === "PAID") {
+    return (
+      <div className="rounded-2xl border border-primary/40 bg-secondary p-4" data-testid="payment-notice" role="status">
+        <p className="font-medium">Cash payment confirmed. Please collect your order.</p>
+        {paidAt ? (
+          <p className="text-sm text-muted-foreground">Confirmed {new Date(paidAt).toLocaleTimeString()}</p>
+        ) : null}
+      </div>
+    );
+  }
+  if (status === "READY") {
+    return (
+      <div className="rounded-2xl border border-accent/60 bg-card p-4" data-testid="payment-notice" role="status">
+        <p className="font-medium">
+          Your order is ready. Pay {formatInrFromPaise(amountPaise)} in cash at the counter.
+        </p>
+      </div>
+    );
+  }
+  if (status === "CANCELLED" || status === "REJECTED") {
+    return null;
+  }
+  return (
+    <p className="text-sm text-muted-foreground" data-testid="payment-notice">
+      You pay cash at the counter once your order is ready. Nothing is charged online.
+    </p>
+  );
+}
 export function IncomingOrders() {
   const orders = useQuery({
     queryKey: ["incoming-orders"],
@@ -212,7 +265,7 @@ export function IncomingOrders() {
         Incoming orders
       </h2>
       <p className="text-sm text-muted-foreground">
-        New placed tickets. Accept them from the kitchen desk. Cash collection is a later phase.
+        New placed tickets. Accept them from the kitchen desk. The cashier records cash after the order is ready.
       </p>
       {!orders.data || orders.data.orders.length === 0 ? (
         <p className="text-sm text-muted-foreground">No new orders.</p>

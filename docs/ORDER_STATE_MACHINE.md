@@ -2,7 +2,7 @@
 
 Fulfillment status and payment status are different fields. This document defines fulfillment. Cash rules are in `CASH_PAYMENT_FLOW.md`. Notification delivery has its own status and never moves an order.
 
-P003 executes the student path into `PLACED` and from `PLACED` to `CANCELLED`. It does not execute acceptance, preparation, ready, pickup, rejection, or unclaimed transitions.
+P003 executes the student path into `PLACED` and from `PLACED` to `CANCELLED`. P004 executes acceptance, preparation, ready and rejection (`P004_ORDER_STATE_MACHINE.md`). P005 executes `READY` to `PICKED_UP` through the cashier route. Unclaimed transitions are still not executed.
 
 ## Primary path
 
@@ -17,9 +17,21 @@ PLACED -> ACCEPTED -> QUEUED -> PREPARING -> READY -> PICKED_UP
 | ACCEPTED | QUEUED | Kitchen staff, manager, or the queue service | The order is waiting on station capacity |
 | QUEUED | PREPARING | Kitchen staff or manager | A station has started it |
 | PREPARING | READY | Kitchen staff or manager | Preparation is finished and the order is at the counter |
-| READY | PICKED_UP | Cashier or manager | Allowed only when payment status is PAID. This is not the cash-receipt action |
+| READY | PICKED_UP | Cashier of the canteen (P005 does not give managers this action) | Allowed only when payment status is PAID and a valid, unexpired, unredeemed pickup credential is presented. This is not the cash-receipt action |
 
-`PICKED_UP` is terminal.
+`PICKED_UP` is terminal. P005 sets `picked_up_at` and `picked_up_by` and appends an order event in the same transaction that redeems the credential.
+
+### P005 guard for READY to PICKED_UP
+
+In one transaction, locking order then payment then credential, the service requires all of:
+
+1. Order status `READY`, in the cashier's canteen.
+2. Payment status `PAID` (a manager reversal returns it to `PENDING`, which blocks this transition again).
+3. A credential that matches, belongs to this order, is not revoked, not expired and not redeemed.
+
+Verifying a credential, scanning a QR code or recording cash never moves the order to `PICKED_UP`. Only the explicit hand-over action does. A redeemed credential cannot be used again. See `P005_QR_SECURITY.md`.
+
+Preparation and payment are independent. Cash can be recorded only once the order is `READY`, and recording it does not change the preparation status. Web Push and notification delivery never change either one.
 
 An order may sit in `ACCEPTED`, `QUEUED`, `PREPARING`, or `READY` while payment is still `PENDING`. Kitchen staff do not wait for cash before they cook. Cashiers do not treat a READY ticket as collected.
 

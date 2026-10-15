@@ -12,7 +12,7 @@ export default function StudentPage() {
       {(user) => (
         <AccountHome
           user={user}
-          note="Browse the menu and place a counter order. Cash stays pending until a cashier records it in a later phase."
+          note="Browse the menu and place a counter order. When it is ready, pay cash at the counter and show your pickup QR."
           extra={
             <nav className="flex flex-wrap gap-3 text-sm" aria-label="Student">
               <Link href="/student/menu" className="underline-offset-4 hover:underline">
@@ -23,6 +23,12 @@ export default function StudentPage() {
               </Link>
               <Link href="/student/orders" className="underline-offset-4 hover:underline">
                 Orders
+              </Link>
+              <Link href="/student/notifications" className="underline-offset-4 hover:underline">
+                Notifications
+              </Link>
+              <Link href="/student/profile" className="underline-offset-4 hover:underline">
+                Profile
               </Link>
             </nav>
           }

@@ -24,7 +24,26 @@ const nextConfig: NextConfig = {
       "/admin/:path*",
       "/invite/:path*",
     ];
-    return sources.map((source) => ({ source, headers: noStore }));
+    const privateRoutes = sources.map((source) => ({ source, headers: noStore }));
+    return [
+      ...privateRoutes,
+      {
+        // The browser must always re-check the worker so a fix reaches phones quickly.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+      {
+        source: "/manifest.webmanifest",
+        headers: [
+          { key: "Cache-Control", value: "no-cache" },
+          { key: "Content-Type", value: "application/manifest+json" },
+        ],
+      },
+    ];
   },
   turbopack: {
     root: appRoot,

@@ -19,6 +19,7 @@ from app.core.errors import ApiError
 from app.models.identity import (
     ACTIVE,
     CANTEEN_MANAGER,
+    CASHIER,
     KITCHEN_STAFF,
     MEMBERSHIP_ACTIVE,
     Canteen,
@@ -81,6 +82,10 @@ def manager_canteen_id(db: Session, user: User) -> UUID:
 
 def kitchen_canteen_id(db: Session, user: User) -> UUID:
     return _membership(db, user, KITCHEN_STAFF).canteen_id
+
+
+def cashier_canteen_id(db: Session, user: User) -> UUID:
+    return _membership(db, user, CASHIER).canteen_id
 
 
 def _clean_note(note: str | None) -> str | None:
@@ -609,7 +614,10 @@ def _order_payload(db: Session, order: Order, *, include_student: bool) -> dict:
             "method": payment.method,
             "status": payment.status,
             "amount_paise": payment.amount_paise,
+            "paid_at": payment.paid_at,
         },
+        "picked_up_at": order.picked_up_at,
+        "ready_at": order.ready_at,
         "items": [
             {
                 "menu_item_id": line.menu_item_id,

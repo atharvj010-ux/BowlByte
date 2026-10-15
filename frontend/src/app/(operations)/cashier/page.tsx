@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 
-import { AccountHome } from "@/components/account-home";
+import { CashierDesk } from "@/components/cashier/cashier-desk";
 import { ProtectedArea } from "@/components/protected-area";
 
 export const metadata: Metadata = { title: "Cashier" };
 
-const note = "Cash recording and pickup are not available yet. They arrive in a later phase.";
-
 export default function CashierPage() {
   return (
     <ProtectedArea role="CASHIER" loginHref="/cashier/login">
-      {(user) => <AccountHome user={user} note={note} />}
+      {() => (
+        <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+          <CashierDesk />
+        </main>
+      )}
     </ProtectedArea>
   );
 }
