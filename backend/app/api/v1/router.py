@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     catalog,
     fulfillment,
     health,
+    intelligence,
     kitchen,
     live,
     menu,
@@ -21,6 +22,7 @@ api_router.include_router(menu.router)
 api_router.include_router(orders.router)
 api_router.include_router(kitchen.router)
 api_router.include_router(fulfillment.router)
+api_router.include_router(intelligence.router)
 api_router.include_router(live.router)
 api_router.include_router(catalog.router)
 api_router.include_router(areas.router)

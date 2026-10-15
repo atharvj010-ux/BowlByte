@@ -36,6 +36,7 @@ Thumbs.db
 tmp/
 ml/artifacts/
 ml/models/
+backend/var/
 
 # Docker
 postgres_data/

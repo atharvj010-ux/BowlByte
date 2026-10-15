@@ -53,6 +53,7 @@ class College(Base):
 
 class Canteen(Base):
     __tablename__ = "canteens"
+    __table_args__ = (Index("ix_canteens_college_id", "college_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     college_id: Mapped[uuid.UUID] = mapped_column(
@@ -82,6 +83,7 @@ class User(Base):
         ),
         CheckConstraint("email = lower(email)", name="ck_users_email_lower"),
         Index("uq_users_email", "email", unique=True),
+        Index("ix_users_college_id", "college_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -142,6 +144,7 @@ class StaffMembership(Base):
             name="ck_staff_memberships_status",
         ),
         UniqueConstraint("user_id", "canteen_id", name="uq_staff_membership"),
+        Index("ix_staff_memberships_canteen_id", "canteen_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -215,6 +218,7 @@ class StaffInvitation(Base):
             "role in ('KITCHEN_STAFF', 'CASHIER')",
             name="ck_staff_invitations_role",
         ),
+        Index("ix_staff_invitations_canteen_id", "canteen_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -263,6 +267,10 @@ class Session(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_actor_user_id", "actor_user_id"),
+        Index("ix_audit_log_canteen_id", "canteen_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(

@@ -55,27 +55,24 @@ Implemented, with one open item: real Android and iPhone delivery is NOT TESTED.
 - In-app notifications, a PWA manifest and service worker, VAPID Web Push through a Postgres outbox, Celery worker and beat
 - Tests that a student cannot change payment status and that READY plus PENDING cannot become PICKED_UP
 
-## P006 — Operational hardening and unclaimed orders
+## P006 — Food intelligence
 
-Proposed. See the P005 report for the reasoning.
+Implemented. Production batches, recorded waste, demand history, a seasonal-naive baseline, a scikit-learn gradient-boosting candidate, and manager preparation plans. Forecasts and plans do not change orders, payments, or stock. See `docs/P006_FOOD_INTELLIGENCE.md`.
+
+## P007 — Security and performance hardening
+
+Not started. Carry forward the open P005 items and the P006 limits in `docs/P006_KNOWN_LIMITATIONS.md`.
 
 - Real-device push validation on HTTPS staging
-- Hold window and `UNCLAIMED` transition for READY orders nobody collects
-- Cash shift close and a till reconciliation report
+- Hold window and `UNCLAIMED` for READY orders nobody collects
+- Cash shift close
 - Dead-letter alerting for failed push deliveries
-- Optimise the P004 canteen-wide queue lock before relying on large queues
+- The P004 canteen-wide queue lock
+- The five high ESLint development findings, without `npm audit fix --force`
 
-## P007 — Waste, unclaimed orders, and manager analytics
+## P008
 
-- Hold window and UNCLAIMED transition
-- Waste recorded from cancellation during preparation and from unclaimed food
-- Manager summaries computed from stored orders and payments
-
-## P008 — Demand forecasting
-
-- Only after P004 has produced real order history
-- scikit-learn model, training script, and an evaluation against held-out days
-- The UI shows a forecast only from that output, with the model version and the evaluation window
+Not scheduled. Do not treat a later phase as a place to invent payment or forecast behaviour that P006 already defined.
 
 ## Test commands
 

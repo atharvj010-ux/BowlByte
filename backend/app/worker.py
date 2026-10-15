@@ -45,3 +45,18 @@ def drain_outbox_task() -> dict:
     from app.services.push_delivery import drain_outbox
 
     return drain_outbox()
+
+
+@celery_app.task(name="bowlbyte.train_forecast", soft_time_limit=90, time_limit=120)
+def train_forecast_task(job_id: str) -> None:
+    """Train a forecast model outside the request that queued it.
+
+    The task only reads the job row and writes model metadata. It does not
+    change orders, payments, stock, or production batches.
+    """
+
+    from uuid import UUID
+
+    from app.services.forecasting import execute_training_job
+
+    execute_training_job(UUID(job_id))

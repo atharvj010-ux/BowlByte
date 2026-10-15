@@ -1,6 +1,6 @@
 # BowlByte
 
-BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Phase P005 adds cash recording by cashiers, one-time QR pickup credentials, a manager-only cash correction, in-app notifications, and Web Push through a database outbox. Phone delivery has **not** been tested on a real Android or iPhone device. Online payments and forecasting are not implemented.
+BowlByte is a college canteen system for counter pickup, kitchen queues, and cash payments. Phases P001–P003 cover the foundation, accounts, and cash-pending orders. Phase P004 adds kitchen acceptance, preparation tasks, station capacity, readiness estimates, and live status updates. Phase P005 adds cash recording by cashiers, one-time QR pickup credentials, a manager-only cash correction, in-app notifications, and Web Push through a database outbox. Phone delivery has **not** been tested on a real Android or iPhone device. Phase P006 adds production and waste records, demand history, a baseline forecast, a scikit-learn candidate, and preparation plans. Forecasts do not change orders, payments, or stock. There is no online payment.
 
 ## Stack
 
@@ -175,6 +175,13 @@ npm run test:e2e
 | `docs/P005_REAL_DEVICE_TESTING.md` | Phone checklist. Status: NOT TESTED |
 | `docs/P005_TEST_RESULTS.md` | Commands that were run for P005 |
 | `docs/P005_KNOWN_LIMITATIONS.md` | What this phase does not do |
+| `docs/P006_FOOD_INTELLIGENCE.md` | Production, forecasts, and plans |
+| `docs/P006_PRODUCTION_ACCOUNTING.md` | Batch equation and reconciliation |
+| `docs/P006_FORECASTING_METHODOLOGY.md` | Target, features, and models |
+| `docs/P006_MODEL_EVALUATION.md` | Time-ordered scores from the demo run |
+| `docs/P006_PREPARATION_OPTIMIZATION.md` | Quantity rule and station minutes |
+| `docs/P006_TEST_RESULTS.md` | Commands that were run for P006 |
+| `docs/P006_KNOWN_LIMITATIONS.md` | What this phase does not do |
 
 ## Pilot limits
 

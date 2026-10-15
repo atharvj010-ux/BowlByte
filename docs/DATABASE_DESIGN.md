@@ -242,6 +242,28 @@ The earlier target names (`stations.concurrent_capacity`, `fulfillment_status`, 
 
 Lock order for the new transactions: order, then payment, then receipt or credential. Cash confirmation, reversal and redemption all follow it.
 
+## Implemented food intelligence (`0006_food_intelligence`)
+
+Production batches are not `daily_stock`. Recording a batch does not change saleable stock. Online pickups are not added into the batch equation. Demo demand lives only in `demo_demand_days` and is not an order or a cash receipt.
+
+| Table | Purpose and key constraints |
+| --- | --- |
+| `food_production_batches` | Prepared food. `produced = served_counter + remaining + discarded`. Unique canteen batch code and idempotency key. Source `REAL` or `DEMO` |
+| `production_quantity_events` | Append-only `OPEN`, `SERVE_COUNTER`, `DISCARD`, `CORRECT` |
+| `food_waste_records` | A recorded discard. Reasons `UNSOLD`, `PREPARATION_ERROR`, `QUALITY_REJECTION`, `SPOILAGE`, `OTHER`. Optional batch |
+| `canteen_closures` | Unique `(canteen_id, service_date)`. A closed day is not a zero-sales day |
+| `demo_demand_days` | Seeded synthetic history. Unique `(canteen_id, menu_item_id, service_date)` |
+| `forecast_jobs` | `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`. Unique canteen idempotency key |
+| `forecasting_models` | `SEASONAL_NAIVE` or `HIST_GRADIENT_BOOSTING`. Status `CANDIDATE`, `ACTIVE`, `REJECTED`, `FAILED` |
+| `model_evaluations` | `VALIDATION` or `HOLDOUT`. MAE and WAPE stored as milli-units. WAPE is null when undefined |
+| `demand_forecast_runs` | Horizon 1 or 7. Status `COMPLETE` or `INSUFFICIENT_DATA`. Method `BASELINE` or `ML` |
+| `demand_forecast_values` | One predicted quantity per item and date, with a labelled range |
+| `preparation_plans` | `DRAFT`, `REVIEWED`, `APPROVED`, `REJECTED`, `SUPERSEDED` |
+| `preparation_plan_items` | The quantities and the explanation. An override is a separate column |
+| `preparation_plan_events` | `CREATED`, `ADJUSTED`, `APPROVED`, `REJECTED`, `SUPERSEDED` |
+
+Batch codes come from `production_batch_no_seq`. Model files, when an ML candidate is fit, are written under `var/forecast_artifacts` and checked by SHA-256. They are not database blobs and they are not loaded from a client-supplied path.
+
 ## Migration policy
 
 A phase that introduces a table adds one Alembic revision reviewed with the code that writes it. Autogenerate is a draft. Money columns, check constraints, and unique partial indexes are confirmed by hand. Downgrades are written for schema changes that can be reversed without deleting recorded payments. A revision that would drop `payment_events` or `audit_log` is not an acceptable downgrade once those tables contain pilot data.

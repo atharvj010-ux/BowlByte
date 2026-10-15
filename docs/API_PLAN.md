@@ -171,6 +171,38 @@ Idempotency keys match `^[A-Za-z0-9_-]{8,80}$`. Error codes include `ORDER_NOT_R
 
 The student order resource shows payment status, `paid_at` and `picked_up_at`. It does not accept a payment status in a request body. A push row is `ACCEPTED` only when the push service answered 200, 201 or 202. A worker error leaves the order alone.
 
+## Food intelligence
+
+Manager session, canteen scoped, CSRF on writes. Training returns 202 and runs in Celery. A student, cashier, or kitchen account receives 403.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET, POST | `/api/v1/admin/production` | List and open a batch |
+| GET | `/api/v1/admin/production/{id}` | Batch plus correction events |
+| POST | `/api/v1/admin/production/{id}/adjust` | Serve, discard, or correct |
+| GET | `/api/v1/admin/production/reconciliation` | Batches beside online pickups, not added together |
+| GET, POST | `/api/v1/admin/waste` | Recorded discards |
+| POST | `/api/v1/admin/closures` | Mark or clear a closed day |
+| GET | `/api/v1/admin/intelligence/overview` | Recorded orders, production, discards, cash |
+| GET | `/api/v1/admin/intelligence/demand-history` | `source=REAL` or `DEMO`. `export=csv` has no student column |
+| GET | `/api/v1/admin/intelligence/waste-history` | Recorded discards only |
+| POST | `/api/v1/admin/intelligence/demo-dataset` | Replaces demo rows for that canteen |
+| POST | `/api/v1/admin/forecasting/train` | Queues a job. Rate limited |
+| GET | `/api/v1/admin/forecasting/jobs/{id}` | Job status |
+| GET | `/api/v1/admin/forecasts` | Recent runs |
+| POST | `/api/v1/admin/forecasts/generate` | Persists a run |
+| GET | `/api/v1/admin/forecasts/{id}` | Values, cutoff, limitations |
+| GET | `/api/v1/admin/forecasts/models` | Candidates and evaluations |
+| GET | `/api/v1/admin/forecasts/evaluations` | Same scores, with a demo warning |
+| POST | `/api/v1/admin/forecasts/models/{id}/activate` | Explicit manager activation |
+| POST | `/api/v1/admin/planning/generate` | Draft plan |
+| GET | `/api/v1/admin/planning` and `/api/v1/admin/planning/{id}` | History and detail |
+| POST | `/api/v1/admin/planning/{id}/approve` and `.../reject` | Intent only |
+| POST | `/api/v1/admin/planning/{id}/override` | Draft quantity change with a reason |
+| POST | `/api/v1/admin/planning/simulate` | Not stored. Stock is unchanged |
+
+`bowlbyte.train_forecast` is the worker task, with a 90 second soft limit and a 120 second hard limit.
+
 ## Planned
 
 | Method | Path | Actor | Notes |

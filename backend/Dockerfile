@@ -15,7 +15,9 @@ RUN pip install --upgrade pip && pip install -r requirements.lock
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
-RUN pip install --no-deps .
+RUN pip install --no-deps . \
+    && mkdir -p /app/var/forecast_artifacts \
+    && chown -R bowlbyte:bowlbyte /app/var
 
 USER bowlbyte
 

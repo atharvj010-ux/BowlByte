@@ -99,6 +99,21 @@ class Settings(BaseSettings):
     push_test_window_seconds: int = 600
     notification_beat_seconds: int = 15
 
+    # P006 food intelligence. Dates for new records use this timezone.
+    # Order service_date is still the UTC date stored by P003.
+    canteen_timezone: str = "Asia/Kolkata"
+    forecast_min_baseline_days: int = 7
+    forecast_min_ml_days: int = 28
+    forecast_holdout_days: int = 7
+    forecast_seed: int = 7
+    forecast_artifact_dir: str = "var/forecast_artifacts"
+    planning_shortage_weight: int = 3
+    planning_overproduction_weight: int = 1
+    planning_window_seconds: int = 3 * 60 * 60
+    planning_buffer_ratio: float = 0.0
+    intelligence_job_limit: int = 4
+    intelligence_job_window_seconds: int = 600
+
     @model_validator(mode="after")
     def _production_guards(self) -> Self:
         if self.environment == "production":

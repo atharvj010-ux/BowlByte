@@ -49,11 +49,12 @@ The API is one deployable service with internal module boundaries.
 | `app/api` | Versioned health, auth, staff, menu, order, and catalog routes |
 | `app/core` | Settings, JSON logs, error envelope, Argon2id and token hashing |
 | `app/db` | Engine, session dependency, declarative base |
-| `app/models` | Identity tables plus menu, stock, orders, and payments |
-| `app/schemas` | Health, authentication, menu, and order models |
-| `app/services` | Readiness, registration, sessions, mail, rate limits, ordering, kitchen, `cash`, `pickup`, `push`, `push_delivery`, `notifications` |
+| `app/models` | Identity, menu, stock, orders, payments, and food-intelligence tables |
+| `app/schemas` | Health, authentication, menu, order, and intelligence request models |
+| `app/services` | Readiness, registration, sessions, mail, rate limits, ordering, kitchen, `cash`, `pickup`, `push`, `push_delivery`, `notifications`, `production`, `demand`, `forecasting`, `planning` |
+| `app/foodintel` | Pure forecast maths and the greedy capacity allocator |
 | `app/cli` | Manager bootstrap, roster import, development menu seed, and `generate_vapid` |
-| `app/worker.py` | Celery application, `bowlbyte.worker_ping`, `bowlbyte.drain_outbox`, and the beat schedule |
+| `app/worker.py` | Celery application, `bowlbyte.worker_ping`, `bowlbyte.drain_outbox`, `bowlbyte.train_forecast`, and the beat schedule |
 
 `bowlbyte.worker_ping` returns `ok` when a worker executes it. It does not send a notification or change an order.
 
@@ -70,6 +71,7 @@ Route handlers stay thin. When orders exist, a handler will authenticate the cal
 | Student | `/student`, `/student/menu`, `/student/cart`, `/student/orders`, `/student/notifications`, `/student/profile` | Student session, checked on the server and again by the API |
 | Kitchen staff | `/staff`, `/staff/queue`, `/staff/login` | Kitchen session for the work pages |
 | Cashier | `/cashier`, `/cashier/history`, `/cashier/login` | Cashier session for the work pages |
+| Manager intelligence | `/admin/intelligence`, `/admin/intelligence/forecasts`, `/admin/intelligence/planning`, `/admin/intelligence/history`, `/admin/production`, `/admin/waste` | Manager session |
 | Canteen manager | `/admin`, `/admin/staff`, `/admin/menu`, `/admin/cash`, `/admin/login` | Manager session for the work pages |
 
 `public/sw.js`, `public/manifest.webmanifest` and `public/offline.html` make the site installable and carry Web Push. The service worker caches only the offline page.
@@ -115,7 +117,7 @@ OpenAPI is served at `/docs` outside production and disabled when `ENVIRONMENT=p
 
 PostgreSQL stores durable canteen state, including preparation tasks and readiness estimates. Redis Pub/Sub distributes live hints after commit. Losing a Pub/Sub message does not change an order. Clients refetch the row.
 
-Alembic revisions through `0005_cash_pickup_notifications` are applied by the API container on startup. `cash_receipts`, `cash_reversals` and `pickup_events` are append-only, enforced by a database trigger. Notifications are written in the same transaction as the READY change, and a worker delivers them afterwards, so a push failure cannot touch order or payment state.
+Alembic revisions through `0006_food_intelligence` are applied by the API container on startup. `cash_receipts`, `cash_reversals` and `pickup_events` are append-only, enforced by a database trigger. Notifications are written in the same transaction as the READY change, and a worker delivers them afterwards, so a push failure cannot touch order or payment state. Forecast training is the Celery task `bowlbyte.train_forecast`. A forecast or a preparation plan does not write orders, payments, daily stock, or production batches.
 
 ## Multi-canteen boundary
 
@@ -125,5 +127,5 @@ Every operational table in the target schema includes `canteen_id`. Staff author
 
 - No payment provider container or SDK
 - No message that a push notification was displayed. The strongest claim is "accepted by the push service"
-- No forecast value
+- No forecast that is presented as a recorded sale. Predictions are stored with a source and a cutoff
 - No QR payload that carries anything except an opaque one-time token
