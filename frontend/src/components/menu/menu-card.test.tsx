@@ -18,6 +18,10 @@ const item: MenuItem = {
   is_available: true,
   is_demo: true,
   image_url: null,
+  calories_kcal: null,
+  serving_size_description: null,
+  nutrition_source: null,
+  nutrition_reference: null,
   available_qty: 0,
 };
 
@@ -27,6 +31,7 @@ describe("MenuCard", () => {
     expect(screen.getByRole("heading", { name: "Veg Sandwich" })).toBeInTheDocument();
     expect(screen.getByText("₹40.00")).toBeInTheDocument();
     expect(screen.getByText(/· Unavailable/)).toBeInTheDocument();
+    expect(screen.getByText("Calories unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Unavailable" })).toBeDisabled();
   });
 });

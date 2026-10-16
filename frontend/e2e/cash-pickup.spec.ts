@@ -47,25 +47,25 @@ test.beforeAll(async ({ browser }) => {
   await signIn(pages.manager, managerEmail);
 
   await pages.manager.goto("/admin/stations");
-  await pages.manager.getByLabel("Station name").fill(`Dosa ${suffix}`);
-  await pages.manager.getByLabel("Capacity").fill("6");
-  await pages.manager.getByRole("button", { name: "Add station" }).click();
+  await pages.manager.locator("#content").getByLabel("Station name").first().fill(`Dosa ${suffix}`);
+  await pages.manager.locator("#content").getByLabel("Capacity").first().fill("6");
+  await pages.manager.locator("#content").getByRole("button", { name: "Add station" }).first().click();
   await expect(pages.manager.getByText("Station saved.")).toBeVisible();
 
   await pages.manager.goto("/admin/menu");
   await expect(pages.manager.getByText("Loading menu.")).toHaveCount(0);
-  await pages.manager.getByLabel("Category name").fill(`South ${suffix}`);
-  await pages.manager.getByRole("button", { name: "Add category" }).click();
+  await pages.manager.locator("#content").getByLabel("Category name").first().fill(`South ${suffix}`);
+  await pages.manager.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(pages.manager.getByText("Category saved.")).toBeVisible({ timeout: 15_000 });
   await pages.manager.getByRole("link", { name: "Add menu item" }).click();
-  await pages.manager.getByLabel("Name").fill(dish);
-  await pages.manager.getByLabel("Description").fill("Development sample for the pilot.");
-  await pages.manager.getByLabel("Price in rupees").fill("40");
-  await pages.manager.getByLabel("Preparation seconds").fill("120");
+  await pages.manager.locator("#content").getByLabel("Name").first().fill(dish);
+  await pages.manager.locator("#content").getByLabel("Description").first().fill("Development sample for the pilot.");
+  await pages.manager.locator("#content").getByLabel("Price in rupees").first().fill("40");
+  await pages.manager.locator("#content").getByLabel("Preparation seconds").first().fill("120");
   await expect(pages.manager.getByRole("option", { name: `South ${suffix}` })).toHaveCount(1);
-  await pages.manager.getByLabel("Category").selectOption({ label: `South ${suffix}` });
-  await pages.manager.getByLabel("Station").selectOption({ label: `Dosa ${suffix}` });
-  await pages.manager.getByLabel("Initial stock").fill("60");
+  await pages.manager.locator("#content").getByLabel("Category").first().selectOption({ label: `South ${suffix}` });
+  await pages.manager.locator("#content").getByLabel("Station").first().selectOption({ label: `Dosa ${suffix}` });
+  await pages.manager.locator("#content").getByLabel("Initial stock").first().fill("60");
   await pages.manager.getByRole("button", { name: "Create item" }).click();
   await expect(pages.manager.getByRole("heading", { name: "Edit item" })).toBeVisible();
 
@@ -94,7 +94,7 @@ test("scenario 1: kitchen marks READY, cashier sees the amount, confirms cash, s
   await kitchenToReady(pages.kitchen, orderId);
 
   await pages.cashier.goto("/cashier");
-  const waiting = pages.cashier.getByTestId("awaiting-payment");
+  const waiting = pages.cashier.getByTestId("awaiting-payment").first();
   const row = waiting.getByTestId("counter-order").filter({ hasText: ticket });
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText(/₹\s?40(\.00)?/);
@@ -102,10 +102,10 @@ test("scenario 1: kitchen marks READY, cashier sees the amount, confirms cash, s
     "PENDING",
   );
 
-  await row.getByTestId("record-cash").click();
-  await expect(row.getByTestId("confirm-panel")).toContainText(/₹\s?40(\.00)?/);
-  await row.getByTestId("confirm-cash").click();
-  await expect(pages.cashier.getByTestId("cashier-notice")).toContainText("Cash recorded");
+  await row.getByTestId("record-cash").first().click();
+  await expect(row.getByTestId("confirm-panel").first()).toContainText(/₹\s?40(\.00)?/);
+  await row.getByTestId("confirm-cash").first().click();
+  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText("Cash recorded");
 
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe("PAID");
   expect(sql(`SELECT count(*) FROM cash_receipts WHERE order_id = '${orderId}'`).trim()).toBe("1");
@@ -116,8 +116,8 @@ test("scenario 1: kitchen marks READY, cashier sees the amount, confirms cash, s
   ).toBe(cashierEmail);
 
   await pages.student.goto(`/student/orders/${orderId}`);
-  await expect(pages.student.getByTestId("order-status")).toContainText("READY · CASH · PAID");
-  await expect(pages.student.getByTestId("order-status")).not.toContainText("PICKED_UP");
+  await expect(pages.student.getByTestId("order-status").first()).toContainText("READY · CASH · PAID");
+  await expect(pages.student.getByTestId("order-status").first()).not.toContainText("PICKED_UP");
 });
 
 test("scenario 2: student shows a pickup code, cashier verifies, confirms payment and hands over", async () => {
@@ -127,38 +127,38 @@ test("scenario 2: student shows a pickup code, cashier verifies, confirms paymen
   await kitchenToReady(pages.kitchen, orderId);
 
   await pages.student.goto(`/student/orders/${orderId}`);
-  await expect(pages.student.getByTestId("order-status")).toContainText("READY");
-  await expect(pages.student.getByTestId("payment-notice")).toContainText(
+  await expect(pages.student.getByTestId("order-status").first()).toContainText("READY");
+  await expect(pages.student.getByTestId("payment-notice").first()).toContainText(
     /Your order is ready\. Pay .* in cash at the counter\./,
   );
-  await pages.student.getByTestId("show-pickup").click();
-  await expect(pages.student.getByTestId("pickup-qr")).toBeVisible();
-  const code = (await pages.student.getByTestId("pickup-code").textContent())?.trim() ?? "";
+  await pages.student.getByTestId("show-pickup").first().click();
+  await expect(pages.student.getByTestId("pickup-qr").first()).toBeVisible();
+  const code = (await pages.student.getByTestId("pickup-code").first().textContent())?.trim() ?? "";
   expect(code).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
 
   await pages.cashier.goto("/cashier");
-  await pages.cashier.getByTestId("manual-ticket").fill(ticket);
-  await pages.cashier.getByTestId("manual-code").fill(code);
-  await pages.cashier.getByTestId("manual-verify").click();
-  const checked = pages.cashier.getByTestId("checked-order");
+  await pages.cashier.getByTestId("manual-ticket").first().fill(ticket);
+  await pages.cashier.getByTestId("manual-code").first().fill(code);
+  await pages.cashier.getByTestId("manual-verify").first().click();
+  const checked = pages.cashier.getByTestId("checked-order").first();
   await expect(checked).toBeVisible();
-  await expect(pages.cashier.getByTestId("cashier-notice")).toContainText("Nothing has been paid");
+  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText("Nothing has been paid");
   // Scanning or entering a code is never a payment.
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe(
     "PENDING",
   );
-  await expect(checked.getByTestId("complete-pickup")).toHaveCount(0);
+  await expect(checked.getByTestId("complete-pickup").first()).toHaveCount(0);
 
-  await checked.getByTestId("record-cash").click();
-  await checked.getByTestId("confirm-cash").click();
-  await expect(pages.cashier.getByTestId("cashier-notice")).toContainText("Cash recorded");
-  await checked.getByTestId("complete-pickup").click();
-  await expect(pages.cashier.getByTestId("cashier-notice")).toContainText("handed over");
+  await checked.getByTestId("record-cash").first().click();
+  await checked.getByTestId("confirm-cash").first().click();
+  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText("Cash recorded");
+  await checked.getByTestId("complete-pickup").first().click();
+  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText("handed over");
 
   await pages.student.goto(`/student/orders/${orderId}`);
-  await expect(pages.student.getByTestId("order-status")).toContainText("PICKED_UP · CASH · PAID");
-  await expect(pages.student.getByTestId("payment-notice")).toContainText("collected successfully");
-  await expect(pages.student.getByTestId("pickup-pass")).toHaveCount(0);
+  await expect(pages.student.getByTestId("order-status").first()).toContainText("PICKED_UP · CASH · PAID");
+  await expect(pages.student.getByTestId("payment-notice").first()).toContainText("collected successfully");
+  await expect(pages.student.getByTestId("pickup-pass").first()).toHaveCount(0);
   expect(
     sql(`SELECT count(*) FROM pickup_credentials WHERE order_id = '${orderId}' AND redeemed_at IS NOT NULL`).trim(),
   ).toBe("1");
@@ -285,8 +285,8 @@ test("scenario 5: another student cannot reach a pickup credential by changing t
   ).toBe("0");
 
   await pages.other.goto(`/student/orders/${orderId}`);
-  await expect(pages.other.getByTestId("pickup-pass")).toHaveCount(0);
-  await expect(pages.other.getByTestId("show-pickup")).toHaveCount(0);
+  await expect(pages.other.getByTestId("pickup-pass").first()).toHaveCount(0);
+  await expect(pages.other.getByTestId("show-pickup").first()).toHaveCount(0);
 });
 
 test("scenario 6: a student turns on notifications and READY creates exactly one record", async () => {
@@ -294,11 +294,11 @@ test("scenario 6: a student turns on notifications and READY creates exactly one
   const page = pages.push;
   await page.evaluate(() => window.localStorage.setItem("e2e.push.mode", "accept"));
   await page.goto("/student/profile");
-  await expect(page.getByTestId("push-state")).toContainText("Off on this device", {
+  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("Off on this device", {
     timeout: 20_000,
   });
   await page.getByRole("button", { name: "Turn on notifications" }).click();
-  await expect(page.getByTestId("push-state")).toContainText("On for this device", {
+  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("On for this device", {
     timeout: 20_000,
   });
   const userId = sql(`SELECT id FROM users WHERE email = '${pushStudentEmail}'`).trim();
@@ -343,14 +343,20 @@ test("scenario 7: a push provider failure leaves the order READY and the message
   test.setTimeout(180_000);
   const page = pages.push;
   await page.goto("/student/profile");
-  await expect(page.getByTestId("push-state")).toContainText("On for this device", {
+  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("On for this device", {
     timeout: 20_000,
   });
   await page.getByRole("button", { name: "Turn off notifications" }).click();
-  await expect(page.getByTestId("push-state")).toContainText("Off on this device");
-  await page.evaluate(() => window.localStorage.setItem("e2e.push.mode", "fail"));
+  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("Off on this device");
+  await page.evaluate(() => {
+    window.localStorage.removeItem("e2e.push.sub");
+    window.localStorage.setItem("e2e.push.mode", "fail");
+  });
+  sql(
+    `UPDATE push_subscriptions SET enabled = false WHERE user_id = (SELECT id FROM users WHERE email = '${pushStudentEmail}')`,
+  );
   await page.getByRole("button", { name: "Turn on notifications" }).click();
-  await expect(page.getByTestId("push-state")).toContainText("On for this device", {
+  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("On for this device", {
     timeout: 20_000,
   });
 
@@ -376,12 +382,12 @@ test("scenario 7: a push provider failure leaves the order READY and the message
     sql(`SELECT count(*) FROM notifications WHERE order_id = '${orderId}'`).trim(),
   ).toBe("1");
   await page.goto(`/student/orders/${orderId}`);
-  await expect(page.getByTestId("order-status")).toContainText("READY · CASH · PENDING");
+  await expect(page.getByTestId("order-status").first()).toContainText("READY · CASH · PENDING");
 
   // Tidy up: remove this device so later runs do not keep retrying against the failing endpoint.
   await page.goto("/student/profile");
   await page.getByRole("button", { name: "Turn off notifications" }).click();
-  await expect(page.getByTestId("push-state")).toContainText("Off on this device");
+  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("Off on this device");
 });
 
 test("scenario 8: with the WebSocket disconnected, a reload shows the real status and history", async () => {
@@ -390,14 +396,14 @@ test("scenario 8: with the WebSocket disconnected, a reload shows the real statu
   const orderId = await placeOrder(page);
   const ticket = await ticketOf(page, orderId);
   await page.goto(`/student/orders/${orderId}`);
-  await expect(page.getByTestId("order-status")).toContainText("PLACED");
+  await expect(page.getByTestId("order-status").first()).toContainText("PLACED");
   await page.routeWebSocket(/\/api\/v1\/ws\//, (socket) => socket.close());
   await page.reload();
-  await expect(page.getByTestId("connection-state")).toContainText("Checking for updates");
+  await expect(page.getByTestId("connection-state").first()).toContainText("Checking for updates");
 
   await kitchenToReady(pages.kitchen, orderId);
   await page.reload();
-  await expect(page.getByTestId("order-status")).toContainText("READY", { timeout: 25_000 });
+  await expect(page.getByTestId("order-status").first()).toContainText("READY", { timeout: 25_000 });
   await page.goto("/student/notifications");
   await expect(
     page.getByTestId("notification-item").filter({ hasText: ticket }),
@@ -429,13 +435,13 @@ test("scenario 9: the manager reviews receipts and makes an audited correction b
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText("Counter Cashier");
   await expect(row).toContainText("Recorded");
-  await row.getByTestId("start-reverse").click();
-  await pages.manager.getByTestId("reverse-reason").fill("Student took the cash back before leaving");
-  await pages.manager.getByTestId("reverse-kind").selectOption("CASH_RETURNED");
-  await expect(pages.manager.getByTestId("reverse-submit")).toBeDisabled();
-  await pages.manager.getByTestId("reverse-confirm").check();
-  await pages.manager.getByTestId("reverse-submit").click();
-  await expect(pages.manager.getByTestId("cash-message")).toContainText("reversed");
+  await row.getByTestId("start-reverse").first().click();
+  await pages.manager.getByTestId("reverse-reason").first().fill("Student took the cash back before leaving");
+  await pages.manager.getByTestId("reverse-kind").first().selectOption("CASH_RETURNED");
+  await expect(pages.manager.getByTestId("reverse-submit").first()).toBeDisabled();
+  await pages.manager.getByTestId("reverse-confirm").first().check();
+  await pages.manager.getByTestId("reverse-submit").first().click();
+  await expect(pages.manager.getByTestId("cash-message").first()).toContainText("reversed");
   await expect(row).toContainText("Reversed");
 
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe("PENDING");
@@ -609,20 +615,20 @@ async function invite(
   await expect(manager.getByText("Invitation sent")).toBeVisible();
   const token = await verificationToken(email);
   await invitee.goto(`/invite/accept#token=${token}`);
-  await invitee.getByLabel("Full name").fill(name);
-  await invitee.getByLabel("Password", { exact: true }).fill(password);
-  await invitee.getByLabel("Confirm password").fill(password);
+  await invitee.locator("#content").getByLabel("Full name").first().fill(name);
+  await invitee.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await invitee.locator("#content").getByLabel("Confirm password").first().fill(password);
   await invitee.getByRole("button", { name: "Activate account" }).click();
   await expect(invitee.getByText("Your staff account is active")).toBeVisible();
 }
 
 async function registerStudent(page: Page, email: string, name: string) {
   await page.goto("/student/register");
-  await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("College roll number").fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
+  await page.locator("#content").getByLabel("Full name").first().fill(name);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("College roll number").first().fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
   const token = await verificationToken(email);
@@ -634,8 +640,8 @@ async function registerStudent(page: Page, email: string, name: string) {
 }
 
 async function signIn(page: Page, email: string) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   const login = page.waitForResponse(
     (response) =>
       response.url().includes("/api/v1/auth/login") && response.request().method() === "POST",

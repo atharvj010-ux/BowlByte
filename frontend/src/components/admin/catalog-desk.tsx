@@ -179,6 +179,7 @@ function ItemForm({
       is_active: form.get("isActive") === "on",
       is_available: form.get("isAvailable") === "on",
       initial_available_qty: itemId ? undefined : Number(form.get("stock") || 0),
+      ...nutritionPayload(form),
     };
     const response = await apiFetch(itemId ? `/api/v1/admin/menu/${itemId}` : "/api/v1/admin/menu", {
       method: itemId ? "PATCH" : "POST",
@@ -219,6 +220,7 @@ function ItemForm({
   }
 
   return (
+    <>
     <form key={itemId ?? "new"} className="grid max-w-xl gap-4" onSubmit={onSubmit}>
       <label className="space-y-2 text-sm">
         <span className="font-medium">Name</span>
@@ -299,6 +301,47 @@ function ItemForm({
         <input name="isAvailable" type="checkbox" defaultChecked={existing.data?.is_available ?? true} />
         Available
       </label>
+      <fieldset className="grid gap-3 rounded-2xl border border-border p-4">
+        <legend className="px-1 text-sm font-medium">Nutrition</legend>
+        <p className="text-sm text-muted-foreground">
+          Leave calories blank when you do not have a source. Illustrative numbers must stay labeled as illustrative.
+        </p>
+        <label className="space-y-2 text-sm">
+          <span className="font-medium">Calories per serving</span>
+          <input
+            name="calories"
+            inputMode="numeric"
+            defaultValue={existing.data?.calories_kcal ?? ""}
+            className={textInputClass}
+          />
+        </label>
+        <label className="space-y-2 text-sm">
+          <span className="font-medium">Serving size</span>
+          <input
+            name="serving"
+            maxLength={80}
+            defaultValue={existing.data?.serving_size_description ?? ""}
+            className={textInputClass}
+          />
+        </label>
+        <label className="space-y-2 text-sm">
+          <span className="font-medium">Source</span>
+          <select name="nutritionSource" className={textInputClass} defaultValue={existing.data?.nutrition_source ?? ""}>
+            <option value="">Calories unavailable</option>
+            <option value="VERIFIED">Verified</option>
+            <option value="ILLUSTRATIVE">Illustrative</option>
+          </select>
+        </label>
+        <label className="space-y-2 text-sm">
+          <span className="font-medium">Reference</span>
+          <input
+            name="nutritionReference"
+            maxLength={160}
+            defaultValue={existing.data?.nutrition_reference ?? ""}
+            className={textInputClass}
+          />
+        </label>
+      </fieldset>
       <label className="space-y-2 text-sm">
         <span className="font-medium">Photo</span>
         <input name="image" type="file" accept="image/jpeg,image/png,image/webp" />
@@ -307,6 +350,118 @@ function ItemForm({
       {message ? <p role="status">{message}</p> : null}
       <Button type="submit">{itemId ? "Save item" : "Create item"}</Button>
     </form>
+    {itemId ? <PairingEditor itemId={itemId} /> : null}
+    </>
+  );
+}
+
+function nutritionPayload(form: FormData) {
+  const raw = String(form.get("calories") ?? "").trim();
+  const source = String(form.get("nutritionSource") ?? "");
+  const serving = String(form.get("serving") ?? "").trim();
+  const reference = String(form.get("nutritionReference") ?? "").trim();
+  if (!raw && !source) {
+    return {
+      calories_kcal: null,
+      nutrition_source: null,
+      serving_size_description: serving || null,
+      nutrition_reference: null,
+    };
+  }
+  return {
+    calories_kcal: Number(raw),
+    nutrition_source: source || null,
+    serving_size_description: serving || null,
+    nutrition_reference: reference || null,
+  };
+}
+
+const pairingRowSchema = z.object({
+  id: z.string(),
+  suggested_item_id: z.string(),
+  suggested_name: z.string(),
+  priority: z.number(),
+  is_active: z.boolean(),
+});
+
+function PairingEditor({ itemId }: { itemId: string }) {
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState("");
+  const pairings = useQuery({
+    queryKey: ["admin-pairings", itemId],
+    queryFn: () =>
+      apiFetch(`/api/v1/admin/menu/${itemId}/pairings`).then((response) =>
+        readJson(response, z.array(pairingRowSchema)),
+      ),
+  });
+  const menu = useQuery({
+    queryKey: ["admin-menu", "pair-options"],
+    queryFn: () => apiFetch("/api/v1/admin/menu?limit=50").then((response) => readJson(response, menuListSchema)),
+  });
+
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setMessage("");
+    const response = await apiFetch(`/api/v1/admin/menu/${itemId}/pairings`, {
+      method: "POST",
+      body: JSON.stringify({
+        suggested_item_id: form.get("suggested"),
+        priority: Number(form.get("priority") || 0),
+      }),
+    });
+    if (!response.ok) {
+      setMessage(await readError(response));
+      return;
+    }
+    event.currentTarget.reset();
+    await queryClient.invalidateQueries({ queryKey: ["admin-pairings", itemId] });
+    setMessage("Pairing saved. Students only see it while that item is in stock.");
+  }
+
+  async function remove(id: string) {
+    const response = await apiFetch(`/api/v1/admin/menu/pairings/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      setMessage(await readError(response));
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["admin-pairings", itemId] });
+  }
+
+  return (
+    <fieldset className="grid gap-3 rounded-2xl border border-border p-4">
+      <legend className="px-1 text-sm font-medium">Pairings</legend>
+      <p className="text-sm text-muted-foreground">Optional suggestions. They are never added to a cart automatically.</p>
+      <ul className="grid gap-2 text-sm">
+        {pairings.data?.map((row) => (
+          <li key={row.id} className="flex items-center justify-between gap-3">
+            <span>
+              {row.suggested_name} · priority {row.priority}
+            </span>
+            <button type="button" className="min-h-11 px-2 underline" onClick={() => remove(row.id)}>
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form className="grid gap-3 sm:grid-cols-[1fr_6rem_auto]" onSubmit={add}>
+        <select name="suggested" required className={textInputClass} defaultValue="">
+          <option value="" disabled>
+            Suggest
+          </option>
+          {menu.data?.items
+            .filter((item) => item.id !== itemId)
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+        </select>
+        <input name="priority" type="number" min={0} max={100} defaultValue={0} className={textInputClass} />
+        <Button type="submit">Add pairing</Button>
+      </form>
+      {message ? <p role="status">{message}</p> : null}
+    </fieldset>
   );
 }
 

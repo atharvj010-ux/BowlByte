@@ -134,10 +134,22 @@ export function OrderDetail({ orderId }: { orderId: string }) {
             : "Checking for updates"}{" "}
         · updated {new Date(current.updated_at).toLocaleTimeString()}
       </p>
-      <ol className="grid gap-1 text-sm">
-        {progress.map((step) => (
-          <li key={step}>{step === current.status || progress.indexOf(step) < progress.indexOf(current.status as (typeof progress)[number]) ? "Done" : "Pending"} · {labelStep(step)}</li>
-        ))}
+      <ol className="grid gap-2 text-sm">
+        {progress.map((step, index) => {
+          const currentIndex = progress.indexOf(current.status as (typeof progress)[number]);
+          const done = step === current.status || (currentIndex >= 0 && index < currentIndex);
+          return (
+            <li key={step} className="flex items-center gap-3">
+              <span
+                aria-hidden="true"
+                className={done ? "h-2.5 w-2.5 rounded-full bg-chili" : "h-2.5 w-2.5 rounded-full bg-border"}
+              />
+              <span>
+                {done ? "Done" : "Pending"} · {labelStep(step)}
+              </span>
+            </li>
+          );
+        })}
       </ol>
       <p className="text-sm" data-testid="eta">
         Approximate ready time {formatEta(current.eta_ready_at)}

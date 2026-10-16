@@ -13,6 +13,10 @@ export const menuItemSchema = z.object({
   is_active: z.boolean(),
   is_available: z.boolean(),
   is_demo: z.boolean(),
+  calories_kcal: z.number().int().nullable(),
+  serving_size_description: z.string().nullable(),
+  nutrition_source: z.enum(["VERIFIED", "ILLUSTRATIVE"]).nullable(),
+  nutrition_reference: z.string().nullable(),
   image_url: z.string().nullable(),
   available_qty: z.number().int(),
   reserved_qty: z.number().int().nullable().optional(),
@@ -75,6 +79,12 @@ export function upsertLine(lines: CartLine[], menuItemId: string, quantity: numb
     return [...lines, { menuItemId, quantity: next }];
   }
   return lines.map((line) => (line.menuItemId === menuItemId ? { ...line, quantity: next } : line));
+}
+
+export function addToCart(lines: CartLine[], menuItemId: string, step = 1): CartLine[] {
+  const existing = lines.find((line) => line.menuItemId === menuItemId);
+  const next = Math.min((existing?.quantity ?? 0) + step, 20);
+  return upsertLine(lines, menuItemId, next);
 }
 
 export function cartCount(lines: CartLine[]): number {

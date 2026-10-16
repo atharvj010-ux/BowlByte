@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useCart } from "@/components/cart/cart-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { apiFetch, fetchCurrentUser, roleLabel } from "@/lib/auth";
@@ -13,9 +14,9 @@ import { releaseDeviceForLogout } from "@/lib/push";
 function BowlMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 32 32" className="h-8 w-8">
-      <rect width="32" height="32" rx="10" fill="#1d6b64" />
-      <path d="M7 14h18c0 6.2-4 11-9 11s-9-4.8-9-11z" fill="#f4efe6" />
-      <path d="M10 14c1.4-3.2 10.6-3.2 12 0" fill="none" stroke="#e07a2f" strokeWidth="1.6" />
+      <rect width="32" height="32" rx="10" fill="#191919" />
+      <path d="M7 14h18c0 6.2-4 11-9 11s-9-4.8-9-11z" fill="#f4eddd" />
+      <path d="M10 14c1.4-3.2 10.6-3.2 12 0" fill="none" stroke="#f15438" strokeWidth="1.6" />
     </svg>
   );
 }
@@ -27,6 +28,7 @@ export function SiteHeader() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
+  const cart = useCart();
 
   async function logout() {
     if (me.data?.role === "STUDENT") {
@@ -65,7 +67,19 @@ export function SiteHeader() {
         <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
           {links}
         </nav>
-        {me.data?.role === "STUDENT" ? <NotificationBell /> : null}
+        {me.data?.role === "STUDENT" ? (
+          <>
+            <Link
+              id="bowlbyte-cart-target"
+              data-bump={cart.bump ? "on" : "off"}
+              href="/student/cart"
+              className="inline-flex min-h-11 items-center rounded-full bg-chili px-3 text-sm text-ivory transition-transform duration-150"
+            >
+              Cart {cart.count}
+            </Link>
+            <NotificationBell />
+          </>
+        ) : null}
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
           {me.data ? (
             <>

@@ -27,8 +27,8 @@ test("student order is accepted and shows queued", async ({ page, browser }) => 
   await addStation(page, `Drinks ${suffix}`, "1");
   await page.goto("/admin/menu");
   await expect(page.getByText("Loading menu.")).toHaveCount(0);
-  await page.getByLabel("Category name").fill(`Kitchen ${suffix}`);
-  await page.getByRole("button", { name: "Add category" }).click();
+  await page.locator("#content").getByLabel("Category name").first().fill(`Kitchen ${suffix}`);
+  await page.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(page.getByText("Category saved.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("link", { name: "Add menu item" }).click();
   await fillItem(page, sandwich, `Grill ${suffix}`, "20");
@@ -42,8 +42,8 @@ test("student order is accepted and shows queued", async ({ page, browser }) => 
   await orderItem(page, sandwich);
   const ticket = await ticketHeading(page);
   const orderUrl = page.url();
-  await expect(page.getByTestId("order-status")).toContainText("PLACED");
-  await expect(page.getByTestId("order-status")).toContainText("CASH · PENDING");
+  await expect(page.getByTestId("order-status").first()).toContainText("PLACED");
+  await expect(page.getByTestId("order-status").first()).toContainText("CASH · PENDING");
 
   await kitchenPage.goto("/staff");
   const incoming = kitchenPage.getByTestId("incoming-order").filter({ hasText: ticket });
@@ -65,11 +65,11 @@ test("student order is accepted and shows queued", async ({ page, browser }) => 
     timeout: 15_000,
   });
   await page.goto(orderUrl);
-  await expect(page.getByTestId("order-status")).toContainText("QUEUED");
-  await expect(page.getByTestId("connection-state")).toContainText("Live updates connected", {
+  await expect(page.getByTestId("order-status").first()).toContainText("QUEUED");
+  await expect(page.getByTestId("connection-state").first()).toContainText("Live updates connected", {
     timeout: 15_000,
   });
-  await expect(kitchenPage.getByTestId("connection-state")).toContainText("Live updates connected", {
+  await expect(kitchenPage.getByTestId("connection-state").first()).toContainText("Live updates connected", {
     timeout: 15_000,
   });
   await expect(page.getByText("Waiting in preparation queue")).toBeVisible();
@@ -97,14 +97,14 @@ test("two stations prepare independently and the order becomes ready", async ({ 
   await expect(ticketCard.getByRole("button", { name: "Complete" })).toHaveCount(1, { timeout: 15_000 });
   await ticketCard.getByRole("button", { name: "Start" }).click();
   await expect(ticketCard.getByRole("button", { name: "Complete" })).toHaveCount(2, { timeout: 15_000 });
-  await expect(page.getByTestId("order-status")).toContainText("PREPARING", { timeout: 15_000 });
+  await expect(page.getByTestId("order-status").first()).toContainText("PREPARING", { timeout: 15_000 });
   await ticketCard.getByRole("button", { name: "Complete" }).nth(0).click();
   await expect(ticketCard.getByRole("button", { name: "Complete" })).toHaveCount(1, { timeout: 15_000 });
   await ticketCard.getByRole("button", { name: "Complete" }).click();
   await expect(ticketCard.getByRole("button", { name: "Complete" })).toHaveCount(0, { timeout: 15_000 });
   await ticketCard.getByRole("button", { name: "Confirm packed and ready" }).click();
-  await expect(page.getByTestId("order-status")).toContainText("READY", { timeout: 15_000 });
-  await expect(page.getByTestId("order-status")).toContainText("PENDING");
+  await expect(page.getByTestId("order-status").first()).toContainText("READY", { timeout: 15_000 });
+  await expect(page.getByTestId("order-status").first()).toContainText("PENDING");
   await expect(
     page.getByText(/Your order is ready\. Pay .* in cash at the counter\./),
   ).toBeVisible();
@@ -134,7 +134,7 @@ test("a second order waits behind the only station slot", async ({ page, browser
   await expect(kitchenPage.getByText("That station is at capacity.")).toBeVisible();
   await firstCard.getByRole("button", { name: "Complete" }).click();
   await secondCard.getByRole("button", { name: "Start" }).click();
-  await expect(secondCard.getByTestId("ticket-status")).toContainText("PREPARING");
+  await expect(secondCard.getByTestId("ticket-status").first()).toContainText("PREPARING");
   await kitchen.close();
 });
 
@@ -161,12 +161,12 @@ test("a recorded delay updates the student without completing the task", async (
   const preparing = kitchenPage.locator("section").filter({
     has: kitchenPage.getByRole("heading", { name: "Currently preparing" }),
   });
-  await preparing.getByLabel("Delay seconds").fill("300");
+  await preparing.getByLabel("Delay seconds").first().fill("300");
   await card.getByRole("button", { name: "Delay" }).click();
   await page.goto(`/student/orders/${orderId}`);
-  await expect(page.getByTestId("delay-message")).toContainText("Preparation is taking longer");
-  await expect(page.getByTestId("order-status")).toContainText("PREPARING", { timeout: 15_000 });
-  await expect(page.getByTestId("order-status")).not.toContainText("READY");
+  await expect(page.getByTestId("delay-message").first()).toContainText("Preparation is taking longer");
+  await expect(page.getByTestId("order-status").first()).toContainText("PREPARING", { timeout: 15_000 });
+  await expect(page.getByTestId("order-status").first()).not.toContainText("READY");
   const after = await tracking(page, orderId);
   expect(Date.parse(after.eta_ready_at)).toBeGreaterThan(Date.parse(started.eta_ready_at));
   expect(after.tasks.some((task: { status: string }) => task.status === "DONE")).toBeFalsy();
@@ -179,11 +179,11 @@ test("a disconnected student recovers the current kitchen status", async ({ page
   await signIn(page, studentEmail);
   const orderId = await placeByName(page, coffee);
   await page.goto(`/student/orders/${orderId}`);
-  await expect(page.getByTestId("order-status")).toContainText("PLACED");
-  await expect(page.getByTestId("connection-state")).toContainText("Live updates connected");
+  await expect(page.getByTestId("order-status").first()).toContainText("PLACED");
+  await expect(page.getByTestId("connection-state").first()).toContainText("Live updates connected");
   await page.routeWebSocket(/\/api\/v1\/ws\//, (socket) => socket.close());
   await page.reload();
-  await expect(page.getByTestId("connection-state")).toContainText("Checking for updates");
+  await expect(page.getByTestId("connection-state").first()).toContainText("Checking for updates");
   const kitchen = await browser.newContext();
   const kitchenPage = await kitchen.newPage();
   await kitchenPage.goto("/staff/login");
@@ -201,7 +201,7 @@ test("a disconnected student recovers the current kitchen status", async ({ page
     timeout: 15_000,
   });
   await page.unrouteAll({ behavior: "ignoreErrors" });
-  await expect(page.getByTestId("order-status")).toContainText("QUEUED", { timeout: 25_000 });
+  await expect(page.getByTestId("order-status").first()).toContainText("QUEUED", { timeout: 25_000 });
   await kitchen.close();
 });
 
@@ -260,43 +260,47 @@ async function managerPage(browser: { newContext: () => Promise<BrowserContext> 
 }
 
 async function addStation(page: Page, name: string, capacity: string) {
-  await page.getByLabel("Station name").fill(name);
-  await page.getByLabel("Capacity").fill(capacity);
-  await page.getByRole("button", { name: "Add station" }).click();
+  await page.locator("#content").getByLabel("Station name").first().fill(name);
+  await page.locator("#content").getByLabel("Capacity").first().fill(capacity);
+  await page.locator("#content").getByRole("button", { name: "Add station" }).first().click();
   await expect(page.getByText("Station saved.")).toBeVisible();
 }
 
 async function fillItem(page: Page, name: string, station: string, stock: string) {
-  await page.getByLabel("Name").fill(name);
-  await page.getByLabel("Description").fill("Development sample for the pilot.");
-  await page.getByLabel("Price in rupees").fill("40");
-  await page.getByLabel("Preparation seconds").fill("300");
+  await page.locator("#content").getByLabel("Name").first().fill(name);
+  await page.locator("#content").getByLabel("Description").first().fill("Development sample for the pilot.");
+  await page.locator("#content").getByLabel("Price in rupees").first().fill("40");
+  await page.locator("#content").getByLabel("Preparation seconds").first().fill("300");
   await expect(page.getByRole("option", { name: `Kitchen ${suffix}` })).toHaveCount(1);
-  await page.getByLabel("Category").selectOption({ label: `Kitchen ${suffix}` });
-  await page.getByLabel("Station").selectOption({ label: station });
-  await page.getByLabel("Initial stock").fill(stock);
+  await page.locator("#content").getByLabel("Category").first().selectOption({ label: `Kitchen ${suffix}` });
+  await page.locator("#content").getByLabel("Station").first().selectOption({ label: station });
+  await page.locator("#content").getByLabel("Initial stock").first().fill(stock);
   await page.getByRole("button", { name: "Create item" }).click();
   await expect(page.getByRole("heading", { name: "Edit item" })).toBeVisible();
 }
 
 async function orderItem(page: Page, name: string) {
   await page.goto("/student/menu");
-  await page.getByLabel("Search menu").fill(name);
+  await page.locator("#content").getByLabel("Search menu").first().fill(name);
   await page.getByRole("button", { name: "Add to cart" }).click();
   await page.goto("/student/cart");
   await page.getByRole("button", { name: "Place order" }).click();
   await expect(page.getByText(/CASH · PENDING/)).toBeVisible();
+  await page.getByRole("button", { name: "Track my order" }).click();
+  await expect(page.getByTestId("order-status").first()).toBeVisible();
 }
 
 async function orderItems(page: Page, names: string[]) {
   await page.goto("/student/menu");
   for (const name of names) {
-    await page.getByLabel("Search menu").fill(name);
+    await page.locator("#content").getByLabel("Search menu").first().fill(name);
     await page.getByRole("button", { name: "Add to cart" }).click();
   }
   await page.goto("/student/cart");
   await page.getByRole("button", { name: "Place order" }).click();
   await expect(page.getByText(/CASH · PENDING/)).toBeVisible();
+  await page.getByRole("button", { name: "Track my order" }).click();
+  await expect(page.getByTestId("order-status").first()).toBeVisible();
 }
 
 async function ticketHeading(page: Page) {
@@ -462,9 +466,9 @@ async function inviteKitchen(manager: Page, kitchen: Page, email: string, name: 
   await expect(manager.getByText("Invitation sent")).toBeVisible();
   const token = await verificationToken(email);
   await kitchen.goto(`/invite/accept#token=${token}`);
-  await kitchen.getByLabel("Full name").fill(name);
-  await kitchen.getByLabel("Password", { exact: true }).fill(password);
-  await kitchen.getByLabel("Confirm password").fill(password);
+  await kitchen.locator("#content").getByLabel("Full name").first().fill(name);
+  await kitchen.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await kitchen.locator("#content").getByLabel("Confirm password").first().fill(password);
   await kitchen.getByRole("button", { name: "Activate account" }).click();
   await expect(kitchen.getByText("Your staff account is active")).toBeVisible();
   await kitchen.goto("/staff/login");
@@ -473,11 +477,11 @@ async function inviteKitchen(manager: Page, kitchen: Page, email: string, name: 
 
 async function registerStudent(page: Page, email: string, name: string) {
   await page.goto("/student/register");
-  await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("College roll number").fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
+  await page.locator("#content").getByLabel("Full name").first().fill(name);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("College roll number").first().fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
   const token = await verificationToken(email);
@@ -489,8 +493,8 @@ async function registerStudent(page: Page, email: string, name: string) {
 }
 
 async function signIn(page: Page, email: string) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   const login = page.waitForResponse(
     (response) =>
       response.url().includes("/api/v1/auth/login") && response.request().method() === "POST",

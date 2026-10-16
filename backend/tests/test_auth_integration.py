@@ -42,7 +42,7 @@ def reset_identity_tables() -> None:
             "TRUNCATE order_hold_events, preparation_tasks, order_idempotency_records, "
             "inventory_adjustments, order_payments, "
             "order_events, order_items, orders, daily_stock, menu_item_station_assignments, "
-            "menu_items, kitchen_stations, menu_categories, "
+            "menu_item_pairings, menu_items, kitchen_stations, menu_categories, "
             "audit_log, sessions, staff_invitations, email_verification_tokens, "
             "student_roster_entries, staff_memberships, student_profiles, "
             "users, canteens, colleges "

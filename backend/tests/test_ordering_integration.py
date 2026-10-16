@@ -39,7 +39,7 @@ def reset_tables() -> None:
             "TRUNCATE order_hold_events, preparation_tasks, order_idempotency_records, "
             "inventory_adjustments, order_payments, "
             "order_events, order_items, orders, daily_stock, menu_item_station_assignments, "
-            "menu_items, kitchen_stations, menu_categories, "
+            "menu_item_pairings, menu_items, kitchen_stations, menu_categories, "
             "audit_log, sessions, staff_invitations, email_verification_tokens, "
             "student_roster_entries, staff_memberships, student_profiles, "
             "users, canteens, colleges RESTART IDENTITY CASCADE"
@@ -598,3 +598,72 @@ def test_expired_session_still_blocked_and_ready_endpoint(client: TestClient) ->
         headers={"x-csrf-token": "x" * 16},
     )
     assert too_much.status_code in {401, 403, 422}
+
+
+def test_nutrition_requires_a_source_and_pairings_stay_in_stock(client: TestClient) -> None:
+    manager_email, college_id, _canteen_id = _bootstrap()
+    student = _add_user("STUDENT", _student_email(), None, college_id)
+    _login(client, manager_email)
+    fries = _sellable(client, stock=4)
+    drink = _sellable(client, stock=0)
+    coke = _sellable(client, stock=3)
+    bare = client.patch(
+        f"/api/v1/admin/menu/{fries['id']}",
+        json={"calories_kcal": 280},
+        headers=_csrf(client),
+    )
+    assert bare.status_code == 422
+    labeled = client.patch(
+        f"/api/v1/admin/menu/{fries['id']}",
+        json={
+            "name": "Salted Fries",
+            "calories_kcal": 280,
+            "nutrition_source": "ILLUSTRATIVE",
+            "serving_size_description": "one serving",
+            "nutrition_reference": "Demo kitchen card, not a lab assay",
+        },
+        headers=_csrf(client),
+    )
+    assert labeled.status_code == 200, labeled.text
+    assert labeled.json()["calories_kcal"] == 280
+    assert labeled.json()["nutrition_source"] == "ILLUSTRATIVE"
+    self_pair = client.post(
+        f"/api/v1/admin/menu/{fries['id']}/pairings",
+        json={"suggested_item_id": fries["id"]},
+        headers=_csrf(client),
+    )
+    assert self_pair.status_code == 422
+    hidden = client.post(
+        f"/api/v1/admin/menu/{fries['id']}/pairings",
+        json={"suggested_item_id": drink["id"], "priority": 1},
+        headers=_csrf(client),
+    )
+    assert hidden.status_code == 201, hidden.text
+    shown = client.post(
+        f"/api/v1/admin/menu/{fries['id']}/pairings",
+        json={"suggested_item_id": coke["id"], "priority": 5},
+        headers=_csrf(client),
+    )
+    assert shown.status_code == 201, shown.text
+    again = client.post(
+        f"/api/v1/admin/menu/{fries['id']}/pairings",
+        json={"suggested_item_id": coke["id"]},
+        headers=_csrf(client),
+    )
+    assert again.status_code == 409
+    _login(client, student.email)
+    denied = client.post(
+        f"/api/v1/admin/menu/{fries['id']}/pairings",
+        json={"suggested_item_id": coke["id"]},
+        headers=_csrf(client),
+    )
+    assert denied.status_code == 403
+    pairings = client.get(f"/api/v1/menu/items/{fries['id']}/pairings")
+    assert pairings.status_code == 200, pairings.text
+    body = pairings.json()
+    assert body["basis"] == "MANAGER"
+    ids = [row["id"] for row in body["items"]]
+    assert coke["id"] in ids
+    assert drink["id"] not in ids
+    assert body["items"][0]["price_paise"] == coke["price_paise"]
+

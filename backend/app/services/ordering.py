@@ -299,6 +299,9 @@ def create_menu_item(db: Session, *, manager: User, fields: dict) -> MenuItem:
         is_active=fields["is_active"],
         is_available=fields["is_available"],
     )
+    from app.services.pairings import apply_nutrition
+
+    apply_nutrition(item, fields)
     db.add(item)
     db.flush()
     _assign_station(db, item, fields["station_id"])
@@ -343,6 +346,9 @@ def update_menu_item(db: Session, *, manager: User, item_id: UUID, fields: dict)
     for key in ("price_paise", "prep_seconds", "is_active", "is_available"):
         if key in fields:
             setattr(item, key, fields[key])
+    from app.services.pairings import apply_nutrition
+
+    apply_nutrition(item, fields)
     _touch(item)
     db.commit()
     db.refresh(item)
@@ -427,6 +433,10 @@ def item_view(
         "is_active": item.is_active,
         "is_available": item.is_available,
         "is_demo": item.is_demo,
+        "calories_kcal": item.calories_kcal,
+        "serving_size_description": item.serving_size_description,
+        "nutrition_source": item.nutrition_source,
+        "nutrition_reference": item.nutrition_reference,
         "image_url": f"/api/v1/menu/items/{item.id}/image" if item.image_content_type else None,
         "available_qty": available,
         "reserved_qty": stock.reserved_qty if include_reserved and stock is not None else None,

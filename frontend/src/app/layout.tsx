@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Outfit } from "next/font/google";
+import { Bricolage_Grotesque, Figtree } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { PwaRuntime } from "@/components/pwa/pwa-runtime";
@@ -8,13 +8,13 @@ import { SiteHeader } from "@/components/site-header";
 
 import "./globals.css";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const body = Figtree({
+  variable: "--font-body",
   subsets: ["latin"],
 });
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const display = Bricolage_Grotesque({
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: "%s · BowlByte",
   },
   description:
-    "Foundation for a college canteen: counter pickup, kitchen queues, and cash payments.",
+    "Foundation for a college canteen: order ahead, kitchen queues, and cash at the counter.",
   manifest: "/manifest.webmanifest",
   applicationName: "BowlByte",
   appleWebApp: { capable: true, title: "BowlByte", statusBarStyle: "default" },
@@ -38,14 +38,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1d6b64",
+  themeColor: "#191919",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
+    <html lang="en" className={`${body.variable} ${display.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col text-foreground">
         <Providers>
           <a

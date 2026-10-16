@@ -7,6 +7,7 @@ import {
   estimateTotal,
   menuItemFormSchema,
   rupeesToPaise,
+  addToCart,
   upsertLine,
 } from "@/lib/ordering";
 
@@ -25,6 +26,13 @@ describe("money and cart", () => {
     expect(cartCount(changed)).toBe(5);
     expect(estimateTotal(changed, new Map([["sandwich", 4000], ["chai", 1500]]))).toBe(15000);
     expect(upsertLine(changed, "chai", 0)).toEqual([{ menuItemId: "sandwich", quantity: 3 }]);
+  });
+
+  it("adds one portion per tap and stops at twenty", () => {
+    const once = addToCart([], "fries");
+    const twice = addToCart(once, "fries");
+    expect(twice).toEqual([{ menuItemId: "fries", quantity: 2 }]);
+    expect(addToCart([{ menuItemId: "fries", quantity: 20 }], "fries")[0]?.quantity).toBe(20);
   });
 
   it("disables an out-of-stock item", () => {

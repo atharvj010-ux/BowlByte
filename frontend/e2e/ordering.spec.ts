@@ -22,14 +22,14 @@ test("manager publishes an item and a student can see it", async ({ page }) => {
   await signIn(page, managerEmail);
   await expect(page.getByRole("heading", { name: "Hello, Pilot Manager" })).toBeVisible();
   await page.getByRole("link", { name: "Stations" }).click();
-  await page.getByLabel("Station name").fill(`Sandwich ${suffix}`);
-  await page.getByLabel("Capacity").fill("2");
-  await page.getByRole("button", { name: "Add station" }).click();
+  await page.locator("#content").getByLabel("Station name").first().fill(`Sandwich ${suffix}`);
+  await page.locator("#content").getByLabel("Capacity").first().fill("2");
+  await page.locator("#content").getByRole("button", { name: "Add station" }).first().click();
   await expect(page.getByText("Station saved.")).toBeVisible();
 
   await page.goto("/admin/menu");
-  await page.getByLabel("Category name").fill(`Snacks ${suffix}`);
-  await page.getByRole("button", { name: "Add category" }).click();
+  await page.locator("#content").getByLabel("Category name").first().fill(`Snacks ${suffix}`);
+  await page.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(page.getByText("Category saved.")).toBeVisible();
   await page.getByRole("link", { name: "Add menu item" }).click();
   await fillItem(page, `Veg Sandwich ${suffix}`, "12");
@@ -41,7 +41,7 @@ test("manager publishes an item and a student can see it", async ({ page }) => {
   await loggedOut;
   await registerStudent(page, studentEmail, "Asha Rao");
   await page.goto("/student/menu");
-  await page.getByLabel("Search menu").fill(`Veg Sandwich ${suffix}`);
+  await page.locator("#content").getByLabel("Search menu").first().fill(`Veg Sandwich ${suffix}`);
   await expect(page.getByRole("heading", { name: `Veg Sandwich ${suffix}` })).toBeVisible();
 });
 
@@ -54,9 +54,9 @@ test("student places an order and kitchen sees the pending ticket", async ({ pag
   await page.goto("/student/login");
   await signIn(page, studentEmail);
   await page.goto("/student/menu");
-  await page.getByLabel("Search menu").fill(`Veg Sandwich ${suffix}`);
+  await page.locator("#content").getByLabel("Search menu").first().fill(`Veg Sandwich ${suffix}`);
   await page.locator("article").filter({ hasText: `Veg Sandwich ${suffix}` }).getByRole("button", { name: "Add to cart" }).click();
-  await page.getByLabel("Search menu").fill(`Masala Chai ${suffix}`);
+  await page.locator("#content").getByLabel("Search menu").first().fill(`Masala Chai ${suffix}`);
   await page.locator("article").filter({ hasText: `Masala Chai ${suffix}` }).getByRole("button", { name: "Add to cart" }).click();
   await page.goto("/student/cart");
   await expect(page.getByText(`Veg Sandwich ${suffix}`)).toBeVisible();
@@ -146,14 +146,14 @@ test("two students cannot oversell the last portion", async ({ browser }) => {
 });
 
 async function fillItem(page: Page, name: string, stock: string) {
-  await page.getByLabel("Name").fill(name);
-  await page.getByLabel("Description").fill("Development sample for the pilot.");
-  await page.getByLabel("Price in rupees").fill("40");
-  await page.getByLabel("Preparation seconds").fill("300");
+  await page.locator("#content").getByLabel("Name").first().fill(name);
+  await page.locator("#content").getByLabel("Description").first().fill("Development sample for the pilot.");
+  await page.locator("#content").getByLabel("Price in rupees").first().fill("40");
+  await page.locator("#content").getByLabel("Preparation seconds").first().fill("300");
   await expect(page.getByRole("option", { name: `Snacks ${suffix}` })).toHaveCount(1);
-  await page.getByLabel("Category").selectOption({ label: `Snacks ${suffix}` });
-  await page.getByLabel("Station").selectOption({ label: `Sandwich ${suffix}` });
-  await page.getByLabel("Initial stock").fill(stock);
+  await page.locator("#content").getByLabel("Category").first().selectOption({ label: `Snacks ${suffix}` });
+  await page.locator("#content").getByLabel("Station").first().selectOption({ label: `Sandwich ${suffix}` });
+  await page.locator("#content").getByLabel("Initial stock").first().fill(stock);
   await page.getByRole("button", { name: "Create item" }).click();
   await expect(page.getByRole("heading", { name: "Edit item" })).toBeVisible();
 }
@@ -190,9 +190,9 @@ async function inviteKitchen(manager: Page, kitchen: Page) {
   await expect(manager.getByText("Invitation sent")).toBeVisible();
   const token = await verificationToken(kitchenEmail);
   await kitchen.goto(`/invite/accept#token=${token}`);
-  await kitchen.getByLabel("Full name").fill("Kitchen Lead");
-  await kitchen.getByLabel("Password", { exact: true }).fill(password);
-  await kitchen.getByLabel("Confirm password").fill(password);
+  await kitchen.locator("#content").getByLabel("Full name").first().fill("Kitchen Lead");
+  await kitchen.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await kitchen.locator("#content").getByLabel("Confirm password").first().fill(password);
   await kitchen.getByRole("button", { name: "Activate account" }).click();
   await expect(kitchen.getByText("Your staff account is active")).toBeVisible();
   await kitchen.goto("/staff/login");
@@ -201,11 +201,11 @@ async function inviteKitchen(manager: Page, kitchen: Page) {
 
 async function registerStudent(page: Page, email: string, name: string) {
   await page.goto("/student/register");
-  await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("College roll number").fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
+  await page.locator("#content").getByLabel("Full name").first().fill(name);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("College roll number").first().fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
   const token = await verificationToken(email);
@@ -217,8 +217,8 @@ async function registerStudent(page: Page, email: string, name: string) {
 }
 
 async function signIn(page: Page, email: string) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   const login = page.waitForResponse(
     (response) =>
       response.url().includes("/api/v1/auth/login") && response.request().method() === "POST",

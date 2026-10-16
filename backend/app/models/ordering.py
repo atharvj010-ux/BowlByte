@@ -100,6 +100,18 @@ class MenuItem(Base):
             "(image_bytes IS NULL) = (image_content_type IS NULL)",
             name="ck_menu_items_image_pair",
         ),
+        CheckConstraint(
+            "calories_kcal IS NULL OR (calories_kcal >= 0 AND calories_kcal <= 5000)",
+            name="ck_menu_items_calories",
+        ),
+        CheckConstraint(
+            "(calories_kcal IS NULL) = (nutrition_source IS NULL)",
+            name="ck_menu_items_nutrition_pair",
+        ),
+        CheckConstraint(
+            "nutrition_source IS NULL OR nutrition_source IN ('VERIFIED', 'ILLUSTRATIVE')",
+            name="ck_menu_items_nutrition_source",
+        ),
         Index(
             "uq_menu_items_seed_key",
             "canteen_id",
@@ -127,6 +139,10 @@ class MenuItem(Base):
     is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     prep_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    calories_kcal: Mapped[int | None] = mapped_column(Integer)
+    serving_size_description: Mapped[str | None] = mapped_column(String(80))
+    nutrition_source: Mapped[str | None] = mapped_column(String(16))
+    nutrition_reference: Mapped[str | None] = mapped_column(String(160))
     seed_key: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -154,6 +170,38 @@ class MenuItemStationAssignment(Base):
         ForeignKey("kitchen_stations.id"),
         nullable=False,
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class MenuItemPairing(Base):
+    __tablename__ = "menu_item_pairings"
+    __table_args__ = (
+        UniqueConstraint("source_item_id", "suggested_item_id", name="uq_menu_item_pairings"),
+        CheckConstraint(
+            "source_item_id <> suggested_item_id",
+            name="ck_menu_item_pairings_distinct",
+        ),
+        CheckConstraint(
+            "priority >= 0 AND priority <= 100",
+            name="ck_menu_item_pairings_priority",
+        ),
+        Index("ix_menu_item_pairings_source", "canteen_id", "source_item_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    canteen_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("canteens.id"), nullable=False
+    )
+    source_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False
+    )
+    suggested_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False
+    )
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -24,11 +24,11 @@ test("registration layout stays usable on a phone", async ({ page }) => {
 
 test("student can verify, stay signed in, and lose access after logout", async ({ page }) => {
   await page.goto("/student/register");
-  await page.getByLabel("Full name").fill("Asha Rao");
-  await page.getByLabel("Email").fill(studentEmail);
-  await page.getByLabel("College roll number").fill(roll);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
+  await page.locator("#content").getByLabel("Full name").first().fill("Asha Rao");
+  await page.locator("#content").getByLabel("Email").first().fill(studentEmail);
+  await page.locator("#content").getByLabel("College roll number").first().fill(roll);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
 
@@ -42,7 +42,7 @@ test("student can verify, stay signed in, and lose access after logout", async (
   await expect(page.getByRole("heading", { name: "Hello, Asha Rao" })).toBeVisible();
 
   await page.goto("/admin");
-  await expect(page.getByTestId("access-denied")).toBeVisible();
+  await expect(page.locator("#content").getByTestId("access-denied").first()).toBeVisible();
   await Promise.all([
     page.waitForResponse(
       (response) => response.url().includes("/api/v1/auth/logout") && response.status() === 200,
@@ -72,16 +72,16 @@ test("manager invitation, kitchen login, and deactivation", async ({ browser, pa
   const kitchen = await browser.newContext();
   const kitchenPage = await kitchen.newPage();
   await kitchenPage.goto(`/invite/accept#token=${token}`);
-  await kitchenPage.getByLabel("Full name").fill("Kitchen Lead");
-  await kitchenPage.getByLabel("Password", { exact: true }).fill(password);
-  await kitchenPage.getByLabel("Confirm password").fill(password);
+  await kitchenPage.locator("#content").getByLabel("Full name").first().fill("Kitchen Lead");
+  await kitchenPage.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await kitchenPage.locator("#content").getByLabel("Confirm password").first().fill(password);
   await kitchenPage.getByRole("button", { name: "Activate account" }).click();
   await expect(kitchenPage.getByText("Your staff account is active")).toBeVisible();
   await kitchenPage.goto("/staff/login");
   await signIn(kitchenPage, kitchenEmail);
   await expect(kitchenPage.getByRole("heading", { name: "Hello, Kitchen Lead" })).toBeVisible();
   await kitchenPage.goto("/cashier");
-  await expect(kitchenPage.getByTestId("access-denied")).toBeVisible();
+  await expect(kitchenPage.locator("#content").getByTestId("access-denied").first()).toBeVisible();
 
   await page.reload();
   const kitchenRow = staffDesk.locator("li").filter({ hasText: kitchenEmail });
@@ -101,8 +101,8 @@ test("manager invitation, kitchen login, and deactivation", async ({ browser, pa
 });
 
 async function signIn(page: import("@playwright/test").Page, email: string) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 

@@ -27,22 +27,22 @@ test.beforeAll(async ({ browser }) => {
   await pages.manager.goto("/admin/login");
   await signIn(pages.manager, managerEmail);
   await pages.manager.goto("/admin/stations");
-  await pages.manager.getByLabel("Station name").fill(`Idli ${suffix}`);
-  await pages.manager.getByLabel("Capacity").fill("2");
-  await pages.manager.getByRole("button", { name: "Add station" }).click();
+  await pages.manager.locator("#content").getByLabel("Station name").first().fill(`Idli ${suffix}`);
+  await pages.manager.locator("#content").getByLabel("Capacity").first().fill("2");
+  await pages.manager.locator("#content").getByRole("button", { name: "Add station" }).first().click();
   await expect(pages.manager.getByText("Station saved.")).toBeVisible();
   await pages.manager.goto("/admin/menu");
-  await pages.manager.getByLabel("Category name").fill(`Breakfast ${suffix}`);
-  await pages.manager.getByRole("button", { name: "Add category" }).click();
+  await pages.manager.locator("#content").getByLabel("Category name").first().fill(`Breakfast ${suffix}`);
+  await pages.manager.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(pages.manager.getByText("Category saved.")).toBeVisible({ timeout: 15_000 });
   await pages.manager.getByRole("link", { name: "Add menu item" }).click();
-  await pages.manager.getByLabel("Name").fill(dish);
-  await pages.manager.getByLabel("Description").fill("Steamed cakes for the pilot.");
-  await pages.manager.getByLabel("Price in rupees").fill("30");
-  await pages.manager.getByLabel("Preparation seconds").fill("120");
-  await pages.manager.getByLabel("Category").selectOption({ label: `Breakfast ${suffix}` });
-  await pages.manager.getByLabel("Station").selectOption({ label: `Idli ${suffix}` });
-  await pages.manager.getByLabel("Initial stock").fill("40");
+  await pages.manager.locator("#content").getByLabel("Name").first().fill(dish);
+  await pages.manager.locator("#content").getByLabel("Description").first().fill("Steamed cakes for the pilot.");
+  await pages.manager.locator("#content").getByLabel("Price in rupees").first().fill("30");
+  await pages.manager.locator("#content").getByLabel("Preparation seconds").first().fill("120");
+  await pages.manager.locator("#content").getByLabel("Category").first().selectOption({ label: `Breakfast ${suffix}` });
+  await pages.manager.locator("#content").getByLabel("Station").first().selectOption({ label: `Idli ${suffix}` });
+  await pages.manager.locator("#content").getByLabel("Initial stock").first().fill("40");
   await pages.manager.getByRole("button", { name: "Create item" }).click();
   await expect(pages.manager.getByRole("heading", { name: "Edit item" })).toBeVisible();
   await invite(pages.manager, pages.cashier, cashierEmail);
@@ -61,40 +61,40 @@ test("scenario 1: production and waste show up in recorded analytics", async () 
   test.setTimeout(60_000);
   const manager = pages.manager;
   await manager.goto("/admin/production");
-  const day = await manager.getByTestId("production-date").inputValue();
-  await manager.getByTestId("production-search").fill(dish);
-  await manager.getByTestId("production-item").selectOption({ label: dish });
-  await manager.getByTestId("production-qty").fill("12");
-  await manager.getByTestId("production-save").click();
-  await expect(manager.getByTestId("production-notice")).toContainText("Production batch saved");
-  await expect(manager.getByTestId("production-list")).toContainText("Produced 12");
+  const day = await manager.locator("#content").getByTestId("production-date").first().inputValue();
+  await manager.locator("#content").getByTestId("production-search").first().fill(dish);
+  await manager.locator("#content").getByTestId("production-item").first().selectOption({ label: dish });
+  await manager.locator("#content").getByTestId("production-qty").first().fill("12");
+  await manager.locator("#content").getByTestId("production-save").first().click();
+  await expect(manager.locator("#content").getByTestId("production-notice").first()).toContainText("Production batch saved");
+  await expect(manager.locator("#content").getByTestId("production-list").first()).toContainText("Produced 12");
 
   await manager.goto("/admin/waste");
-  await manager.getByTestId("waste-date").fill(day);
-  await manager.getByTestId("waste-search").fill(dish);
-  await manager.getByTestId("waste-item").selectOption({ label: dish });
-  await manager.getByTestId("waste-qty").fill("2");
-  await manager.getByTestId("waste-reason").selectOption("UNSOLD");
-  await manager.getByTestId("waste-save").click();
-  await expect(manager.getByTestId("waste-notice")).toContainText("Discard recorded");
+  await manager.locator("#content").getByTestId("waste-date").first().fill(day);
+  await manager.locator("#content").getByTestId("waste-search").first().fill(dish);
+  await manager.locator("#content").getByTestId("waste-item").first().selectOption({ label: dish });
+  await manager.locator("#content").getByTestId("waste-qty").first().fill("2");
+  await manager.locator("#content").getByTestId("waste-reason").first().selectOption("UNSOLD");
+  await manager.locator("#content").getByTestId("waste-save").first().click();
+  await expect(manager.locator("#content").getByTestId("waste-notice").first()).toContainText("Discard recorded");
 
   await manager.goto("/admin/intelligence");
-  await manager.getByTestId("overview-from").fill(day);
-  await manager.getByTestId("overview-to").fill(day);
-  await expect(manager.getByTestId("produced")).toContainText("12");
-  await expect(manager.getByTestId("discarded")).toContainText("2");
-  await expect(manager.getByTestId("source-badge")).toContainText("ACTUAL");
+  await manager.locator("#content").getByTestId("overview-from").first().fill(day);
+  await manager.locator("#content").getByTestId("overview-to").first().fill(day);
+  await expect(manager.locator("#content").getByTestId("produced").first()).toContainText("12");
+  await expect(manager.locator("#content").getByTestId("discarded").first()).toContainText("2");
+  await expect(manager.locator("#content").getByTestId("source-badge").first()).toContainText("ACTUAL");
 });
 
 test("scenario 2: demo training persists an evaluation", async () => {
   test.setTimeout(180_000);
   const manager = pages.manager;
   await manager.goto("/admin/intelligence/forecasts");
-  await manager.getByTestId("load-demo").click();
-  await expect(manager.getByTestId("forecast-notice")).toContainText("Demo history");
-  await manager.getByTestId("train-demo").click();
-  await expect(manager.getByTestId("forecast-notice")).toContainText("SUCCEEDED", { timeout: 120_000 });
-  await expect(manager.getByTestId("model-list")).toContainText("DEMO");
+  await manager.locator("#content").getByTestId("load-demo").first().click();
+  await expect(manager.locator("#content").getByTestId("forecast-notice").first()).toContainText("Demo history");
+  await manager.locator("#content").getByTestId("train-demo").first().click();
+  await expect(manager.locator("#content").getByTestId("forecast-notice").first()).toContainText("SUCCEEDED", { timeout: 120_000 });
+  await expect(manager.locator("#content").getByTestId("model-list").first()).toContainText("DEMO");
   expect(sql("SELECT count(*) FROM model_evaluations").trim()).not.toBe("0");
   expect(sql("SELECT count(*) FROM orders").trim()).toBe("0");
 });
@@ -102,8 +102,8 @@ test("scenario 2: demo training persists an evaluation", async () => {
 test("scenario 3: forecasts are stored and hidden from students and cashiers", async () => {
   const manager = pages.manager;
   await manager.goto("/admin/intelligence/forecasts");
-  await manager.getByTestId("forecast-demo").click();
-  await expect(manager.getByTestId("forecast-result")).toContainText("DEMO");
+  await manager.locator("#content").getByTestId("forecast-demo").first().click();
+  await expect(manager.locator("#content").getByTestId("forecast-result").first()).toContainText("DEMO");
   expect(sql("SELECT count(*) FROM demand_forecast_runs").trim()).not.toBe("0");
   const cashier = await api(pages.cashier, "GET", "/api/v1/admin/forecasts");
   const student = await api(pages.student, "GET", "/api/v1/admin/forecasts");
@@ -115,10 +115,10 @@ test("scenario 4: approving a plan does not create production", async () => {
   const before = sql("SELECT count(*) FROM food_production_batches").trim();
   const manager = pages.manager;
   await manager.goto("/admin/intelligence/planning");
-  await manager.getByTestId("plan-generate").click();
-  await expect(manager.getByTestId("plan-status")).toContainText("DRAFT");
-  await manager.getByTestId("plan-approve").click();
-  await expect(manager.getByTestId("plan-status")).toContainText("APPROVED");
+  await manager.locator("#content").getByTestId("plan-generate").first().click();
+  await expect(manager.locator("#content").getByTestId("plan-status").first()).toContainText("DRAFT");
+  await manager.locator("#content").getByTestId("plan-approve").first().click();
+  await expect(manager.locator("#content").getByTestId("plan-status").first()).toContainText("APPROVED");
   expect(sql("SELECT count(*) FROM food_production_batches").trim()).toBe(before);
   expect(sql("SELECT status FROM preparation_plans ORDER BY created_at DESC LIMIT 1").trim()).toBe("APPROVED");
 });
@@ -128,11 +128,11 @@ test("scenario 5: a station simulation changes the estimate and leaves stock alo
   const orders = sql("SELECT count(*) FROM orders").trim();
   const manager = pages.manager;
   await manager.goto("/admin/intelligence/planning");
-  await manager.getByTestId("simulate-station").selectOption({ label: `Idli ${suffix}` });
-  await manager.getByTestId("demand-factor").fill("1.2");
-  await manager.getByTestId("simulate-run").click();
-  await expect(manager.getByTestId("simulate-label")).toContainText("Estimate");
-  await expect(manager.getByTestId("simulate-items")).toContainText("Unmet");
+  await manager.locator("#content").getByTestId("simulate-station").first().selectOption({ label: `Idli ${suffix}` });
+  await manager.locator("#content").getByTestId("demand-factor").first().fill("1.2");
+  await manager.locator("#content").getByTestId("simulate-run").first().click();
+  await expect(manager.locator("#content").getByTestId("simulate-label").first()).toContainText("Estimate");
+  await expect(manager.locator("#content").getByTestId("simulate-items").first()).toContainText("Unmet");
   expect(sql("SELECT coalesce(sum(available_qty), 0) FROM daily_stock").trim()).toBe(stock);
   expect(sql("SELECT count(*) FROM orders").trim()).toBe(orders);
 });
@@ -140,10 +140,10 @@ test("scenario 5: a station simulation changes the estimate and leaves stock alo
 test("scenario 6: recorded history without enough days stays insufficient", async () => {
   const manager = pages.manager;
   await manager.goto("/admin/intelligence/forecasts");
-  await manager.getByTestId("train-real").click();
-  await expect(manager.getByTestId("forecast-notice")).toContainText("SUCCEEDED", { timeout: 120_000 });
-  await manager.getByTestId("forecast-real").click();
-  await expect(manager.getByTestId("forecast-result")).toContainText("INSUFFICIENT_DATA");
+  await manager.locator("#content").getByTestId("train-real").first().click();
+  await expect(manager.locator("#content").getByTestId("forecast-notice").first()).toContainText("SUCCEEDED", { timeout: 120_000 });
+  await manager.locator("#content").getByTestId("forecast-real").first().click();
+  await expect(manager.locator("#content").getByTestId("forecast-result").first()).toContainText("INSUFFICIENT_DATA");
 });
 
 async function open(browser: Browser): Promise<Page> {
@@ -153,8 +153,8 @@ async function open(browser: Browser): Promise<Page> {
 }
 
 async function signIn(page: Page, email: string) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   const login = page.waitForResponse(
     (response) => response.url().includes("/api/v1/auth/login") && response.request().method() === "POST",
   );
@@ -171,20 +171,20 @@ async function invite(manager: Page, invitee: Page, email: string) {
   await expect(manager.getByText("Invitation sent")).toBeVisible();
   const token = await verificationToken(email);
   await invitee.goto(`/invite/accept#token=${token}`);
-  await invitee.getByLabel("Full name").fill("Counter Cashier");
-  await invitee.getByLabel("Password", { exact: true }).fill(password);
-  await invitee.getByLabel("Confirm password").fill(password);
+  await invitee.locator("#content").getByLabel("Full name").first().fill("Counter Cashier");
+  await invitee.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await invitee.locator("#content").getByLabel("Confirm password").first().fill(password);
   await invitee.getByRole("button", { name: "Activate account" }).click();
   await expect(invitee.getByText("Your staff account is active")).toBeVisible();
 }
 
 async function registerStudent(page: Page, email: string) {
   await page.goto("/student/register");
-  await page.getByLabel("Full name").fill("Asha Rao");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("College roll number").fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
+  await page.locator("#content").getByLabel("Full name").first().fill("Asha Rao");
+  await page.locator("#content").getByLabel("Email").first().fill(email);
+  await page.locator("#content").getByLabel("College roll number").first().fill(`E2E${randomBytes(3).toString("hex").toUpperCase()}`);
+  await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
+  await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
   const token = await verificationToken(email);

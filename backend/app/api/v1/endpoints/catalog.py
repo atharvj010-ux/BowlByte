@@ -18,6 +18,8 @@ from app.schemas.ordering import (
     MenuItemUpdateRequest,
     MenuItemWrite,
     MenuListResponse,
+    PairingCreateRequest,
+    PairingResponse,
     StationCreateRequest,
     StationResponse,
     StationUpdateRequest,
@@ -45,6 +47,7 @@ from app.services.ordering import (
     update_menu_item,
     update_station,
 )
+from app.services.pairings import create_pairing, delete_pairing, manager_pairings
 
 router = APIRouter(prefix="/admin", tags=["catalog"])
 
@@ -252,6 +255,55 @@ def edit_menu_item(
     return MenuItemResponse.model_validate(
         get_menu_item(db, canteen_id=item.canteen_id, item_id=item.id, public=False)
     )
+
+
+@router.get("/menu/{item_id}/pairings", response_model=list[PairingResponse])
+def admin_pairings(
+    item_id: UUID,
+    principal: Principal = Depends(require_principal),
+    db: Session = Depends(get_db),
+) -> list[PairingResponse]:
+    _manager(principal)
+    return [
+        PairingResponse.model_validate(row)
+        for row in manager_pairings(db, manager=principal.user, item_id=item_id)
+    ]
+
+
+@router.post("/menu/{item_id}/pairings", response_model=PairingResponse, status_code=201)
+def add_pairing(
+    item_id: UUID,
+    body: PairingCreateRequest,
+    principal: Principal = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> PairingResponse:
+    _manager(principal)
+    row = create_pairing(
+        db,
+        manager=principal.user,
+        source_item_id=item_id,
+        suggested_item_id=body.suggested_item_id,
+        priority=body.priority,
+    )
+    listed = manager_pairings(db, manager=principal.user, item_id=item_id)
+    name = next(entry["suggested_name"] for entry in listed if entry["id"] == row.id)
+    return PairingResponse(
+        id=row.id,
+        suggested_item_id=row.suggested_item_id,
+        suggested_name=name,
+        priority=row.priority,
+        is_active=row.is_active,
+    )
+
+
+@router.delete("/menu/pairings/{pairing_id}", status_code=204)
+def remove_pairing(
+    pairing_id: UUID,
+    principal: Principal = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> None:
+    _manager(principal)
+    delete_pairing(db, manager=principal.user, pairing_id=pairing_id)
 
 
 @router.post("/menu/{item_id}/image", response_model=MenuItemResponse)

@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_principal
 from app.core.errors import ApiError
 from app.db.session import get_db
-from app.schemas.ordering import CategoryResponse, MenuItemResponse, MenuListResponse
+from app.schemas.ordering import (
+    CategoryResponse,
+    MenuItemResponse,
+    MenuListResponse,
+    PairingListResponse,
+)
 from app.services.identity import Principal
 from app.services.ordering import (
     get_image,
@@ -17,6 +22,7 @@ from app.services.ordering import (
     manager_canteen_id,
     pilot_canteen,
 )
+from app.services.pairings import list_pairings
 
 router = APIRouter(prefix="/menu", tags=["menu"])
 
@@ -86,6 +92,22 @@ def public_item(
     canteen = pilot_canteen(db)
     return MenuItemResponse.model_validate(
         get_menu_item(db, canteen_id=canteen.id, item_id=item_id, public=True)
+    )
+
+
+@router.get("/items/{item_id}/pairings", response_model=PairingListResponse)
+def public_pairings(
+    item_id: UUID,
+    principal: Principal = Depends(require_principal),
+    db: Session = Depends(get_db),
+) -> PairingListResponse:
+    if principal.user.role != "STUDENT":
+        raise ApiError(code="FORBIDDEN", message="You cannot open this area.", status_code=403)
+    canteen = pilot_canteen(db)
+    payload = list_pairings(db, canteen_id=canteen.id, item_id=item_id, public=True)
+    return PairingListResponse(
+        basis=payload["basis"],
+        items=[MenuItemResponse.model_validate(item) for item in payload["items"]],
     )
 
 
