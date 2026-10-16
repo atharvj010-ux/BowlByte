@@ -3,134 +3,147 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { DishMark } from "@/components/menu/food-mark";
+import { DishMark, type DishKind } from "@/components/menu/food-mark";
 import { Button } from "@/components/ui/button";
 
-const steps = [
-  ["Order ahead", "Pick what is actually in stock. The price is confirmed when you place the order."],
-  ["Kitchen queue", "The counter sees a ticket, a station, and an estimate. It is a queue, not a guess."],
-  ["Cash and QR", "Pay when you collect. The pickup code works once."],
+let entrancePlayed = false;
+
+const journey = [
+  ["Discover", "See what the canteen actually has in stock."],
+  ["Order", "The price is confirmed when you place the ticket."],
+  ["Kitchen", "A station queue writes the estimate. It is not a promise."],
+  ["Pickup", "Pay cash at the counter. The QR works once."],
 ];
+
+const plates = [
+  ["Dosa", "dosa"],
+  ["Sandwich", "sandwich"],
+  ["Fries", "fries"],
+  ["Cold coffee", "drink"],
+] as const;
 
 export function LandingExperience() {
   const [welcome, setWelcome] = useState(false);
+  const [scene, setScene] = useState<"hold" | "play" | "settled">("hold");
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const seen = window.sessionStorage.getItem("bowlbyte.welcome");
-    if (reduce || seen) {
-      return;
+    if (reduce || entrancePlayed) {
+      const settle = window.setTimeout(() => setScene("settled"), 0);
+      return () => window.clearTimeout(settle);
     }
-    const show = window.setTimeout(() => setWelcome(true), 0);
-    const timer = window.setTimeout(() => {
-      window.sessionStorage.setItem("bowlbyte.welcome", "1");
-      setWelcome(false);
-    }, 1400);
+    const show = window.setTimeout(() => {
+      entrancePlayed = true;
+      setScene("play");
+      setWelcome(true);
+    }, 0);
+    const done = window.setTimeout(() => setWelcome(false), 4800);
     return () => {
       window.clearTimeout(show);
-      window.clearTimeout(timer);
+      window.clearTimeout(done);
     };
   }, []);
 
-  function skipWelcome() {
-    window.sessionStorage.setItem("bowlbyte.welcome", "1");
-    setWelcome(false);
-  }
-
   return (
-    <main className="overflow-x-clip">
-      {welcome ? (
-        <div className="welcome-screen" data-testid="welcome">
-          <div className="text-center">
-            <p className="font-display text-5xl">BowlByte</p>
-            <p className="mt-2 text-lime">Food in motion</p>
-            <button type="button" className="mt-6 min-h-11 underline" onClick={skipWelcome}>
+    <main className="cine overflow-x-clip">
+      <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 pt-10 pb-4 text-center sm:px-6">
+        <p className="text-xs font-medium tracking-[0.28em] text-chili uppercase">Cravings in motion</p>
+        <h1 className="mt-4 font-display text-5xl leading-[0.86] tracking-tight text-ivory sm:text-7xl">
+          Good food.
+          <br />
+          Zero queue drama.
+        </h1>
+        <p className="mt-5 max-w-xl text-lg leading-8 text-ivory/80">
+          Order before the rush. Follow your food from kitchen to counter.
+        </p>
+        <div className="mt-6 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+          <Button asChild>
+            <Link href="/student/menu">Explore menu</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="#how-it-works">How it works</Link>
+          </Button>
+        </div>
+        {welcome ? (
+          <div className="mt-6 flex w-full max-w-md items-center justify-between text-sm" data-testid="welcome">
+            <p className="tracking-[0.18em] text-lime uppercase">Lights on</p>
+            <button type="button" className="min-h-11 underline" onClick={() => setWelcome(false)}>
               Skip
             </button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+        <JourneyScene scene={scene} />
+        <ul className="mt-2 grid w-full max-w-3xl grid-cols-2 gap-2 text-left text-xs tracking-[0.14em] text-ivory/70 uppercase sm:grid-cols-4">
+          <li className="text-[#f6d15a]">Discover food</li>
+          <li className="text-[#3dff8a]">Place order</li>
+          <li className="text-[#4db4ff]">Kitchen</li>
+          <li className="text-[#ff4fa3]">Pickup</li>
+        </ul>
+      </section>
 
-      <section className="mx-auto grid w-full max-w-6xl items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:py-12">
-        <div className="order-2 space-y-6 lg:order-1">
-          <p className="text-xs font-medium tracking-[0.22em] text-chili uppercase">College canteen</p>
-          <h1 className="font-display text-5xl leading-[0.9] tracking-tight sm:text-7xl">
-            Good food.
-            <br />
-            Zero queue drama.
-          </h1>
-          <p className="max-w-xl text-lg leading-8">
-            Order before you reach the counter. The kitchen works the ticket. You pay cash when the food is ready.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild>
-              <Link href="/student/menu">Explore menu</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="#how-it-works">How it works</Link>
-            </Button>
+      <section className="reel" aria-label="Cravings">
+        <div className="reel-pin">
+          <h2 className="reel-word reel-a" aria-label="Cravings">
+            Cravings
+          </h2>
+          <h2 className="reel-word reel-b" aria-label="Made fresh">
+            Made fresh
+          </h2>
+          <div className="reel-food">
+            {plates.map(([name, kind]) => (
+              <article key={name} className="min-w-0 rounded-[1.4rem] border border-border bg-card/80 p-3">
+                <DishMark kind={kind as DishKind} />
+                <h3 className="mt-2 font-display text-xl">{name}</h3>
+              </article>
+            ))}
           </div>
-        </div>
-        <div className="order-1 lg:order-2">
-          <FoodHero />
         </div>
       </section>
 
+      <section className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+        <p className="text-lg leading-8 text-ivory/80">
+          Each portion sits on a station with a capacity. The ready time is written with the kitchen update.
+        </p>
+      </section>
+
       <section id="how-it-works" className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-        <h2 className="font-display text-4xl tracking-tight">How BowlByte works</h2>
-        <ol className="grid gap-4 md:grid-cols-3">
-          {steps.map(([title, body], index) => (
-            <li key={title} className="rounded-[1.5rem] bg-ink p-5 text-ivory">
+        <h2 className="mega">
+          From craving
+          <br />
+          to counter.
+        </h2>
+        <ol className="grid gap-4 md:grid-cols-4">
+          {journey.map(([title, body], index) => (
+            <li key={title} className="rounded-[1.5rem] border border-border bg-card p-5 text-left">
               <p className="text-lime">0{index + 1}</p>
-              <h3 className="mt-3 font-display text-3xl">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-ivory/80">{body}</p>
+              <h3 className="mt-2 font-display text-2xl">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-ivory/75">{body}</p>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl space-y-4 px-4 py-8 sm:px-6" aria-labelledby="food-rail">
-        <h2 id="food-rail" className="font-display text-4xl tracking-tight">
-          Explore the counter
-        </h2>
-        <div className="story-rail">
-          {(
-            [
-              ["Dosa", "dosa"],
-              ["Sandwich", "sandwich"],
-              ["Fries", "fries"],
-              ["Cold coffee", "drink"],
-            ] as const
-          ).map(([name, kind]) => (
-            <article key={name} className="rounded-[1.5rem] border border-border bg-card p-4">
-              <DishMark kind={kind} />
-              <h3 className="mt-3 font-display text-2xl">{name}</h3>
-              <p className="text-sm text-muted-foreground">Shown when the canteen publishes it. Prices stay on the menu.</p>
-            </article>
-          ))}
+      <section className="reel" aria-label="Ready to go">
+        <div className="reel-pin">
+          <h2 className="reel-word reel-a">The kitchen</h2>
+          <h2 className="reel-word reel-b">Ready to go</h2>
         </div>
       </section>
 
       <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-8 sm:px-6 lg:grid-cols-2">
         <article className="rounded-[1.5rem] bg-card p-6">
-          <h2 className="font-display text-4xl">Smart kitchen and ETA</h2>
-          <p className="mt-3 leading-7">
-            Each portion sits on a station with a capacity. The ready time is an estimate written with the kitchen update, not a promise.
-          </p>
-        </article>
-        <article className="rounded-[1.5rem] bg-lime p-6 text-ink">
-          <h2 className="font-display text-4xl">Cash at the counter</h2>
-          <p className="mt-3 leading-7">
+          <p className="mega text-[clamp(2.6rem,8vw,4.5rem)]">Ready. Pay. Pick up.</p>
+          <h2 className="mt-4 font-display text-3xl">Cash at the counter</h2>
+          <p className="mt-3 leading-7 text-ivory/80">
             Payment starts pending. A cashier records the notes, then the QR works once. There is no online payment.
           </p>
         </article>
-      </section>
-
-      <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-        <h2 className="font-display text-4xl">BowlByte intelligence</h2>
-        <p className="mt-3 max-w-2xl leading-7">
-          Managers can record production, waste, and a forecast they must approve. Demo scores are labeled as demo. They are not a measured drop in waste.
-        </p>
+        <article className="rounded-[1.5rem] bg-lime p-6 text-ink">
+          <h2 className="font-display text-4xl">BowlByte intelligence</h2>
+          <p className="mt-3 leading-7">
+            Managers can record production, waste, and a forecast they must approve. Demo scores are labeled as demo. They are not a measured drop in waste.
+          </p>
+        </article>
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -142,7 +155,7 @@ export function LandingExperience() {
         </ul>
         <div className="mt-6">
           <Button asChild>
-            <Link href="/student">Open the student area</Link>
+            <Link href="/student/menu">Open the menu</Link>
           </Button>
         </div>
       </section>
@@ -150,36 +163,75 @@ export function LandingExperience() {
   );
 }
 
-function FoodHero() {
+function JourneyScene({ scene }: { scene: "hold" | "play" | "settled" }) {
+  const motion = scene === "play" ? "iso-play" : scene === "settled" ? "iso-settled" : "";
   return (
-    <div
-      className="relative mx-auto aspect-square w-48 sm:w-72 lg:w-full lg:max-w-md"
-      aria-hidden="true"
-      data-testid="food-hero"
-    >
-      <svg viewBox="0 0 320 320" className="hero-layer hero-layer-1">
-        <ellipse cx="160" cy="228" rx="108" ry="18" fill="#191919" opacity="0.16" />
-        <ellipse cx="160" cy="176" rx="118" ry="78" fill="#fff8ec" stroke="#191919" strokeWidth="6" />
-        <ellipse cx="160" cy="176" rx="96" ry="60" fill="none" stroke="#e2d3ba" strokeWidth="3" />
-      </svg>
-      <svg viewBox="0 0 320 320" className="hero-layer hero-layer-2">
-        <path
-          d="M78 188c8-62 36-92 82-92s74 30 82 92c-28 16-136 16-164 0z"
-          fill="#c9842a"
-        />
-        <path d="M96 176c18-28 110-34 136-6" fill="none" stroke="#f4eddd" strokeWidth="4" strokeLinecap="round" />
-      </svg>
-      <svg viewBox="0 0 320 320" className="hero-layer hero-layer-3">
-        <path d="M118 168c10-22 74-24 92 2-22 8-70 8-92-2z" fill="#f15438" />
-        <path d="M108 186c16 10 78 12 104-2 4 14-18 28-52 28s-56-12-52-26z" fill="#d5f25b" />
-      </svg>
-      <svg viewBox="0 0 320 320" className="hero-layer hero-layer-4">
-        <circle cx="132" cy="154" r="6" fill="#191919" />
-        <circle cx="168" cy="148" r="5" fill="#191919" />
-        <circle cx="196" cy="160" r="4" fill="#191919" />
-        <circle cx="150" cy="172" r="3.5" fill="#fff8ec" />
-      </svg>
+    <div className="iso-viewport w-full" data-testid="food-hero" aria-hidden="true">
+      <div className={`iso-world ${motion}`}>
+        <svg className="iso-wires" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path className="wire wire-1" d="M22 64 L38 30" />
+          <path className="wire wire-2" d="M38 30 L64 70" />
+          <path className="wire wire-3" d="M64 70 L80 34" />
+          <path className="wire wire-pulse" d="M22 64 L38 30 L64 70 L80 34" />
+        </svg>
+        <Pod tone="yellow" style={{ left: "22%", top: "64%" }} glyph="plate" />
+        <Pod tone="green" style={{ left: "38%", top: "30%" }} glyph="ticket" />
+        <Pod tone="blue" style={{ left: "64%", top: "70%" }} glyph="kitchen" />
+        <Pod tone="pink" style={{ left: "80%", top: "34%" }} glyph="pickup" />
+      </div>
     </div>
   );
 }
 
+function Pod({
+  tone,
+  style,
+  glyph,
+}: {
+  tone: string;
+  style: { left: string; top: string };
+  glyph: "plate" | "ticket" | "kitchen" | "pickup";
+}) {
+  return (
+    <div className={`pod pod-${tone}`} style={style}>
+      <div className="pod-pool" />
+      <div className="pod-front" />
+      <div className="pod-side" />
+      <div className="pod-top">
+        <PodGlyph kind={glyph} />
+      </div>
+    </div>
+  );
+}
+
+function PodGlyph({ kind }: { kind: "plate" | "ticket" | "kitchen" | "pickup" }) {
+  if (kind === "plate") {
+    return (
+      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+        <ellipse cx="16" cy="18" rx="11" ry="6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M8 17c2-6 14-6 16 0" fill="currentColor" />
+      </svg>
+    );
+  }
+  if (kind === "ticket") {
+    return (
+      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+        <rect x="8" y="6" width="16" height="20" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M12 12h8M12 16h8M12 20h5" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    );
+  }
+  if (kind === "kitchen") {
+    return (
+      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+        <path d="M10 22V10M14 22V8M18 22c0-8 6-8 6 0" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+      <path d="M8 14h16l-2 10H10z" fill="currentColor" />
+      <path d="M12 14V9h8v5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}

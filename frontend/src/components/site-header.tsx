@@ -14,9 +14,9 @@ import { releaseDeviceForLogout } from "@/lib/push";
 function BowlMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 32 32" className="h-8 w-8">
-      <rect width="32" height="32" rx="10" fill="#191919" />
+      <rect width="32" height="32" rx="10" fill="#f15438" />
       <path d="M7 14h18c0 6.2-4 11-9 11s-9-4.8-9-11z" fill="#f4eddd" />
-      <path d="M10 14c1.4-3.2 10.6-3.2 12 0" fill="none" stroke="#f15438" strokeWidth="1.6" />
+      <path d="M10 14c1.4-3.2 10.6-3.2 12 0" fill="none" stroke="#191919" strokeWidth="1.6" />
     </svg>
   );
 }

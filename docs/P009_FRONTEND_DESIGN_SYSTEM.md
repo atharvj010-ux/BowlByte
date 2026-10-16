@@ -4,10 +4,11 @@ BowlByte’s public and student surfaces use one art direction: food in motion. 
 
 ## Direction
 
-- Charcoal carries the type and the night-time ticket.
-- Warm ivory is the page.
+- The page is a dark charcoal night scene, with a violet wash behind the landing.
+- Warm ivory is the type.
 - Chili is the only primary action color.
-- Lime is a small accent for labels, estimates, and the welcome line.
+- Lime is a small accent for labels and estimates.
+- The entrance uses four local lights: yellow, green, blue, and pink. Those lights stay on the isometric modules. They are not a general UI gradient.
 
 Operational desks (kitchen, cashier, manager) inherit the same tokens and type. They do not get decorative motion.
 
@@ -15,14 +16,13 @@ Operational desks (kitchen, cashier, manager) inherit the same tokens and type. 
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--ink` | `#191919` | Text, dark panels |
-| `--ivory` | `#F4EDDD` | Page background |
+| `--background` | `#0e0d12` | Page |
+| `--ivory` | `#F4EDDD` | Type |
+| `--ink` | `#191919` | Text on lime panels, ticket ink |
 | `--chili` | `#F15438` | Primary buttons, prices, active progress |
-| `--lime` | `#D5F25B` | Small highlights |
-| `--card` | `#FFF8EC` | Cards and tickets |
-| `--muted-foreground` | `#5C5348` | Secondary text |
-
-Do not add purple or blue UI gradients.
+| `--lime` | `#D5F25B` | Small highlights and the intelligence panel |
+| `--card` | `#17151d` | Cards |
+| `--muted-foreground` | `#c4b8a8` | Secondary text |
 
 ## Type
 

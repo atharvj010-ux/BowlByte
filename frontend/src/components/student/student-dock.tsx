@@ -18,7 +18,7 @@ export function StudentDock() {
   return (
     <nav
       aria-label="Student"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-ivory/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-ivory backdrop-blur lg:hidden"
     >
       <ul className="mx-auto grid max-w-lg grid-cols-4">
         {links.map((link) => {
@@ -28,7 +28,7 @@ export function StudentDock() {
               <Link
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className="flex min-h-14 flex-col items-center justify-center text-sm"
+                className={`flex min-h-14 flex-col items-center justify-center text-sm ${current ? "text-lime" : "text-ivory"}`}
               >
                 {link.label}
                 {link.href === "/student/cart" ? ` ${cart.count}` : ""}

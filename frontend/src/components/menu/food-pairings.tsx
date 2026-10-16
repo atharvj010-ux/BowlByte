@@ -15,7 +15,7 @@ const pairingSchema = z.object({
   items: z.array(menuItemSchema),
 });
 
-export function FoodPairings({ itemId, heading = "Perfect with this." }: { itemId: string; heading?: string }) {
+export function FoodPairings({ itemId, heading = "Perfect together." }: { itemId: string; heading?: string }) {
   const cart = useCart();
   const pairings = useQuery({
     queryKey: ["pairings", itemId],

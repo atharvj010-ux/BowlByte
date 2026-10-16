@@ -51,7 +51,7 @@ export function StudentDesk({ user }: { user: CurrentUser }) {
       </div>
       <Link
         href="/student/menu"
-        className="flex min-h-28 flex-col justify-end rounded-[1.75rem] bg-ink p-6 text-ivory"
+        className="flex min-h-28 flex-col justify-end rounded-[1.75rem] bg-chili p-6 text-ivory"
       >
         <span className="text-lime">Start here</span>
         <span className="font-display text-4xl">Browse food and place an order</span>

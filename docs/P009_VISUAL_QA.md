@@ -2,21 +2,25 @@
 
 Inspected in the Cursor browser against `http://127.0.0.1:3010` after the frontend image rebuild.
 
+## Reference
+
+The entrance contact sheet is a dark isometric floor with four raised modules. Lights come on yellow, then green, then blue, then pink, and a path connects them. The website contact sheet is a dark violet field with oversized white words that spread and give way to the next word. BowlByte uses that structure with its own food stations and its own words. The reference brands are not on the page.
+
 ## Landing
 
-At a 390×844 layout viewport the first screen shows the assembled dosa plate, the headline “Good food. Zero queue drama.”, and the two real actions (Explore menu, How it works). `scrollWidth - clientWidth` was 0.
+At a 1440×900 layout viewport, `scrollWidth` matched `clientWidth` (1425). The hero is the headline “Good food. Zero queue drama.”, the two actions, and a perspective floor. Four modules sit on that floor with yellow, green, blue, and pink light. The capture window is narrower than 1440, so one screenshot shows the right-hand modules and clips the left of the floor. The layout measurement does not.
 
-At a 1440×900 layout viewport the plate sits beside the headline: about 448×448px, starting near x=801. `scrollWidth` matched `clientWidth` (1425). The screenshot panel itself is narrower than that layout, so a single capture clips the right-hand plate. The layout measurement does not.
+At a 390×844 layout viewport, `scrollWidth` matched `clientWidth` (390). The headline, full-width Explore menu and How it works buttons, and the four modules are in the first screen. Playwright’s mobile overflow check passed on the rebuilt image.
 
-The story rail is a horizontal row of original vector plates (dosa, sandwich, fries, cold coffee). The next card is allowed to peek. Below it, the kitchen/ETA panel and the lime cash panel stack on a phone.
+Scrolling the first story section shows “Cravings” opening into “Made fresh”, with vector plates for dosa, sandwich, fries, and cold coffee underneath. A second section does the same from “The kitchen” to “Ready to go.”
 
-## What was not a design screenshot
+## What was not a designed still
 
-Menu, cart, pairing, order success, and live tracking were exercised by Playwright against the real API (search, two adds, a configured fries-to-Coke add, a committed ticket, then Track my order). Those runs confirm the flows. They are not a substitute for a designed still of every signed-in screen.
-
-`e2e/p008-screenshots.spec.ts` passed and writes phone, tablet, and desktop captures under `deliverables/report/screenshots` for the operational path. Those files are demonstration captures, not a claim that every pixel was art-directed again in this pass.
+Menu, cart, pairing, and order success were exercised by Playwright against the real API (search, two adds, a configured fries-to-Coke add, a committed ticket, then Track my order). Those runs confirm the flows. They are not a substitute for a designed still of every signed-in screen.
 
 ## Limits
 
 - Dishes without an uploaded photo use vector plates drawn in the product. They are not photography.
-- The welcome overlay is skipped once `bowlbyte.welcome` is set, and it is skipped entirely for reduced motion.
+- The entrance is CSS perspective, not a WebGL scene.
+- The entrance replays on a full load. It does not replay when the same document returns to `/`.
+- Reduced motion shows the four lights already on and does not mount the welcome control.
