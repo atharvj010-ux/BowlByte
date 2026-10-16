@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -9,7 +10,11 @@ vi.mock("next/navigation", () => ({
 
 describe("LoginForm", () => {
   it("shows validation before a request and can reveal the password", () => {
-    render(<LoginForm title="Student sign-in" description="Confirm the email first." />);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <LoginForm title="Student sign-in" description="Confirm the email first." />
+      </QueryClientProvider>,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 

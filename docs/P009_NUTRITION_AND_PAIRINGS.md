@@ -29,3 +29,13 @@ Prices and stock come from the live menu row. Out-of-stock and inactive items ar
 This is not a forecasting model and it is not personalization. P006 demand forecasting is unchanged.
 
 Fries recommending Coke works when a manager saves that pairing and Coke is available. The integration test creates that row explicitly.
+
+## How the redesigned screens use it
+
+The backend did not change in the cinematic redesign. The screens read the same fields.
+
+- **Menu card.** It shows the nutrition line, for example “Illustrative 280 kcal / one serving”, or “Calories unavailable”. When calories are missing but a serving is recorded, it adds “Serving: …”.
+- **Detail dialog.** It shows Nutrition and Prep time facts, plus a note on the source. Illustrative figures are called estimates. Verified figures name their reference.
+- **Cart.** Each line shows its nutrition label. The summary adds up only known calories and says when the total is incomplete. While prices are loading, it shows a placeholder instead of a misleading 0 kcal or ₹0.00.
+- **Pairings.** The heading is “Perfect together.”. Manager choices come first and the copy says “Chosen by the canteen”. The category fallback says “From the same part of the menu”. Add is a separate button for each suggestion, and nothing is added on its own. The screens never call this AI or personalization.
+- **Images.** Food illustrations are labeled “Illustrative”. They show no nutrition and imply none.

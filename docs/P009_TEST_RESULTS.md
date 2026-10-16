@@ -1,31 +1,47 @@
 # P009 test results
 
-Numbers below are from commands that finished in this implementation. A single `npx playwright test` of all 38 tests was not run again after the cinematic landing. The landing, menu, cart, pairing, and order-success path was.
+Every number below comes from a command that finished in this pass, against the rebuilt production image.
 
 ## Frontend
 
-- `npx vitest run`: 11 files, 42 tests passed.
 - `npx tsc --noEmit`: exit 0.
-- `npx eslint` on the edited landing, student, header, and layout files, `--max-warnings 0`: exit 0. A full `src e2e` lint was not re-run in this pass.
-- Docker `next build` inside `docker compose up -d --build --no-deps frontend`: exit 0. The log did not print First Load JS sizes.
+- `npx eslint src e2e --max-warnings 0`: exit 0.
+- `npx vitest run`: 13 files, 46 tests passed. New in this pass:
+  - `food-art.test.ts`: a canteen photo wins over an illustration, dish matching works, and unknown dishes get no image.
+  - `kinetic.test.tsx`: one readable heading name while the letters are split.
+- Production build: `next build` inside `docker compose up -d --build frontend` exited 0. That command also recreated the backend container, with no backend code change.
 
 ## Playwright
 
-`PLAYWRIGHT_BASE_URL=http://127.0.0.1:3010`.
+`PLAYWRIGHT_BASE_URL=http://127.0.0.1:3010`, Chromium, one worker.
 
-| Last run | Result |
+| Run | Result |
 | --- | --- |
-| `e2e/smoke.spec.ts` | 2 passed |
-| `e2e/p009-experience.spec.ts` | 5 passed |
+| `auth`, `smoke`, `ordering`, `kitchen`, `cash-pickup`, `intelligence`, `p009-experience` together | **43 passed, 1 skipped** (3.7 min) |
+| `p009-experience` with `P009_SHOTS=1` | 12 passed, including the five-width capture |
 
-The P009 spec covers the landing, the skippable welcome, reduced motion, no horizontal overflow at 390px, a real menu item, two adds updating the cart count, a manager-configured fries-to-Coke pairing that the student adds, and a success ticket with the real number and `PLACED · CASH · PENDING` before tracking opens.
+- The skipped test is the screenshot capture. It runs only when `P009_SHOTS` is set.
+- `p008-screenshots.spec.ts` was not run because it rewrites the academic report screenshots.
 
-An earlier attempt failed before any assertion because the sandbox Playwright browser was missing. After `npx playwright install chromium`, the suite above passed. One landing assertion failed first because two links were both named “Explore menu”. The closing action is now “Open the menu”. The hero link is still “Explore menu”.
+What `p009-experience` checks:
+
+- The entrance can be skipped and settles. It replays on refresh but not on client navigation. Reduced motion starts settled.
+- The kinetic and journey scenes render while scrolling.
+- The landing has no horizontal overflow at 360, 390, 768, 1280, and 1440 px. The signed-in menu has none at 360 and 390, and tracking has none at 390.
+- A manager configures a fries-to-Coke pairing.
+- A student adds twice, with the flight and the cart count going 1 → 2. The student opens the detail view, adds the pairing (count 3), and the cart shows “Pay cash at the canteen counter.” and “Perfect together.”.
+- The student places the order. The success ticket shows the real `B…` number and PLACED / CASH / PENDING, and Track my order opens tracking.
+
+Test changes, all caused by intentional UI changes:
+
+- `ordering.spec.ts` uses exact text for the two cart item names, because the cart summary now repeats them (“Veg Sandwich × 1”).
+- `p009-experience.spec.ts` targets visible nodes. React streaming briefly keeps a hidden second copy of the page in `<div hidden id="S:0">` for about 0.5–0.8s after load. It caused intermittent strict-mode and detached-node failures. Users never see it, and no hydration error was logged.
+- `login-form.test.tsx` renders inside a `QueryClientProvider`, because login now updates the shared user cache.
 
 ## Backend
 
-No backend or migration change in this pass. Nutrition and pairing tests from the earlier P009 commit were not re-run.
+No backend code, migration, or API change in this pass. The backend test suite was not rerun.
 
-## Performance that was actually measured
+## Not measured
 
-At 1440×900, `documentElement.scrollWidth` was 1425 and `clientWidth` was 1425. At 390×844, both were 390. No Lighthouse run was taken, and no cold transfer size was recorded for this build.
+No Lighthouse run and no transfer-size budget were recorded. The entrance and scroll scenes are SVG, CSS, and Motion. There is no WebGL or video on the page.

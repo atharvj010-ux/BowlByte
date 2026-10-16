@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "motion/react";
 
 import { useCart } from "@/components/cart/cart-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -58,9 +59,9 @@ export function SiteHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="inline-flex min-h-11 items-center gap-2 font-display text-xl">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-background/75 backdrop-blur-md">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6">
+        <Link href="/" className="inline-flex min-h-11 items-center gap-2 font-display text-xl font-extrabold tracking-tight uppercase">
           <BowlMark />
           BowlByte
         </Link>
@@ -71,11 +72,24 @@ export function SiteHeader() {
           <>
             <Link
               id="bowlbyte-cart-target"
+              data-cart-target=""
               data-bump={cart.bump ? "on" : "off"}
               href="/student/cart"
-              className="inline-flex min-h-11 items-center rounded-full bg-chili px-3 text-sm text-ivory transition-transform duration-150"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-chili pr-1.5 pl-3 text-sm font-semibold text-ivory sm:pl-4"
             >
-              Cart {cart.count}
+              <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 sm:hidden">
+                <path d="M4 7h12l-1 10H5L4 7zM7 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+              </svg>
+              <span className="max-sm:sr-only">Cart</span>{" "}
+              <motion.span
+                key={cart.landed}
+                className="grid min-h-8 min-w-8 place-items-center rounded-full bg-ivory px-2 text-ink"
+                initial={cart.landed ? { scale: 1.5, rotate: -12 } : false}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 520, damping: 14 }}
+              >
+                {cart.count}
+              </motion.span>
             </Link>
             <NotificationBell />
           </>
@@ -98,8 +112,11 @@ export function SiteHeader() {
           )}
         </div>
         <details className="relative lg:hidden">
-          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-full border border-border bg-card px-4 text-sm">
-            Menu
+          <summary className="inline-flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-full border border-border bg-card text-sm sm:px-4">
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 sm:hidden">
+              <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            <span className="max-sm:sr-only">Menu</span>
           </summary>
           <nav
             aria-label="Mobile"

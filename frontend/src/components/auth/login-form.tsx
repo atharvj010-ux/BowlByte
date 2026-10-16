@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
@@ -11,6 +12,7 @@ import { z } from "zod";
 
 export function LoginForm({ title, description }: { title: string; description: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -41,6 +43,7 @@ export function LoginForm({ title, description }: { title: string; description: 
         return;
       }
       const body = z.object({ user: currentUserSchema }).parse(await response.json());
+      queryClient.setQueryData(["me"], body.user);
       router.push(homeForRole(body.user.role));
       router.refresh();
     } finally {

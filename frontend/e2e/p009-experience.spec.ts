@@ -1,8 +1,91 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
+
+const shotsDir = process.env.P009_SHOTS ? path.resolve(__dirname, "../../docs/screenshots/p009") : null;
+
+async function shot(page: Page, name: string, fullPage = false) {
+  if (!shotsDir) {
+    return;
+  }
+  fs.mkdirSync(shotsDir, { recursive: true });
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all([
+        ...[...document.images]
+          .filter((img) => img.getBoundingClientRect().bottom > 0 && img.getBoundingClientRect().top < innerHeight * 3)
+          .map((img) => {
+            img.loading = "eager";
+            return img.decode().catch(() => undefined);
+          }),
+        ...document
+          .getAnimations()
+          .filter((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target;
+            return target instanceof Element && target.classList.contains("kin-ch-load");
+          })
+          .map((animation) => animation.finished.catch(() => undefined)),
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]),
+  );
+  await page.screenshot({ path: path.join(shotsDir, `${name}.jpg`), type: "jpeg", quality: 72, fullPage });
+}
+
+async function scrollScene(page: Page, selector: string, progress: number) {
+  await page.evaluate(
+    ({ selector, progress }) => {
+      const node = document.querySelector<HTMLElement>(selector);
+      if (!node) {
+        return;
+      }
+      const top = node.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo(0, top + Math.max(0, node.offsetHeight - window.innerHeight) * progress);
+    },
+    { selector, progress },
+  );
+  await page.waitForTimeout(1400);
+}
+
+test("capture landing frames at five widths", async ({ page }) => {
+  test.skip(!shotsDir, "Set P009_SHOTS=1 to capture screenshots.");
+  test.setTimeout(240_000);
+  for (const width of [1440, 1280, 768, 390, 360]) {
+    const full = width === 1440 || width === 390;
+    await page.setViewportSize({ width, height: width < 768 ? 800 : 900 });
+    await page.goto("/");
+    if (full) {
+      await page.waitForTimeout(2900);
+      await shot(page, `entrance-mid-${width}`);
+    }
+    await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled", { timeout: 10_000 });
+    await page.waitForTimeout(600);
+    await shot(page, `hero-settled-${width}`);
+    await scrollScene(page, "#cravings", 0.36);
+    await shot(page, `kinetic-break-${width}`);
+    await scrollScene(page, "#cravings", 0.9);
+    await shot(page, `kinetic-made-fresh-${width}`);
+    if (full) {
+      await scrollScene(page, ".fresh", 0);
+      await shot(page, `made-fresh-${width}`);
+      await scrollScene(page, "#how-it-works", 0.5);
+      await shot(page, `journey-${width}`);
+      await scrollScene(page, ".kin-scene:not(#cravings)", 0.62);
+      await shot(page, `kinetic-kitchen-${width}`);
+      await scrollScene(page, ".pay", 0);
+      await shot(page, `pay-pickup-${width}`);
+      await scrollScene(page, ".intel", 0);
+      await shot(page, `intelligence-${width}`);
+    }
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, `overflow at ${width}`).toBeLessThanOrEqual(1);
+  }
+});
 
 const mailpit = process.env.MAILPIT_URL ?? "http://127.0.0.1:8025";
 const password = `horse-${randomBytes(8).toString("hex")}`;
@@ -13,36 +96,64 @@ const studentEmail = `student-p009-${suffix}@student.bowlbyte.edu`;
 test("premium landing page loads", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: /Zero queue drama/i })).toBeVisible();
-  await expect(page.getByTestId("food-hero")).toBeVisible();
+  await expect(shown(page, "food-hero")).toBeVisible();
   await expect(page.getByRole("link", { name: "Explore menu" })).toBeVisible();
   await expect(page.getByRole("link", { name: "How it works" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Not in this release" })).toBeVisible();
 });
 
-test("landing welcome animation completes", async ({ page }) => {
-  await page.addInitScript(() => window.sessionStorage.removeItem("bowlbyte.welcome"));
+test("entrance can be skipped and settles all four stations", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("welcome")).toBeVisible();
-  await page.getByRole("button", { name: "Skip" }).click();
-  await expect(page.getByTestId("welcome")).toHaveCount(0);
+  await expect(shown(page, "entrance")).toBeVisible();
+  await shown(page, "entrance").getByRole("button", { name: "Skip" }).click();
+  await expect(shown(page, "entrance")).toHaveCount(0);
+  await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
-test("reduced motion skips the welcome sequence", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+test("entrance replays on refresh but not on client navigation", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("welcome")).toHaveCount(0);
-  await expect(page.getByTestId("food-hero")).toBeVisible();
+  await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled", { timeout: 10_000 });
+  await page.getByRole("link", { name: "Status" }).first().click();
+  await expect(page).toHaveURL(/\/status$/);
+  await page.getByRole("link", { name: "BowlByte" }).first().click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled");
+  await expect(shown(page, "entrance")).toHaveCount(0);
+  await page.reload();
+  await expect(shown(page, "entrance")).toBeVisible();
 });
 
-test("mobile landing has no horizontal overflow", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("reduced motion skips the entrance sequence", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(1);
+  await expect(shown(page, "entrance")).toHaveCount(0);
+  await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled");
 });
+
+test("kinetic scenes and journey render while scrolling", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#cravings").filter({ visible: true }).scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 900);
+  await expect(page.locator("#cravings .kin-word-big").filter({ visible: true }).first()).toBeVisible();
+  await page.locator("#how-it-works").filter({ visible: true }).scrollIntoViewIfNeeded();
+  await expect(
+    page.getByRole("heading", { name: "From craving to counter." }).filter({ visible: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cash at the counter" }).filter({ visible: true }).first()).toBeVisible();
+});
+
+for (const width of [360, 390, 768, 1280, 1440]) {
+  test(`landing has no horizontal overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 860 });
+    await page.goto("/");
+    await page.mouse.wheel(0, 3000);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
 
 test("menu, cart flight, pairing, and confirmed order success", async ({ page }) => {
   test.setTimeout(240_000);
@@ -120,33 +231,53 @@ test("menu, cart flight, pairing, and confirmed order success", async ({ page })
   await page.getByRole("button", { name: "Log out" }).click();
   await loggedOut;
   await registerStudent(page, studentEmail, "Asha Rao");
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/student/menu");
-  const menuOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(menuOverflow).toBeLessThanOrEqual(1);
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(900);
+  await shot(page, "student-dashboard-1280");
+
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto("/student/menu");
+  await expect(page.locator("article").first()).toBeVisible();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+  await shot(page, "menu-390");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(400);
+  await shot(page, "menu-1280");
 
   await page.locator("#content").getByLabel("Search menu").first().fill(`Salted Fries ${suffix}`);
   const fries = page.locator("article").filter({ hasText: `Salted Fries ${suffix}` });
   await expect(fries.getByText("Illustrative 280 kcal / one serving")).toBeVisible();
   await fries.getByRole("button", { name: "Add to cart" }).click();
+  if (shotsDir) {
+    await page.waitForTimeout(260);
+    await shot(page, "cart-flight-1280");
+  }
   await expect(page.getByRole("link", { name: "Cart 1" })).toBeVisible();
   await fries.getByRole("button", { name: "Add to cart" }).click();
   await expect(page.getByRole("link", { name: "Cart 2" })).toBeVisible();
 
   await fries.getByRole("heading", { name: `Salted Fries ${suffix}` }).getByRole("button").click();
   await expect(page.getByTestId("pairings")).toContainText(`Coke ${suffix}`);
+  await shot(page, "detail-pairing-1280");
   await page.getByRole("dialog").getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("link", { name: "Cart 3" })).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
 
   await page.goto("/student/cart");
-  await expect(page.getByText("Pay cash when collecting your food.")).toBeVisible();
+  await expect(page.getByText("Pay cash at the canteen counter.")).toBeVisible();
+  await expect(page.getByTestId("pairings").getByRole("heading", { name: "Perfect together." })).toBeVisible();
+  await expect(page.locator(".cart-line").filter({ hasText: `Salted Fries ${suffix}` }).first()).toBeVisible();
+  await shot(page, "cart-1280", true);
   await page.getByRole("button", { name: "Place order" }).click();
   await expect(page.getByTestId("order-success")).toBeVisible();
+  if (shotsDir) {
+    await page.waitForTimeout(900);
+    await shot(page, "success-assemble-1280");
+    await page.waitForTimeout(2200);
+    await shot(page, "success-ticket-1280", true);
+  }
   await expect(page.getByTestId("order-payment")).toContainText("PLACED");
   await expect(page.getByTestId("order-payment")).toContainText("CASH");
   await expect(page.getByTestId("order-payment")).toContainText("PENDING");
@@ -155,7 +286,21 @@ test("menu, cart flight, pairing, and confirmed order success", async ({ page })
   await page.getByRole("button", { name: "Track my order" }).click();
   await expect(page.getByRole("heading", { level: 2, name: ticket.trim() })).toBeVisible();
   await expect(page.getByTestId("order-status")).toContainText("PLACED");
+  await page.waitForTimeout(600);
+  await shot(page, "tracking-1280", true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(400);
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+  await shot(page, "tracking-390", true);
 });
+
+function shown(page: Page, testId: string) {
+  return page.getByTestId(testId).filter({ visible: true }).first();
+}
+
+function horizontalOverflow(page: Page) {
+  return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+}
 
 async function fillItem(page: Page, name: string, category: string, stock: string) {
   await page.locator("#content").getByLabel("Name").first().fill(name);

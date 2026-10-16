@@ -1,26 +1,53 @@
 # P009 visual QA
 
-Inspected in the Cursor browser against `http://127.0.0.1:3010` after the frontend image rebuild.
+All stills are real browser captures from Playwright Chromium against the production Docker build at `http://127.0.0.1:3010`. They are in `docs/screenshots/p009/`. To regenerate them:
 
-## Reference
+```powershell
+cd frontend
+$env:PLAYWRIGHT_BASE_URL='http://127.0.0.1:3010'; $env:P009_SHOTS='1'; npx playwright test e2e/p009-experience.spec.ts
+```
 
-The entrance contact sheet is a dark isometric floor with four raised modules. Lights come on yellow, then green, then blue, then pink, and a path connects them. The website contact sheet is a dark violet field with oversized white words that spread and give way to the next word. BowlByte uses that structure with its own food stations and its own words. The reference brands are not on the page.
+## References
 
-## Landing
+The supplied clips are in `design-reference/P009/`. FFmpeg was not available, so they were compared through the cropped contact sheets (`entrance_cropped_contact.jpg` and `website_cropped_contact.jpg`). Those sheets show nine and eleven frames.
 
-At a 1440×900 layout viewport, `scrollWidth` matched `clientWidth` (1425). The hero is the headline “Good food. Zero queue drama.”, the two actions, and a perspective floor. Four modules sit on that floor with yellow, green, blue, and pink light. The capture window is narrower than 1440, so one screenshot shows the right-hand modules and clips the left of the floor. The layout measurement does not.
+## What was captured
 
-At a 390×844 layout viewport, `scrollWidth` matched `clientWidth` (390). The headline, full-width Explore menu and How it works buttons, and the four modules are in the first screen. Playwright’s mobile overflow check passed on the rebuilt image.
+| Area | Files |
+| --- | --- |
+| Entrance mid-sequence | `entrance-mid-1440`, `entrance-mid-390` |
+| Settled hero | `hero-settled-{1440,1280,768,390,360}` |
+| Kinetic break-up | `kinetic-break-{1440,1280,768,390,360}` |
+| Kinetic arrival (Made fresh) | `kinetic-made-fresh-{1440,1280,768,390,360}` |
+| Queue, journey, kitchen swap, pay, intelligence | `made-fresh-*`, `journey-*`, `kinetic-kitchen-*`, `pay-pickup-*`, `intelligence-*` at 1440 and 390 |
+| Student dashboard | `student-dashboard-1280` |
+| Menu | `menu-1280`, `menu-390` |
+| Add-to-cart flight in the air | `cart-flight-1280` |
+| Detail with pairing | `detail-pairing-1280` |
+| Cart with pairing | `cart-1280` |
+| Success, assembling and final | `success-assemble-1280`, `success-ticket-1280` |
+| Tracking | `tracking-1280`, `tracking-390` |
 
-Scrolling the first story section shows “Cravings” opening into “Made fresh”, with vector plates for dosa, sandwich, fries, and cold coffee underneath. A second section does the same from “The kitchen” to “Ready to go.”
+## Comparison with the references
 
-## What was not a designed still
+- **Entrance.** As in the reference, the modules start dim on a dark floor. They light yellow, then green, then blue, then pink, joined by L-shaped light traces. The modules have lit tops, dark sides, contact shadows, and colored light pools. BowlByte’s scene is closer to the camera and labels each station on the floor in mono type. At 390 px a numbered legend replaces the floor labels.
+- **Kinetic type.** As in the reference, a giant word fills a violet frame, splits into clipped letters, and gives way to the next word while the image underneath changes: burger to dosa, and coke to sandwich. BowlByte’s images float as cut-outs rather than a full-bleed interior photo.
 
-Menu, cart, pairing, and order success were exercised by Playwright against the real API (search, two adds, a configured fries-to-Coke add, a committed ticket, then Track my order). Those runs confirm the flows. They are not a substitute for a designed still of every signed-in screen.
+## Refinement pass
 
-## Limits
+The first full capture surfaced these problems. Each was fixed and captured again.
 
-- Dishes without an uploaded photo use vector plates drawn in the product. They are not photography.
-- The entrance is CSS perspective, not a WebGL scene.
-- The entrance replays on a full load. It does not replay when the same document returns to `/`.
-- Reduced motion shows the four lights already on and does not mount the welcome control.
+1. **Backwards fades in the scroll scenes.** At 90% progress the outgoing word, outgoing images, and old caption were still visible, overlapping the new ones. Cause: Motion offloaded opacity and clip-path to a native `ViewTimeline` with the wrong range. Fixed by using function-form transforms. `kinetic-made-fresh-*` now shows a clean “MADE FRESH.” over the dosa.
+2. **Scroll headings never appeared.** “From craving to counter.”, “Ready. Pay. Pick up.”, and “BowlByte intelligence.” were blank. Each character observed itself, but it starts clipped by its mask, so it never intersected. Fixed by observing the heading. The journey heading also stretched to the 3,400px track width, so it could never be 50% visible. Its grid column is now `minmax(0, 1fr)`.
+3. **Header overflow on a signed-in phone.** At 360 px the student header was 11px too wide. The cart and Menu controls are now icons with screen-reader text below 640 px.
+4. **Stale header after sign-in.** The header showed “Sign in” on the student dashboard until a reload, so the flight had no desktop cart target. Login now writes the signed-in user into the shared query cache.
+5. **Pairing card squeezed in the dialog.** The name truncated to “Co…” and Add overlapped it. The list now uses auto-fill columns with a 15rem minimum.
+6. **Cart said “This item is no longer listed” while loading.** The lines and summary now show a loading state until the menu query resolves.
+7. **Screen-reader region names spelled out letters.** Chrome named regions like “G O O D F O O D”. Sections now carry their own `aria-label`.
+
+## Known limits
+
+- Images are original illustrations, labeled as such. The demo database has no uploaded canteen photos.
+- The entrance is SVG with Motion. It is not a WebGL scene.
+- The demo database holds many test categories (“Breakfast 06aa6d” and so on) from earlier end-to-end runs, and the menu chip row shows them.
+- Full-page captures of signed-in phone screens draw the fixed student dock mid-page. That is how the screenshot is stitched, not how the layout looks.

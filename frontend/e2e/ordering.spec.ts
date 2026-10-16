@@ -59,8 +59,8 @@ test("student places an order and kitchen sees the pending ticket", async ({ pag
   await page.locator("#content").getByLabel("Search menu").first().fill(`Masala Chai ${suffix}`);
   await page.locator("article").filter({ hasText: `Masala Chai ${suffix}` }).getByRole("button", { name: "Add to cart" }).click();
   await page.goto("/student/cart");
-  await expect(page.getByText(`Veg Sandwich ${suffix}`)).toBeVisible();
-  await expect(page.getByText(`Masala Chai ${suffix}`)).toBeVisible();
+  await expect(page.getByText(`Veg Sandwich ${suffix}`, { exact: true })).toBeVisible();
+  await expect(page.getByText(`Masala Chai ${suffix}`, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Place order" }).click();
   await expect(page.getByText(/CASH · PENDING/)).toBeVisible();
   const ticket = (await page.getByRole("heading", { level: 2 }).textContent()) ?? "";

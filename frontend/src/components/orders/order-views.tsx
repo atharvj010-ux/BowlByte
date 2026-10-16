@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import { z } from "zod";
 
 import { PickupPass } from "@/components/orders/pickup-pass";
@@ -119,88 +120,208 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   if (!current) {
     return <p>Loading the order.</p>;
   }
+  const currentIndex = progress.indexOf(current.status as (typeof progress)[number]);
+  const tone = statusTone(current.status);
+  const fraction = currentIndex >= 0 ? currentIndex / (progress.length - 1) : 0;
   return (
-    <article className="space-y-4">
-      <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">Ticket</p>
-      <h2 className="font-display text-4xl">{current.ticket_number}</h2>
-      <p data-testid="order-status">
-        {current.status} · {paymentLabel(current)}
-      </p>
-      <p className="text-sm text-muted-foreground" data-testid="connection-state">
-        {order.isError
-          ? "Showing the last confirmed order while updates are unavailable"
-          : live === "live"
-            ? "Live updates connected"
-            : "Checking for updates"}{" "}
-        · updated {new Date(current.updated_at).toLocaleTimeString()}
-      </p>
-      <ol className="grid gap-2 text-sm">
-        {progress.map((step, index) => {
-          const currentIndex = progress.indexOf(current.status as (typeof progress)[number]);
-          const done = step === current.status || (currentIndex >= 0 && index < currentIndex);
-          return (
-            <li key={step} className="flex items-center gap-3">
-              <span
-                aria-hidden="true"
-                className={done ? "h-2.5 w-2.5 rounded-full bg-chili" : "h-2.5 w-2.5 rounded-full bg-border"}
-              />
-              <span>
-                {done ? "Done" : "Pending"} · {labelStep(step)}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <p className="text-sm" data-testid="eta">
-        Approximate ready time {formatEta(current.eta_ready_at)}
-        {current.eta_earliest_at && current.eta_latest_at
-          ? `, between ${formatEta(current.eta_earliest_at)} and ${formatEta(current.eta_latest_at)}`
-          : ""}
-        {current.eta_overdue ? ". Preparation is running longer than expected." : ""}
-        {current.eta_blocked ? ". A station is unavailable, so there is no readiness time." : ""}
-      </p>
-      <p className="text-sm text-muted-foreground">
-        Placed {new Date(current.created_at).toLocaleString()}
-      </p>
-      <ul className="grid gap-2">
-        {current.items.map((item) => (
-          <li key={item.menu_item_id} className="flex justify-between gap-3 text-sm">
-            <span>
-              {item.item_name} × {item.quantity}
-            </span>
-            <span>{formatInrFromPaise(item.line_total_paise)}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="font-medium">Total {formatInrFromPaise(current.total_paise)}</p>
-      {current.tasks
-        .filter((task) => task.delay_reason)
-        .map((task) => (
-          <p key={task.id} className="text-sm" data-testid="delay-message">
-            {task.item_name}: {task.delay_reason}
+    <article className="grid gap-5 lg:grid-cols-[1.2fr_1fr] lg:items-start" style={{ ["--tone" as string]: tone }}>
+      <div className="space-y-5">
+        <header className="track-hero space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="eyebrow">Ticket</p>
+            <p className="font-mono text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase" data-testid="connection-state">
+              {order.isError
+                ? "Showing the last confirmed order while updates are unavailable"
+                : live === "live"
+                  ? "Live updates connected"
+                  : "Checking for updates"}{" "}
+              · updated {new Date(current.updated_at).toLocaleTimeString()}
+            </p>
+          </div>
+          <h2 className="font-display text-7xl leading-none font-extrabold tracking-tight">{current.ticket_number}</h2>
+          <motion.p
+            key={current.status}
+            className="font-display text-3xl font-bold uppercase"
+            style={{ color: tone }}
+            initial={{ y: 12, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            {headline(current.status)}
+          </motion.p>
+          <p data-testid="order-status" className="font-mono text-sm tracking-[0.1em]">
+            {current.status} · {paymentLabel(current)}
           </p>
-        ))}
-      {current.note ? <p className="text-sm">Note: {current.note}</p> : null}
-      <PaymentNotice
-        status={current.status}
-        paymentStatus={current.payment.status}
-        amountPaise={current.payment.amount_paise}
-        paidAt={current.payment.paid_at ?? null}
-        pickedUpAt={current.picked_up_at ?? null}
-      />
-      <PickupPass orderId={orderId} orderStatus={current.status} />
-      {current.status === "PLACED" ? (
-        <Button type="button" variant="outline" onClick={cancel}>
-          Cancel order
-        </Button>
-      ) : null}
-      {message ? (
-        <p role="status" className="text-sm">
-          {message}
-        </p>
-      ) : null}
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
+            <motion.div
+              className="h-full rounded-full"
+              style={{ background: tone, boxShadow: `0 0 16px ${tone}` }}
+              initial={false}
+              animate={{ width: `${Math.max(fraction, 0.04) * 100}%` }}
+              transition={{ type: "spring", stiffness: 80, damping: 20 }}
+            />
+          </div>
+        </header>
+
+        <ol className="track-rail rounded-[1.6rem] border border-border bg-card p-4" aria-label="Progress">
+          {progress.map((step, index) => {
+            const done = step === current.status || (currentIndex >= 0 && index < currentIndex);
+            return (
+              <li
+                key={step}
+                className="track-step"
+                data-done={done ? "true" : "false"}
+                data-current={step === current.status ? "true" : "false"}
+              >
+                <span className="track-dot" aria-hidden="true" />
+                <span>
+                  <span className="font-mono text-[0.68rem] tracking-[0.12em] text-muted-foreground uppercase">
+                    {done ? "Done" : "Pending"} ·
+                  </span>{" "}
+                  {labelStep(step)}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        {current.tasks.length > 0 ? (
+          <section className="space-y-2" aria-labelledby="tasks-heading">
+            <h3 id="tasks-heading" className="eyebrow">
+              Kitchen tasks
+            </h3>
+            <ul className="grid gap-2">
+              {current.tasks.map((task) => (
+                <li key={task.id} className="task-chip">
+                  <span className="truncate">
+                    {task.item_name}
+                    <span className="text-muted-foreground"> · {task.station_name}</span>
+                  </span>
+                  <span className="font-mono text-xs tracking-[0.1em] uppercase">{taskLabel(task.status)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {current.tasks
+          .filter((task) => task.delay_reason)
+          .map((task) => (
+            <p key={task.id} className="text-sm" data-testid="delay-message">
+              {task.item_name}: {task.delay_reason}
+            </p>
+          ))}
+      </div>
+
+      <div className="space-y-5">
+        <div className="track-eta" data-testid="eta">
+          <p className="font-mono text-[0.68rem] tracking-[0.14em] uppercase">Approximate ready time</p>{" "}
+          <p className="font-display text-5xl font-extrabold">{formatEta(current.eta_ready_at)}</p>
+          <p className="text-sm">
+            {current.eta_earliest_at && current.eta_latest_at
+              ? `Between ${formatEta(current.eta_earliest_at)} and ${formatEta(current.eta_latest_at)}. An estimate from the kitchen queue.`
+              : "An estimate from the kitchen queue."}
+            {current.eta_overdue ? " Preparation is running longer than expected." : ""}
+            {current.eta_blocked ? " A station is unavailable, so there is no readiness time." : ""}
+          </p>
+        </div>
+        <PaymentNotice
+          status={current.status}
+          paymentStatus={current.payment.status}
+          amountPaise={current.payment.amount_paise}
+          paidAt={current.payment.paid_at ?? null}
+          pickedUpAt={current.picked_up_at ?? null}
+        />
+        <PickupPass orderId={orderId} orderStatus={current.status} />
+        <section className="summary" aria-label="Order items">
+          {current.items.map((item) => (
+            <div key={item.menu_item_id} className="summary-row">
+              <span>
+                {item.item_name} × {item.quantity}
+              </span>
+              <span>{formatInrFromPaise(item.line_total_paise)}</span>
+            </div>
+          ))}
+          <div className="summary-row border-t border-border pt-3 font-semibold">
+            <span>Total</span>
+            <span>{formatInrFromPaise(current.total_paise)}</span>
+          </div>
+          <p className="fine">Placed {new Date(current.created_at).toLocaleString()}</p>
+          {current.note ? <p className="text-sm">Note: {current.note}</p> : null}
+        </section>
+        {current.status === "PLACED" ? (
+          <Button type="button" variant="outline" onClick={cancel}>
+            Cancel order
+          </Button>
+        ) : null}
+        {message ? (
+          <p role="status" className="text-sm">
+            {message}
+          </p>
+        ) : null}
+      </div>
     </article>
   );
+}
+
+function statusTone(status: string) {
+  switch (status) {
+    case "PLACED":
+    case "ACCEPTED":
+      return "#f6d15a";
+    case "QUEUED":
+    case "PREPARING":
+      return "#4aa8ff";
+    case "READY":
+      return "#ff5c8a";
+    case "PICKED_UP":
+      return "#3df28b";
+    case "UNCLAIMED":
+    case "CANCELLED":
+    case "REJECTED":
+      return "#ff8d7a";
+    default:
+      return "#d5f25b";
+  }
+}
+
+function headline(status: string) {
+  switch (status) {
+    case "PLACED":
+      return "Sent to the kitchen";
+    case "ACCEPTED":
+      return "The kitchen has it";
+    case "QUEUED":
+      return "In line at a station";
+    case "PREPARING":
+      return "On the stove";
+    case "READY":
+      return "Ready at the counter";
+    case "PICKED_UP":
+      return "Enjoy your food";
+    case "UNCLAIMED":
+      return "Hold ended";
+    case "CANCELLED":
+      return "Cancelled";
+    case "REJECTED":
+      return "Not accepted";
+    default:
+      return status;
+  }
+}
+
+function taskLabel(status: string) {
+  switch (status) {
+    case "IN_PROGRESS":
+      return "Cooking";
+    case "DONE":
+      return "Cooked";
+    case "QUEUED":
+      return "Waiting";
+    case "CANCELLED":
+      return "Cancelled";
+    default:
+      return status.replace(/_/g, " ").toLowerCase();
+  }
 }
 
 function PaymentNotice({

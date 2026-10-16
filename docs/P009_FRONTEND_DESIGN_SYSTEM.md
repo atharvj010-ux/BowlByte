@@ -1,52 +1,55 @@
 # P009 frontend design system
 
-BowlByte’s public and student surfaces use one art direction: food in motion. The page should feel like a canteen counter that is already moving, not a generic delivery template.
+BowlByte’s public and student surfaces share one direction: **BowlByte — cravings in motion**. It takes structure from two supplied references, an isometric entrance and a kinetic-type website. It takes nothing else from them: no words, logos, products, or imagery.
 
 ## Direction
 
-- The page is a dark charcoal night scene, with a violet wash behind the landing.
-- Warm ivory is the type.
-- Chili is the only primary action color.
-- Lime is a small accent for labels and estimates.
-- The entrance uses four local lights: yellow, green, blue, and pink. Those lights stay on the isometric modules. They are not a general UI gradient.
-
-Operational desks (kitchen, cashier, manager) inherit the same tokens and type. They do not get decorative motion.
+- The scene is charcoal, lit by violet from inside the story frames.
+- Warm white carries the type.
+- Lime is the primary action color: Explore menu, Track my order, and the estimate panel.
+- Coral is the commerce color: Add to cart, Place order, prices, and the cart pill.
+- Electric blue is used for small indices and the intelligence bars.
+- The entrance uses four station lights: yellow, green, blue, and pink. They stay on the isometric modules and are not reused as a page gradient.
+- Kitchen, cashier, and manager desks inherit the tokens and type. They have no decorative motion.
 
 ## Color
 
 | Token | Value | Use |
 | --- | --- | --- |
 | `--background` | `#0e0d12` | Page |
+| `--ink` | `#191919` | Text on lime and on the ticket |
 | `--ivory` | `#F4EDDD` | Type |
-| `--ink` | `#191919` | Text on lime panels, ticket ink |
-| `--chili` | `#F15438` | Primary buttons, prices, active progress |
-| `--lime` | `#D5F25B` | Small highlights and the intelligence panel |
-| `--card` | `#17151d` | Cards |
-| `--muted-foreground` | `#c4b8a8` | Secondary text |
+| `--lime` | `#D5F25B` | Primary pill, eyebrows, estimate panel |
+| `--chili` | `#F15438` | Add, Place order, prices, cart |
+| `--violet` | `#5c2ea8` | Light inside the kinetic frames and the success stage |
+| `--electric` | `#4aa8ff` | Indices, intelligence bars |
+| `--tone-yellow/green/blue/pink` | `#f6d15a` `#3df28b` `#4aa8ff` `#ff5c8a` | The four entrance stations only |
 
 ## Type
 
-- Display: Bricolage Grotesque, for headlines and prices.
-- Body: Figtree, for descriptions and controls.
-- Headlines are large and tight. Body copy stays in a short measure.
-
-## Space, radius, shadow
-
-- Page columns stay inside `max-w-6xl` with `px-4` / `sm:px-6`.
-- Cards use a 1.5rem radius. The hero and success panel use a slightly larger radius.
-- Shadows are one soft charcoal drop on food cards. They are not stacked glass blurs.
+- Display: Bricolage Grotesque, extra-bold and uppercase, for titles, prices, and ticket numbers.
+- Body: Figtree.
+- Mono: JetBrains Mono, letter-spaced, for eyebrows, tags, status stamps, and floor labels.
+- Kinetic headings are split into masked characters. The heading element carries the real text as `aria-label`, and the split spans are `aria-hidden`. A section named by one of these headings uses its own `aria-label`, because Chrome otherwise builds the region name from the split spans letter by letter.
 
 ## Components
 
-- `MenuCard` is the food unit: a real photo when the canteen uploaded one, otherwise an original vector plate (dosa, sandwich, fries, drink, or bowl). It also shows the name, description, rupee price, calorie line, availability, and an add control that is always visible.
-- `FoodDetail` is a native dialog. Escape and the backdrop close it. Focus starts on Close.
-- `FoodPairings` is optional. It never adds an item by itself.
-- `OrderSuccess` shows the real ticket only after the order API returns.
-- `StudentDock` is the phone navigation for `/student`. Targets are at least 44px.
+- `EntranceScene` (`components/home/entrance-scene.tsx`) is an SVG isometric floor with four two-tier modules, routed light traces, floor labels, and a Skip control.
+- `KineticText` and `KineticSwap` (`components/motion/kinetic.tsx`) handle masked character headings and the pinned word-swap scenes.
+- `MenuCard` shows the photo, name, description, rupee price, nutrition line, serving, availability, and an Add button that is always visible. A mouse pointer tilts the card. Touch shows the same card flat.
+- `FoodPicture` uses the canteen’s uploaded photo when there is one. Otherwise it uses an original illustration labeled “Illustrative image”, or a drawn plate when no illustration matches the dish name.
+- `FoodDetail` is a native dialog with large media, facts, Add to cart, and `FoodPairings` (“Perfect together.”).
+- `CartDesk` holds animated lines, quantity controls, a sticky summary, the cash note, and pairings. It shows a loading state until prices arrive.
+- `OrderSuccess` is the ticket celebration, shown only after the order API has returned.
+- `OrderDetail` (tracking) has the hero ticket, status headline, progress, step rail, kitchen task chips, ETA panel, and pickup pass.
 
-## Focus and responsive rules
+## Food imagery
 
-- Buttons use a 2px ring. Inputs use the same ring.
-- At `lg` (1024px) the header shows the full navigation. Below that, a Menu disclosure is used so 768px does not overflow.
-- The student dock is hidden from `lg` up.
-- Essential actions are not hidden behind hover.
+`frontend/public/food/` holds 11 dishes in two sizes, 22 WebP files. They are original illustrations made for this project, not photography of the canteen and not taken from either reference. Every place that shows one also shows an “Illustrative” tag or note. No menu item in the demo database has an uploaded photo. When a canteen uploads one, it replaces the illustration automatically.
+
+## Responsive and focus rules
+
+- Checked at 360, 390, 768, 1280, and 1440 px with no horizontal overflow.
+- Below 640 px, the signed-in header shows the cart as a bag icon with the count, and Menu as an icon. Both keep their text names for assistive technology, so the cart’s accessible name is still “Cart N”.
+- The full navigation appears from 1024 px. The student dock is used below that.
+- Buttons and inputs show a 2px ring on focus. Essential actions are never hover-only.
