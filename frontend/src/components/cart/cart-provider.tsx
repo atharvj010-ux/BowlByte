@@ -146,8 +146,9 @@ function FoodFlight({ flight, onDone }: { flight: Flight; onDone: () => void }) 
   const startY = from.top + from.height / 2 - size / 2;
   const dx = to.left + to.width / 2 - (startX + size / 2);
   const dy = to.top + to.height / 2 - (startY + size / 2);
-  const cx = dx * 0.25;
-  const cy = Math.min(dy, 0) - Math.max(90, Math.abs(dx) * 0.25);
+  const lift = Math.max(110, Math.min(window.innerHeight * 0.28, 220));
+  const cx = dx * 0.2;
+  const cy = Math.min(dy * 0.2, -24) - lift;
   const steps = 14;
   const xs: number[] = [];
   const ys: number[] = [];
@@ -162,6 +163,7 @@ function FoodFlight({ flight, onDone }: { flight: Flight; onDone: () => void }) 
   return (
     <motion.div
       className="food-flight"
+      data-testid="food-flight"
       style={{ left: startX, top: startY, width: size, height: size }}
       initial={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 }}
       animate={{

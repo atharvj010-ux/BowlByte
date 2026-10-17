@@ -121,6 +121,12 @@ def database_url_usable(url: str) -> str | None:
     return None
 
 
+def credentials_rotation_acknowledged(flag: str) -> bool:
+    """True only when an operator explicitly marks both exposed secrets as replaced."""
+
+    return flag.strip().lower() == "yes"
+
+
 def missing_cutover_names(values: dict[str, str]) -> list[str]:
     missing: list[str] = []
     url = values.get("SUPABASE_URL") or values.get("NEXT_PUBLIC_SUPABASE_URL") or ""

@@ -10,7 +10,7 @@ Status: the public schema was copied to Supabase after a fresh backup. Docker st
 - Sequences: `cash_receipt_no_seq`, `order_ticket_seq`, `production_batch_no_seq`.
 - Triggers: `users_set_updated_at`, `cash_receipts_append_only`, `cash_reversals_append_only`, `pickup_events_append_only`.
 - Functions in the dump include `set_users_updated_at()` and `bowlbyte_forbid_ledger_change()`.
-- Exact counts: 263 users, 1 order, 2 order items, 1 payment, 0 cash receipts.
+- Exact counts at the copy, rechecked on the live database and the Supabase copy: 263 users, 1 order, 2 order items, 1 payment, 0 cash receipts, 286 menu items. `users.supabase_auth_user_id` is null for all 263 Supabase rows. These counters still match. That is not a full checksum and not a cutover.
 - Menu images are in `menu_items.image_bytes`. The dump includes them. They were not sent to Supabase Storage.
 
 ## Backup

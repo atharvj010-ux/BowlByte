@@ -11,8 +11,8 @@ class EmailDeliveryError(Exception):
     """SMTP rejected the message or the server could not be reached."""
 
 
-def send_email(*, recipient: str, subject: str, body: str) -> None:
-    """Deliver one plain-text message. The body is not written to the log."""
+def send_email(*, recipient: str, subject: str, body: str, html: str | None = None) -> None:
+    """Deliver one message. The body is not written to the log."""
 
     settings = get_settings()
     message = EmailMessage()
@@ -20,6 +20,8 @@ def send_email(*, recipient: str, subject: str, body: str) -> None:
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(body)
+    if html:
+        message.add_alternative(html, subtype="html")
     try:
         if settings.smtp_use_tls:
             with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:

@@ -15,7 +15,7 @@ export async function ProtectedArea({
 }) {
   const access = await requireRole(role);
   if (access.kind === "anonymous") {
-    redirectToLogin(loginHref);
+    redirectToLogin(loginHref, access.expired);
   }
   if (access.kind === "forbidden") {
     return <AccessDenied user={access.user} />;

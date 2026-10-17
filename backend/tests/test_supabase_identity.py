@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from app.services.supabase_identity import (
     IdentitySource,
     apply_identity,
+    credentials_rotation_acknowledged,
     database_url_usable,
     missing_cutover_names,
     password_hash_importable,
@@ -76,3 +77,6 @@ def test_cutover_settings_reject_the_publishable_key_and_transaction_pooler() ->
         }
     )
     assert missing == ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL"]
+    assert credentials_rotation_acknowledged("yes")
+    assert not credentials_rotation_acknowledged("")
+    assert not credentials_rotation_acknowledged("no")

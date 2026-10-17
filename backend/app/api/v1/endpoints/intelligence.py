@@ -59,6 +59,7 @@ from app.services.production import (
     record_waste,
     set_closure,
 )
+from app.services.rate_limit import consume_allowance
 
 router = APIRouter(tags=["intelligence"])
 
@@ -369,6 +370,14 @@ def demo_dataset(
 def train(
     body: TrainRequest, principal: Principal = Depends(_write), db: Session = Depends(get_db)
 ) -> dict:
+    consume_allowance(
+        bucket="forecast-train",
+        value=str(principal.user.id),
+        limit=4,
+        window_seconds=60 * 60,
+        unavailable_message="Training is temporarily unavailable.",
+        limited_message="Too many training requests. Wait and try again.",
+    )
     payload, replayed = enqueue_training(
         db,
         manager=principal.user,

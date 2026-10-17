@@ -28,7 +28,18 @@ def assert_allowance(
     unavailable_message: str = SIGN_IN_UNAVAILABLE,
 ) -> None:
     try:
-        current = _client().get(_key(bucket, value))
+        client = _client()
+        key = _key(bucket, value)
+        current = client.get(key)
+        if current is not None and int(current) >= limit:
+            raise ApiError(
+                code="RATE_LIMITED",
+                message="Too many attempts. Wait and try again.",
+                status_code=429,
+                headers={"Retry-After": str(_retry_after(client, key, fallback=60))},
+            )
+    except ApiError:
+        raise
     except RedisError as exc:
         logger.warning("rate limit store unavailable: %s", type(exc).__name__)
         raise ApiError(
@@ -36,12 +47,6 @@ def assert_allowance(
             message=unavailable_message,
             status_code=503,
         ) from exc
-    if current is not None and int(current) >= limit:
-        raise ApiError(
-            code="RATE_LIMITED",
-            message="Too many attempts. Wait and try again.",
-            status_code=429,
-        )
 
 
 def record_attempt(
@@ -57,6 +62,51 @@ def record_attempt(
         count = client.incr(key)
         if count == 1:
             client.expire(key, window_seconds)
+    except RedisError as exc:
+        logger.warning("rate limit store unavailable: %s", type(exc).__name__)
+        raise ApiError(
+            code="RATE_LIMIT_UNAVAILABLE",
+            message=unavailable_message,
+            status_code=503,
+        ) from exc
+
+
+def _retry_after(client: Redis, key: str, *, fallback: int) -> int:
+    try:
+        ttl = int(client.ttl(key))
+    except (RedisError, TypeError, ValueError):
+        return fallback
+    if ttl > 0:
+        return ttl
+    return fallback
+
+
+def consume_allowance(
+    *,
+    bucket: str,
+    value: str,
+    limit: int,
+    window_seconds: int,
+    unavailable_message: str = SIGN_IN_UNAVAILABLE,
+    limited_message: str = "Too many attempts. Wait and try again.",
+) -> None:
+    """Atomically count one attempt and reject when the window is exhausted."""
+
+    try:
+        client = _client()
+        key = _key(bucket, value)
+        count = int(client.incr(key))
+        if count == 1:
+            client.expire(key, window_seconds)
+        if count > limit:
+            raise ApiError(
+                code="RATE_LIMITED",
+                message=limited_message,
+                status_code=429,
+                headers={"Retry-After": str(_retry_after(client, key, fallback=window_seconds))},
+            )
+    except ApiError:
+        raise
     except RedisError as exc:
         logger.warning("rate limit store unavailable: %s", type(exc).__name__)
         raise ApiError(

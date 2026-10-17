@@ -1,6 +1,6 @@
 # P011 Auth migration
 
-Status: blocked. The server secret key can read the Auth admin API, and that project has zero Auth users. Public signup is still enabled, so the Auth cutover stays stopped.
+Status: blocked. The Auth admin API still lists zero users. Public signup is disabled and email autoconfirm is off. The exposed admin secret and database password have not been rotated, so no password hash has been imported.
 
 ## Current accounts
 
@@ -10,7 +10,7 @@ That compatibility has not been proven with a live login. The import must be tes
 
 ## Planned mapping
 
-1. Apply `0010_supabase_auth_link` so `users.supabase_auth_user_id` exists. This revision is in the repository and has not been applied to the live database. Applying it while the running backend image is still at `0009_menu_organization` would make the next container start fail its migration.
+1. `0010_supabase_auth_link` is applied on the Supabase copy only. The live Docker database is still `0009_menu_organization`. The SQLAlchemy `User` model does not map `supabase_auth_user_id`, so the running image can keep starting. All 263 Supabase user rows have a null link.
 2. For each user without a link, call the Auth admin API with the server secret key.
 3. Confirm email only when BowlByte status is `ACTIVE` and `email_verified_at` is set.
 4. Import pending users with `email_confirm=false`.

@@ -105,7 +105,7 @@ export function OrderSuccess({
             as="p"
             mode="load"
             delay={quiet ? 0 : 420}
-            lines={["Order in.", "Happiness loading."]}
+            lines={["ORDER IN.", "HAPPINESS LOADING."]}
             className="success-words"
           />
           <p className="text-center text-ivory/80">Your kitchen has received your order. It is not ready yet.</p>

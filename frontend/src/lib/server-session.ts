@@ -7,7 +7,7 @@ import { currentUserSchema, type CurrentUser } from "@/lib/auth";
 import { sessionCookieName } from "@/lib/cookies";
 
 export type Access =
-  | { kind: "anonymous" }
+  | { kind: "anonymous"; expired: boolean }
   | { kind: "forbidden"; user: CurrentUser }
   | { kind: "ok"; user: CurrentUser };
 
@@ -31,9 +31,12 @@ export async function fetchServerUser(): Promise<CurrentUser | null> {
 }
 
 export async function requireRole(role: CurrentUser["role"]): Promise<Access> {
+  await connection();
+  const jar = await cookies();
+  const expired = Boolean(jar.get(sessionCookieName())?.value);
   const user = await fetchServerUser();
   if (!user) {
-    return { kind: "anonymous" };
+    return { kind: "anonymous", expired };
   }
   if (user.role !== role) {
     return { kind: "forbidden", user };
@@ -41,6 +44,7 @@ export async function requireRole(role: CurrentUser["role"]): Promise<Access> {
   return { kind: "ok", user };
 }
 
-export function redirectToLogin(loginHref: string): never {
-  redirect(loginHref);
+export function redirectToLogin(loginHref: string, expired = false): never {
+  const target = expired ? `${loginHref}?reason=expired` : loginHref;
+  redirect(target);
 }

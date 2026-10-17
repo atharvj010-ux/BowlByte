@@ -22,6 +22,7 @@ from app.services.identity import (
     set_staff_status,
     user_view,
 )
+from app.services.rate_limit import consume_allowance
 
 router = APIRouter(prefix="/admin/staff", tags=["staff"])
 
@@ -32,6 +33,14 @@ def create_invitation(
     principal: Principal = Depends(require_manager),
     db: Session = Depends(get_db),
 ) -> InvitationResponse:
+    consume_allowance(
+        bucket="invite-user",
+        value=str(principal.user.id),
+        limit=20,
+        window_seconds=60 * 60,
+        unavailable_message="Invitations are temporarily unavailable.",
+        limited_message="Too many invitations. Wait and try again.",
+    )
     invitation = invite_staff(
         db,
         manager=principal.user,

@@ -15,6 +15,7 @@ from app.services.ordering import (
     list_student_orders,
     place_order,
 )
+from app.services.rate_limit import consume_allowance
 
 router = APIRouter(tags=["orders"])
 
@@ -42,6 +43,14 @@ def create_order(
     db: Session = Depends(get_db),
 ) -> OrderResponse:
     _student(principal)
+    consume_allowance(
+        bucket="order-user",
+        value=str(principal.user.id),
+        limit=20,
+        window_seconds=10 * 60,
+        unavailable_message="Ordering is temporarily unavailable.",
+        limited_message="Too many orders were submitted. Wait and try again.",
+    )
     saved = place_order(
         db,
         student=principal.user,

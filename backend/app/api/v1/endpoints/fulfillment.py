@@ -39,6 +39,7 @@ from app.schemas.fulfillment import (
 from app.services import cash, notifications, pickup, push, unclaimed
 from app.services.identity import Principal
 from app.services.push_delivery import outbox_metrics
+from app.services.rate_limit import consume_allowance
 
 router = APIRouter(tags=["cash-pickup-notifications"])
 
@@ -134,6 +135,14 @@ def confirm_cash(
     principal: Principal = Depends(_cashier_write),
     db: Session = Depends(get_db),
 ) -> ConfirmCashResponse:
+    consume_allowance(
+        bucket="cash-user",
+        value=str(principal.user.id),
+        limit=40,
+        window_seconds=10 * 60,
+        unavailable_message="Cash confirmation is temporarily unavailable.",
+        limited_message="Too many cash confirmations. Wait and try again.",
+    )
     receipt, replayed = cash.confirm_cash(
         db,
         cashier=principal.user,
@@ -157,6 +166,14 @@ def complete_pickup(
     principal: Principal = Depends(_cashier_write),
     db: Session = Depends(get_db),
 ) -> CompletePickupResponse:
+    consume_allowance(
+        bucket="pickup-complete",
+        value=str(principal.user.id),
+        limit=30,
+        window_seconds=10 * 60,
+        unavailable_message="Pickup is temporarily unavailable.",
+        limited_message="Too many pickup attempts. Wait and try again.",
+    )
     order, replayed = pickup.complete_pickup(
         db,
         cashier=principal.user,
@@ -275,6 +292,14 @@ def push_unsubscribe(
 def push_test(
     principal: Principal = Depends(_student_write), db: Session = Depends(get_db)
 ) -> PushTestResponse:
+    consume_allowance(
+        bucket="push-test",
+        value=str(principal.user.id),
+        limit=3,
+        window_seconds=60 * 60,
+        unavailable_message="Test notifications are temporarily unavailable.",
+        limited_message="Too many test notifications. Wait and try again.",
+    )
     return PushTestResponse.model_validate(notifications.enqueue_test_push(db, user=principal.user))
 
 

@@ -9,11 +9,13 @@ from redis.exceptions import RedisError
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.core.errors import ApiError
 from app.db.session import SessionLocal
 from app.models.identity import CASHIER, KITCHEN_STAFF, STUDENT
 from app.models.ordering import Order
 from app.services.identity import load_principal
 from app.services.ordering import cashier_canteen_id, kitchen_canteen_id
+from app.services.rate_limit import consume_allowance
 
 router = APIRouter(tags=["live"])
 
@@ -55,6 +57,18 @@ async def _stream(websocket: WebSocket, channel_for) -> None:
         return
     if channel is None:
         await websocket.close(code=4403)
+        return
+    try:
+        consume_allowance(
+            bucket="ws-user",
+            value=str(principal.user.id),
+            limit=30,
+            window_seconds=60,
+            unavailable_message="Live updates are temporarily unavailable.",
+            limited_message="Too many live connections. Wait and try again.",
+        )
+    except ApiError as exc:
+        await websocket.close(code=4429 if exc.status_code == 429 else 1013)
         return
     await websocket.accept()
     await websocket.send_json({"type": "connected", "resource_id": channel, "version": 0, "at": ""})

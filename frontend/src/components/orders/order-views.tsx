@@ -289,7 +289,7 @@ function headline(status: string) {
     case "PLACED":
       return "Sent to the kitchen";
     case "ACCEPTED":
-      return "The kitchen has it";
+      return "THE KITCHEN'S ON IT.";
     case "QUEUED":
       return "In line at a station";
     case "PREPARING":

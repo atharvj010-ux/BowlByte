@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
@@ -18,6 +19,14 @@ export function LoginForm({ title, description }: { title: string; description: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [pending, setPending] = useState(false);
+  const [sessionNote, setSessionNote] = useState("");
+  if (
+    typeof window !== "undefined" &&
+    sessionNote === "" &&
+    new URLSearchParams(window.location.search).get("reason") === "expired"
+  ) {
+    setSessionNote("Your session expired. Sign in again.");
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,6 +89,11 @@ export function LoginForm({ title, description }: { title: string; description: 
               onChange={setPassword}
               error={errors.password}
             />
+            {sessionNote ? (
+              <p className="text-sm" role="status">
+                {sessionNote}
+              </p>
+            ) : null}
             {formError ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}
@@ -88,6 +102,11 @@ export function LoginForm({ title, description }: { title: string; description: 
             <Button type="submit" disabled={pending} className="w-full">
               {pending ? "Signing in…" : "Sign in"}
             </Button>
+            <p className="text-center text-sm">
+              <Link href="/forgot-password" className="underline-offset-4 hover:underline">
+                Forgot your password?
+              </Link>
+            </p>
           </form>
         </CardContent>
       </Card>

@@ -2,7 +2,7 @@
 
 Status: not activated.
 
-`scripts/start-dev.ps1` loads `.env` without printing values, then runs `python -m app.cli.supabase_preflight`. The check exits 2 while `SUPABASE_SECRET_KEY` or `SUPABASE_DB_URL` is missing. It does not start FastAPI, Next.js, Redis, or Celery, and it does not stop Docker.
+`scripts/start-dev.ps1` loads `.env` without printing values, then runs `python -m app.cli.supabase_preflight`. The check exits 2 when a required setting is missing or when `SUPABASE_CREDENTIALS_ROTATED` is not `yes`. It does not start FastAPI, Next.js, Redis, or Celery, and it does not stop Docker. That flag is unset.
 
 `scripts/stop-dev.ps1` stops only process ids recorded in `scripts/.bowlbyte-dev.pids`, and only when the process name is `python`, `node`, `redis-server`, or `celery`. No pid file has been written.
 

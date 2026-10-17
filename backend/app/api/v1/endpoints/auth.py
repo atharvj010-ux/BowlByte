@@ -9,10 +9,12 @@ from app.db.session import get_db
 from app.schemas.auth import (
     AcceptInvitationRequest,
     CsrfResponse,
+    ForgotPasswordRequest,
     LoginRequest,
     MessageResponse,
     RegistrationPolicyResponse,
     ResendVerificationRequest,
+    ResetPasswordRequest,
     StudentRegisterRequest,
     UserEnvelope,
     UserResponse,
@@ -31,6 +33,11 @@ from app.services.identity import (
     rotate_csrf,
     user_view,
     verify_email,
+)
+from app.services.password_recovery import (
+    RESET_ACCEPTED,
+    request_password_reset,
+    reset_password,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -81,6 +88,31 @@ def post_resend(
 ) -> MessageResponse:
     resend_verification(db, str(body.email), client_key(request))
     return MessageResponse(message="If an unverified account exists, a new message has been sent.")
+
+
+@router.post("/forgot-password", response_model=MessageResponse, status_code=202)
+def forgot_password(
+    body: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    request_password_reset(db, email=str(body.email), client_key=client_key(request))
+    return MessageResponse(message=RESET_ACCEPTED)
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+def post_reset_password(
+    body: ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    reset_password(
+        db,
+        token=body.token,
+        password=body.password,
+        client_key=client_key(request),
+    )
+    return MessageResponse(message="Your password has been changed. Sign in with the new password.")
 
 
 @router.post("/login", response_model=UserEnvelope)

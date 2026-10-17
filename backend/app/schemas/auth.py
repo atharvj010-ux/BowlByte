@@ -56,6 +56,22 @@ class ResendVerificationRequest(APIModel):
     email: EmailStr
 
 
+class ForgotPasswordRequest(APIModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(APIModel):
+    token: str = Field(min_length=20, max_length=200)
+    password: str = Field(min_length=12, max_length=128)
+    confirm_password: str = Field(min_length=12, max_length=128)
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "ResetPasswordRequest":
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match.")
+        return self
+
+
 class AcceptInvitationRequest(APIModel):
     token: str = Field(min_length=20, max_length=200)
     full_name: str = Field(min_length=1, max_length=120)

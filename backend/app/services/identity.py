@@ -41,6 +41,7 @@ from app.models.identity import (
 from app.models.identity import (
     Session as SessionRow,
 )
+from app.services.email_templates import branded_message
 from app.services.mailer import EmailDeliveryError, send_email
 from app.services.rate_limit import assert_allowance, record_attempt
 
@@ -138,16 +139,21 @@ def _verification_minutes() -> int:
 
 def _send_verification(user: User, raw_token: str) -> None:
     link = _public_url(f"/student/verify-email#token={raw_token}")
+    text, html = branded_message(
+        heading="Confirm your email",
+        intro=f"Hello {user.full_name}. Confirm your BowlByte student account.",
+        action_label="Confirm email",
+        action_url=link,
+        note=(
+            f"The link expires in {_verification_minutes()} minutes and works once. "
+            "If you did not register, you can ignore this message."
+        ),
+    )
     send_email(
         recipient=user.email,
         subject="Confirm your BowlByte account",
-        body=(
-            f"Hello {user.full_name},\n\n"
-            "Confirm your BowlByte student account by opening this link:\n"
-            f"{link}\n\n"
-            f"The link expires in {_verification_minutes()} minutes and works once.\n"
-            "If you did not register, you can ignore this message.\n"
-        ),
+        body=text,
+        html=html,
     )
 
 

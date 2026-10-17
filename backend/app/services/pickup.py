@@ -140,6 +140,7 @@ def issue_credential(db: Session, *, student: User, order_id: UUID, clock: Clock
             code="RATE_LIMITED",
             message="You asked for too many pickup codes. Wait a few minutes.",
             status_code=429,
+            headers={"Retry-After": str(settings.pickup_issue_window_seconds)},
         )
     replaced = list(
         db.scalars(
