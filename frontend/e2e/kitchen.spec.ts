@@ -1,6 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import path from "node:path";
+
+import { bootstrapIsolatedManager, psqlCommand, psqlQuery } from "./safe-db";
 
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
@@ -510,57 +510,17 @@ async function signIn(page: Page, email: string) {
 }
 
 function clearStaff() {
-  execFileSync(
-    "docker",
-    [
-      "compose",
-      "exec",
-      "-T",
-      "postgres",
-      "psql",
-      "-U",
-      "bowlbyte",
-      "-d",
-      "bowlbyte",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-c",
-      "TRUNCATE preparation_plan_events, preparation_plan_items, preparation_plans, demand_forecast_values, demand_forecast_runs, model_evaluations, forecasting_models, forecast_jobs, food_waste_records, production_quantity_events, food_production_batches, demo_demand_days, canteen_closures, push_deliveries, notification_outbox, notifications, pickup_events, pickup_credentials, cash_reversals, cash_receipts; DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
-    ],
-    { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
+  psqlCommand(
+    "TRUNCATE preparation_plan_events, preparation_plan_items, preparation_plans, demand_forecast_values, demand_forecast_runs, model_evaluations, forecasting_models, forecast_jobs, food_waste_records, production_quantity_events, food_production_batches, demo_demand_days, canteen_closures, push_deliveries, notification_outbox, notifications, pickup_events, pickup_credentials, cash_reversals, cash_receipts; DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
   );
 }
 
 function bootstrapManager(email: string, managerPassword: string) {
-  execFileSync(
-    "docker",
-    [
-      "compose",
-      "exec",
-      "-T",
-      "-e",
-      `BOWLBYTE_BOOTSTRAP_EMAIL=${email}`,
-      "-e",
-      "BOWLBYTE_BOOTSTRAP_NAME=Pilot Manager",
-      "backend",
-      "python",
-      "-m",
-      "app.cli.bootstrap_manager",
-    ],
-    {
-      cwd: path.resolve(__dirname, "../.."),
-      input: `${managerPassword}\n`,
-      encoding: "utf8",
-    },
-  );
+  bootstrapIsolatedManager(email, managerPassword);
 }
 
 function sql(query: string) {
-  return execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "bowlbyte", "-d", "bowlbyte", "-tAc", query],
-    { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
-  );
+  return psqlQuery(query);
 }
 
 async function verificationToken(email: string): Promise<string> {

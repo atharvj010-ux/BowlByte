@@ -1,5 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+
+import { bootstrapIsolatedManager, psqlCommand, psqlQuery } from "./safe-db";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
@@ -265,39 +266,15 @@ function clearPilotData() {
 }
 
 function psql(command: string) {
-  return execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "bowlbyte", "-d", "bowlbyte", "-v", "ON_ERROR_STOP=1", "-c", command],
-    { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
-  );
+  return psqlCommand(command);
 }
 
 function bootstrapManager(email: string, managerPassword: string) {
-  execFileSync(
-    "docker",
-    [
-      "compose",
-      "exec",
-      "-T",
-      "-e",
-      `BOWLBYTE_BOOTSTRAP_EMAIL=${email}`,
-      "-e",
-      "BOWLBYTE_BOOTSTRAP_NAME=Demo Manager",
-      "backend",
-      "python",
-      "-m",
-      "app.cli.bootstrap_manager",
-    ],
-    { cwd: path.resolve(__dirname, "../.."), input: `${managerPassword}\n`, encoding: "utf8" },
-  );
+  bootstrapIsolatedManager(email, managerPassword, "Demo Manager");
 }
 
 function sql(query: string) {
-  return execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "bowlbyte", "-d", "bowlbyte", "-tAc", query],
-    { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
-  );
+  return psqlQuery(query);
 }
 
 async function verificationToken(email: string): Promise<string> {

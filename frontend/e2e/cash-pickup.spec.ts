@@ -1,6 +1,5 @@
-import { execFileSync } from "node:child_process";
+import { bootstrapIsolatedManager, psqlCommand, psqlQuery } from "./safe-db";
 import { randomBytes } from "node:crypto";
-import path from "node:path";
 
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
@@ -158,7 +157,7 @@ test("scenario 2: student shows a pickup code, cashier verifies, confirms paymen
   await pages.student.goto(`/student/orders/${orderId}`);
   await expect(pages.student.getByTestId("order-status").first()).toContainText("PICKED_UP · CASH · PAID");
   await expect(pages.student.getByTestId("payment-notice").first()).toContainText("collected successfully");
-  await expect(pages.student.getByTestId("pickup-pass").first()).toHaveCount(0);
+  await expect(pages.student.getByTestId("pickup-pass").first()).toContainText("The pickup code no longer works.");
   expect(
     sql(`SELECT count(*) FROM pickup_credentials WHERE order_id = '${orderId}' AND redeemed_at IS NOT NULL`).trim(),
   ).toBe("1");
@@ -663,39 +662,15 @@ function clearPilotData() {
 }
 
 function psql(command: string) {
-  return execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "bowlbyte", "-d", "bowlbyte", "-v", "ON_ERROR_STOP=1", "-c", command],
-    { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
-  );
+  return psqlCommand(command);
 }
 
 function bootstrapManager(email: string, managerPassword: string) {
-  execFileSync(
-    "docker",
-    [
-      "compose",
-      "exec",
-      "-T",
-      "-e",
-      `BOWLBYTE_BOOTSTRAP_EMAIL=${email}`,
-      "-e",
-      "BOWLBYTE_BOOTSTRAP_NAME=Pilot Manager",
-      "backend",
-      "python",
-      "-m",
-      "app.cli.bootstrap_manager",
-    ],
-    { cwd: path.resolve(__dirname, "../.."), input: `${managerPassword}\n`, encoding: "utf8" },
-  );
+  bootstrapIsolatedManager(email, managerPassword);
 }
 
 function sql(query: string) {
-  return execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "bowlbyte", "-d", "bowlbyte", "-tAc", query],
-    { cwd: path.resolve(__dirname, "../.."), encoding: "utf8" },
-  );
+  return psqlQuery(query);
 }
 
 async function verificationToken(email: string): Promise<string> {

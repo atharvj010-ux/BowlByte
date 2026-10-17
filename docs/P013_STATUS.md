@@ -1,6 +1,6 @@
 # P013 status
 
-Status: Brevo accepted BowlByte verification and recovery mail. Inbox delivery, identity import, and cutover remain unverified.
+Status: P013.3 is PASS WITH ISSUES. Credential rotation is still blocked, inbox delivery is still unverified, and the browser suite ran only against a disposable database.
 
 ## P013.2
 
@@ -36,6 +36,16 @@ The tracking page requests the existing pickup credential when status is `READY`
 
 The frontend on port 3010 and the API on port 8010 are running these changes.
 
+## P013.3
+
+Credential rotation stays blocked. The replacement admin key returns HTTP 200, public signup is disabled, and the pooler URL uses port 5432 with `sslmode=verify-full`. The old secret was not replayed, so `SUPABASE_CREDENTIALS_ROTATED` was not set. No Auth users were imported.
+
+No new email was sent. Prior Brevo SMTP submission for the connection test, one verification message, and one reset message remains the evidence. Inbox receipt is still unverified. Supabase Auth login and OTP are not claimed.
+
+Playwright now refuses cleanup unless `E2E_DATABASE` names a disposable database and `current_database()` matches it. `bowlbyte` and `postgres` are rejected. The disposable database `bowlbyte_e2e` was created and migrated to `0010_supabase_auth_link`. The live database stayed at 263 users.
+
+Logged-out registration and email confirmation are public routes again. A verification link is submitted once, so a remount cannot consume the single-use token. Anonymous order and tracking requests return 401. On the isolated app, student A’s order survived refresh and a second tab, disappeared after logout and Back, and was denied to student B. An expired session returned to sign-in. A not-ready order showed no QR. A ready order rendered the backend manual code and expiry, renewal replaced it, and the cashier rejected a wrong code, an expired code, a code from another canteen, and a replay. Cash stayed pending until confirmation, then READY and PAID completed as picked up. The backend WebSocket accepted the student session. The Next.js proxy does not upgrade that socket, so the page kept polling.
+
 ## Not run
 
-Disposable Argon2id import, the 263-user import, OTP login, Playwright, and Docker retirement.
+Disposable Argon2id import, the 263-user import, OTP login, and Docker retirement. Inbox receipt is still unverified.

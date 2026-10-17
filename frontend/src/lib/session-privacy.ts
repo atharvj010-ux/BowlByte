@@ -12,7 +12,9 @@ export function isPrivatePath(pathname: string): boolean {
     pathname.includes("/login") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
-    pathname.startsWith("/invite")
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/student/register") ||
+    pathname.startsWith("/student/verify-email")
   ) {
     return false;
   }

@@ -8,6 +8,8 @@ describe("private order routes", () => {
     expect(isPrivatePath("/student/orders/abc")).toBe(true);
     expect(isPrivatePath("/student/notifications")).toBe(true);
     expect(isPrivatePath("/student/login")).toBe(false);
+    expect(isPrivatePath("/student/register")).toBe(false);
+    expect(isPrivatePath("/student/verify-email")).toBe(false);
     expect(isPrivatePath("/forgot-password")).toBe(false);
     expect(loginHrefFor("/cashier/orders")).toBe("/cashier/login?reason=expired");
   });

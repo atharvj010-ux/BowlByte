@@ -9,6 +9,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch, readError } from "@/lib/auth";
 
 let capturedToken = "";
+const verificationRequests = new Map<string, Promise<{ ok: boolean; message: string }>>();
+
+function verifyOnce(token: string): Promise<{ ok: boolean; message: string }> {
+  const existing = verificationRequests.get(token);
+  if (existing) {
+    return existing;
+  }
+  const pending = apiFetch("/api/v1/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  }).then(async (response) => ({
+    ok: response.ok,
+    message: response.ok ? "Your email is confirmed. Sign in to continue." : await readError(response),
+  }));
+  verificationRequests.set(token, pending);
+  return pending;
+}
 
 function takeToken(): string {
   if (typeof window === "undefined") {
@@ -44,20 +61,12 @@ export function VerifyEmailForm() {
       return;
     }
     let cancelled = false;
-    void apiFetch("/api/v1/auth/verify-email", {
-      method: "POST",
-      body: JSON.stringify({ token }),
-    }).then(async (response) => {
+    void verifyOnce(token).then((result) => {
       if (cancelled) {
         return;
       }
-      if (!response.ok) {
-        setStatus("error");
-        setMessage(await readError(response));
-        return;
-      }
-      setStatus("done");
-      setMessage("Your email is confirmed. Sign in to continue.");
+      setStatus(result.ok ? "done" : "error");
+      setMessage(result.message);
     });
     return () => {
       cancelled = true;
