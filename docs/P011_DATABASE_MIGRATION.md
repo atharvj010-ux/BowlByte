@@ -1,6 +1,6 @@
 # P011 database migration
 
-Status: source backup verified. Supabase was not written.
+Status: source backup rechecked and unchanged. Supabase Postgres was not written.
 
 ## Source
 
@@ -25,6 +25,6 @@ The Docker volume `postgres_data` was not removed.
 
 The restore may target only the BowlByte `public` schema. It must not drop or replace Supabase's `auth` schema. If `public.users` already exists on the target, the restore stops. The connection must use TLS and either the direct host or the session pooler on port 5432. The transaction pooler on port 6543 is rejected because BowlByte uses transactions and row locks.
 
-`SUPABASE_DB_URL` is not configured, so this restore was not attempted. The target was not checked for an existing BowlByte schema for the same reason.
+`SUPABASE_DB_URL` is now set. It is the direct host `db.<project-ref>.supabase.co` on port 5432, database `postgres`, user `postgres`, with the password wrapped in square brackets and no `sslmode`. That host has only an IPv6 address, and a connection to it failed with network unreachable. Session-pooler hosts on port 5432 answer over IPv4, but `sslmode=verify-full` with the operating-system trust store failed certificate verification. `sslmode=disable` was not used. The pooler cluster host is not in the URI, and the docs say it cannot be derived from the region, so the target schema was not inspected and no restore was attempted.
 
 After a restore, `backend/app/db/supabase_lockdown.sql` revokes `anon` and `authenticated` from the BowlByte tables. FastAPI keeps using the database owner role.

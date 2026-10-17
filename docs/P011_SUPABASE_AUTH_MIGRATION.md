@@ -1,6 +1,6 @@
 # P011 Auth migration
 
-Status: not started against Supabase Auth. The admin API rejected the publishable key.
+Status: blocked. The server secret key can read the Auth admin API, and that project has zero Auth users. Public signup is still enabled, so the Auth cutover stays stopped.
 
 ## Current accounts
 
@@ -20,8 +20,15 @@ That compatibility has not been proven with a live login. The import must be tes
 
 `app.services.supabase_identity` implements this plan. `scripts/start-dev.ps1` refuses to launch a native stack until `SUPABASE_SECRET_KEY` and `SUPABASE_DB_URL` are usable.
 
+## Resume check
+
+`GET /auth/v1/admin/users` with `SUPABASE_SECRET_KEY` returned HTTP 200 and an empty user page. The key matches `NEXT_PUBLIC_SUPABASE_URL`. No BowlByte user was created.
+
+`GET /auth/v1/settings` still reports `disable_signup=false` and `mailer_autoconfirm=false`. The secret key cannot change that project setting. Turn public signup off in the Supabase dashboard before any client is pointed at Supabase Auth.
+
 ## Still required in the dashboard
 
-- Create a server-only secret key and put it in `.env` as `SUPABASE_SECRET_KEY`.
 - Turn off public signups so the client cannot bypass college eligibility.
+- Download the database CA certificate from Database settings. The Windows trust store rejected the pooler certificate under `sslmode=verify-full`.
+- Copy the session-pooler URI from the Connect panel. The direct host is IPv6-only and this network cannot route to it.
 - Keep the site URL on the local development origin. Do not deploy BowlByte publicly in this phase.
