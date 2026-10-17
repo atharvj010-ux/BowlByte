@@ -1,6 +1,6 @@
 # P011 database migration
 
-Status: source backup rechecked and unchanged. Supabase Postgres was not written.
+Status: the public schema was copied to Supabase after a fresh backup. Docker still serves the local database. Supabase is not the live authority yet.
 
 ## Source
 
@@ -25,6 +25,20 @@ The Docker volume `postgres_data` was not removed.
 
 The restore may target only the BowlByte `public` schema. It must not drop or replace Supabase's `auth` schema. If `public.users` already exists on the target, the restore stops. The connection must use TLS and either the direct host or the session pooler on port 5432. The transaction pooler on port 6543 is rejected because BowlByte uses transactions and row locks.
 
-`SUPABASE_DB_URL` is now set. It is the direct host `db.<project-ref>.supabase.co` on port 5432, database `postgres`, user `postgres`, with the password wrapped in square brackets and no `sslmode`. That host has only an IPv6 address, and a connection to it failed with network unreachable. Session-pooler hosts on port 5432 answer over IPv4, but `sslmode=verify-full` with the operating-system trust store failed certificate verification. `sslmode=disable` was not used. The pooler cluster host is not in the URI, and the docs say it cannot be derived from the region, so the target schema was not inspected and no restore was attempted.
+A second custom-format dump, `bowlbyte-p012.dump`, was taken after stopping the backend, worker, and beat. It is stored next to the earlier dump and is 381,620 bytes. Those three services were started again and still use local PostgreSQL.
 
-After a restore, `backend/app/db/supabase_lockdown.sql` revokes `anon` and `authenticated` from the BowlByte tables. FastAPI keeps using the database owner role.
+The restore used the session pooler `aws-0-ap-northeast-2.pooler.supabase.com` on port 5432 with `sslmode=verify-full` and the Supabase Root 2021 CA. `pg_restore` exited 0 for the `public` schema only. Supabase `auth` was not replaced.
+
+Verified on Supabase PostgreSQL 17.11:
+
+- 46 public tables
+- 263 users
+- 1 order, 2 order items, 1 payment, 0 cash receipts
+- 0 orders without a matching user
+- 4 public triggers
+- `anon` and `authenticated` table grants: 0 after `supabase_lockdown.sql`
+- `users.supabase_auth_user_id` added, with 0 identities linked
+- Alembic revision on Supabase: `0010_supabase_auth_link`
+- Alembic revision on the local database: `0009_menu_organization`
+
+The local Docker database remains the database the running application writes.
