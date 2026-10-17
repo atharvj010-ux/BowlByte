@@ -740,9 +740,9 @@ def test_ready_creates_exactly_one_notification_and_outbox_row(client: TestClien
     db = SessionLocal()
     notes = list(db.scalars(select(Notification)))
     assert len(notes) == 1 and notes[0].user_id == world.student.id
-    assert notes[0].title == "BowlByte — Order Ready!"
+    assert notes[0].title == "BowlByte — Your Food Is Ready!"
     assert notes[0].body == (
-        f"Your order #{ticket} is ready for pickup. Please pay cash at the canteen counter."
+        f"Order #{ticket} is ready. Please pay cash at the canteen counter and collect your food."
     )
     outbox = list(db.scalars(select(NotificationOutbox)))
     assert len(outbox) == 1 and outbox[0].status == "PENDING"
@@ -1112,6 +1112,38 @@ def test_push_test_endpoint_is_protected_and_rate_limited(client: TestClient) ->
     assert _drain()["accepted"] == limit
     _login(client, world.cashier.email)
     assert client.post("/api/v1/push/test", headers=_csrf(client)).status_code == 403
+
+
+def test_push_test_status_is_private_and_needs_a_subscription(client: TestClient) -> None:
+    world = _world(client)
+    _login(client, world.student.email)
+    missing = client.post("/api/v1/push/test", headers=_csrf(client))
+    assert missing.status_code == 409
+    endpoint = _endpoint("accept")
+    _subscribe(client, endpoint)
+    confirmed = client.post(
+        "/api/v1/push/subscriptions/confirm",
+        json={"endpoint": endpoint},
+        headers=_csrf(client),
+    )
+    assert confirmed.status_code == 200 and confirmed.json() == {"active": True}
+    stranger = client.post(
+        "/api/v1/push/subscriptions/confirm",
+        json={"endpoint": "https://fcm.googleapis.com/fcm/send/not-this-device"},
+        headers=_csrf(client),
+    )
+    assert stranger.json()["active"] is False
+    queued = client.post("/api/v1/push/test", headers=_csrf(client))
+    assert queued.status_code == 202
+    assert "endpoint" not in queued.text and "p256dh" not in queued.text
+    event_id = queued.json()["event_id"]
+    _login(client, world.other_student.email)
+    assert client.get(f"/api/v1/push/test/{event_id}").status_code == 404
+    _login(client, world.student.email)
+    status = client.get(f"/api/v1/push/test/{event_id}")
+    assert status.status_code == 200
+    assert status.json()["push_service"] in {"accepted", "rejected", "unknown"}
+    assert "endpoint" not in status.text
 
 
 # --- manager analytics and cashier board -----------------------------------------------------

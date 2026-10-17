@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { useCart } from "@/components/cart/cart-provider";
+import { PushSettings } from "@/components/notifications/push-settings";
 import { categoryTone, FoodPicture } from "@/components/menu/menu-card";
 import { KineticText } from "@/components/motion/kinetic";
 import { apiFetch, readError, type CurrentUser } from "@/lib/auth";
@@ -140,6 +141,8 @@ export function StudentDesk({ user }: { user: CurrentUser }) {
           )}
         </section>
       </div>
+
+      <PushSettings userId={user.id} />
 
       {available.length > 0 ? (
         <section className="space-y-3" aria-labelledby="counter-now">

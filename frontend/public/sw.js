@@ -80,6 +80,7 @@ self.addEventListener("push", (event) => {
       data: { url: safePath(data.url), type: data.type || null },
       renotify: false,
       requireInteraction: data.type === "ORDER_READY",
+      actions: data.type === "ORDER_READY" ? [{ action: "open", title: "View order" }] : [],
     }),
   );
 });

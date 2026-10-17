@@ -11,10 +11,23 @@ export type PushSupport =
 export type PushStatus =
   | { state: "checking" }
   | { state: "unsupported"; message: string }
-  | { state: "server-off"; message: string }
+  | { state: "needs-install"; message: string }
   | { state: "blocked"; message: string }
+  | { state: "permission"; message: string }
   | { state: "off" }
-  | { state: "on"; endpointKnown: boolean };
+  | { state: "error"; message: string }
+  | { state: "on" };
+
+export type PushDiagnostics = {
+  status: PushStatus;
+  browserNotifications: boolean;
+  secureContext: boolean;
+  serviceWorker: "active" | "inactive" | "missing";
+  pushApi: boolean;
+  permission: NotificationPermission | "unsupported";
+  browserSubscription: "present" | "missing";
+  backendSubscription: "active" | "missing" | "unknown";
+};
 
 const publicKeySchema = z.object({ supported: z.boolean(), public_key: z.string().nullable() });
 
@@ -55,7 +68,7 @@ export function pushSupport(): PushSupport {
 export function unsupportedMessage(reason: Extract<PushSupport, { kind: "unsupported" }>["reason"]): string {
   switch (reason) {
     case "ios-needs-install":
-      return "On iPhone, add BowlByte to your Home Screen first (Share, then Add to Home Screen), open it from there, then turn notifications on. This needs iOS 16.4 or later.";
+      return "To receive BowlByte alerts on iPhone, add BowlByte to your Home Screen, open the installed app, and enable notifications. This needs iOS 16.4 or later.";
     case "insecure":
       return "Notifications need a secure (HTTPS) connection. They are not available on this address.";
     case "no-service-worker":
@@ -121,34 +134,119 @@ function setOptIn(userId: string, value: boolean) {
   }
 }
 
-export async function readPushStatus(userId: string): Promise<PushStatus> {
-  const support = pushSupport();
-  if (support.kind === "unsupported") {
-    return { state: "unsupported", message: unsupportedMessage(support.reason) };
+async function serviceWorkerState(): Promise<PushDiagnostics["serviceWorker"]> {
+  if (!("serviceWorker" in navigator)) {
+    return "missing";
   }
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  if (!registration) {
+    return "missing";
+  }
+  return registration.active ? "active" : "inactive";
+}
+
+async function backendHasEndpoint(endpoint: string): Promise<boolean> {
+  const response = await apiFetch("/api/v1/push/subscriptions/confirm", {
+    method: "POST",
+    body: JSON.stringify({ endpoint }),
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  return z.object({ active: z.boolean() }).parse(await response.json()).active;
+}
+
+export async function readPushDiagnostics(userId: string): Promise<PushDiagnostics> {
+  const support = pushSupport();
+  const base = {
+    browserNotifications: typeof window !== "undefined" && "Notification" in window,
+    secureContext: typeof window !== "undefined" && window.isSecureContext,
+    serviceWorker: "missing" as PushDiagnostics["serviceWorker"],
+    pushApi: typeof window !== "undefined" && "PushManager" in window,
+    permission: ("Notification" in window ? Notification.permission : "unsupported") as PushDiagnostics["permission"],
+    browserSubscription: "missing" as const,
+    backendSubscription: "unknown" as const,
+  };
+  if (support.kind === "unsupported") {
+    const status: PushStatus =
+      support.reason === "ios-needs-install"
+        ? { state: "needs-install", message: unsupportedMessage(support.reason) }
+        : { state: "unsupported", message: unsupportedMessage(support.reason) };
+    return { ...base, status };
+  }
+  base.serviceWorker = await serviceWorkerState();
   const response = await apiFetch("/api/v1/push/public-key");
   if (!response.ok) {
-    return { state: "server-off", message: await readError(response) };
+    return { ...base, status: { state: "error", message: await readError(response) } };
   }
   const key = publicKeySchema.parse(await response.json());
   if (!key.supported) {
     return {
-      state: "server-off",
-      message: "Phone notifications are not set up on this server yet. In-app notifications still work.",
+      ...base,
+      status: {
+        state: "error",
+        message: "Phone notifications are not set up on this server yet. In-app notifications still work.",
+      },
     };
   }
   if (Notification.permission === "denied") {
     return {
-      state: "blocked",
-      message:
-        "Notifications are blocked for this site. Allow them in your browser or phone settings, then come back.",
+      ...base,
+      status: {
+        state: "blocked",
+        message: "Notifications are blocked for this site. Allow them in your browser or phone settings, then come back.",
+      },
     };
   }
   const subscription = await currentSubscription();
-  if (subscription && hasOptedIn(userId)) {
-    return { state: "on", endpointKnown: true };
+  if (!subscription) {
+    if (Notification.permission === "default") {
+      return {
+        ...base,
+        status: {
+          state: "permission",
+          message: "BowlByte will ask for permission only after you tap Enable Phone Notifications.",
+        },
+      };
+    }
+    return { ...base, backendSubscription: "missing", status: { state: "off" } };
   }
-  return { state: "off" };
+  let active = false;
+  try {
+    active = await backendHasEndpoint(subscription.endpoint);
+  } catch (error) {
+    return {
+      ...base,
+      browserSubscription: "present",
+      status: {
+        state: "error",
+        message: error instanceof Error ? error.message : "BowlByte could not confirm this device.",
+      },
+    };
+  }
+  if (!active || !hasOptedIn(userId)) {
+    return {
+      ...base,
+      browserSubscription: "present",
+      backendSubscription: active ? "active" : "missing",
+      status: {
+        state: "error",
+        message: active
+          ? "This browser is subscribed, but it is not the account that turned notifications on. Enable them again for this account."
+          : "Permission is on, but BowlByte did not save this device. Enable notifications again.",
+      },
+    };
+  }
+  return {
+    ...base,
+    browserSubscription: "present",
+    backendSubscription: "active",
+    status: { state: "on" },
+  };
+}
+
+export async function readPushStatus(userId: string): Promise<PushStatus> {
+  return (await readPushDiagnostics(userId)).status;
 }
 
 async function sendSubscription(subscription: PushSubscription): Promise<void> {
@@ -164,6 +262,10 @@ async function sendSubscription(subscription: PushSubscription): Promise<void> {
   });
   if (!response.ok) {
     throw new Error(await readError(response));
+  }
+  const saved = z.object({ subscription: z.object({ enabled: z.boolean() }) }).parse(await response.json());
+  if (!saved.subscription.enabled) {
+    throw new Error("BowlByte did not save this device.");
   }
 }
 
@@ -264,9 +366,27 @@ export async function releaseDeviceForLogout(): Promise<void> {
   }
 }
 
-export async function sendTestPush(): Promise<void> {
+export type TestPushResult = {
+  acceptance: "accepted" | "rejected" | "unknown";
+};
+
+export async function sendTestPush(): Promise<TestPushResult> {
   const response = await apiFetch("/api/v1/push/test", { method: "POST" });
   if (!response.ok) {
     throw new Error(await readError(response));
   }
+  const queued = z.object({ event_id: z.string() }).parse(await response.json());
+  const statusSchema = z.object({ push_service: z.enum(["accepted", "rejected", "unknown"]) });
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const status = await apiFetch(`/api/v1/push/test/${queued.event_id}`);
+    if (!status.ok) {
+      continue;
+    }
+    const body = statusSchema.parse(await status.json());
+    if (body.push_service !== "unknown") {
+      return { acceptance: body.push_service };
+    }
+  }
+  return { acceptance: "unknown" };
 }

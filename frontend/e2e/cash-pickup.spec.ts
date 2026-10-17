@@ -293,12 +293,18 @@ test("scenario 6: a student turns on notifications and READY creates exactly one
   test.setTimeout(180_000);
   const page = pages.push;
   await page.evaluate(() => window.localStorage.setItem("e2e.push.mode", "accept"));
-  await page.goto("/student/profile");
-  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("Off on this device", {
+  await page.goto("/student");
+  await expect(page.getByRole("button", { name: "Enable Phone Notifications" }).first()).toBeVisible({
     timeout: 20_000,
   });
-  await page.getByRole("button", { name: "Turn on notifications" }).click();
-  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("On for this device", {
+  await page.goto("/student/notifications");
+  await expect(page.getByTestId("push-settings").first()).toBeVisible();
+  await page.goto("/student/profile");
+  await expect(page.locator("#content").getByTestId("push-state").first()).toHaveText("NOT ENABLED", {
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "Enable Phone Notifications" }).click();
+  await expect(page.locator("#content").getByTestId("push-state").first()).toHaveText("ENABLED", {
     timeout: 20_000,
   });
   const userId = sql(`SELECT id FROM users WHERE email = '${pushStudentEmail}'`).trim();
@@ -335,7 +341,7 @@ test("scenario 6: a student turns on notifications and READY creates exactly one
   ).toBe("1");
 
   await page.goto("/student/notifications");
-  await expect(page.getByTestId("notification-item").first()).toContainText("Order Ready");
+  await expect(page.getByTestId("notification-item").first()).toContainText("Your Food Is Ready");
   await expect(page.getByTestId("notification-item").first()).toContainText("pay cash at the canteen counter");
 });
 
@@ -343,11 +349,11 @@ test("scenario 7: a push provider failure leaves the order READY and the message
   test.setTimeout(180_000);
   const page = pages.push;
   await page.goto("/student/profile");
-  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("On for this device", {
+  await expect(page.locator("#content").getByTestId("push-state").first()).toHaveText("ENABLED", {
     timeout: 20_000,
   });
-  await page.getByRole("button", { name: "Turn off notifications" }).click();
-  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("Off on this device");
+  await page.getByRole("button", { name: "Disable Notifications" }).click();
+  await expect(page.locator("#content").getByTestId("push-state").first()).toHaveText("NOT ENABLED");
   await page.evaluate(() => {
     window.localStorage.removeItem("e2e.push.sub");
     window.localStorage.setItem("e2e.push.mode", "fail");
@@ -355,8 +361,8 @@ test("scenario 7: a push provider failure leaves the order READY and the message
   sql(
     `UPDATE push_subscriptions SET enabled = false WHERE user_id = (SELECT id FROM users WHERE email = '${pushStudentEmail}')`,
   );
-  await page.getByRole("button", { name: "Turn on notifications" }).click();
-  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("On for this device", {
+  await page.getByRole("button", { name: "Enable Phone Notifications" }).click();
+  await expect(page.locator("#content").getByTestId("push-state").first()).toHaveText("ENABLED", {
     timeout: 20_000,
   });
 
@@ -386,8 +392,8 @@ test("scenario 7: a push provider failure leaves the order READY and the message
 
   // Tidy up: remove this device so later runs do not keep retrying against the failing endpoint.
   await page.goto("/student/profile");
-  await page.getByRole("button", { name: "Turn off notifications" }).click();
-  await expect(page.locator("#content").getByTestId("push-state").first()).toContainText("Off on this device");
+  await page.getByRole("button", { name: "Disable Notifications" }).click();
+  await expect(page.locator("#content").getByTestId("push-state").first()).toHaveText("NOT ENABLED");
 });
 
 test("scenario 8: with the WebSocket disconnected, a reload shows the real status and history", async () => {

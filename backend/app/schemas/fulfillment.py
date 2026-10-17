@@ -266,6 +266,23 @@ class PushTestResponse(_Out):
     note: str = "Queued. The push service accepting it does not prove the device displayed it."
 
 
+class PushConfirmRequest(_In):
+    endpoint: str = Field(min_length=1, max_length=1024)
+
+
+class PushConfirmResponse(_Out):
+    active: bool
+
+
+class PushTestStatusResponse(_Out):
+    event_id: UUID
+    push_service: Literal["accepted", "rejected", "unknown"]
+    note: str = (
+        "accepted means the push service returned 2xx. "
+        "It does not mean this device displayed the notification."
+    )
+
+
 class NotificationResponse(_Out):
     id: UUID
     kind: str

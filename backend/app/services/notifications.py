@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import ApiError
-from app.models.fulfillment import Notification, NotificationOutbox
+from app.models.fulfillment import Notification, NotificationOutbox, PushDelivery, PushSubscription
 from app.models.identity import User
 from app.models.ordering import Order
 from app.services.realtime import publish_user_event
@@ -34,9 +34,9 @@ def utcnow() -> datetime:
 
 def ready_copy(order: Order) -> tuple[str, str]:
     return (
-        "BowlByte — Order Ready!",
-        f"Your order #{order.ticket_number} is ready for pickup. "
-        "Please pay cash at the canteen counter.",
+        "BowlByte — Your Food Is Ready!",
+        f"Order #{order.ticket_number} is ready. "
+        "Please pay cash at the canteen counter and collect your food.",
     )
 
 
@@ -259,6 +259,17 @@ def enqueue_test_push(db: Session, *, user: User, clock: Clock = utcnow) -> dict
     settings = get_settings()
     if not settings.push_test_endpoint_enabled:
         raise ApiError(code="NOT_FOUND", message="Not found.", status_code=404)
+    active = db.scalar(
+        select(func.count())
+        .select_from(PushSubscription)
+        .where(PushSubscription.user_id == user.id, PushSubscription.enabled.is_(True))
+    )
+    if int(active or 0) < 1:
+        raise ApiError(
+            code="CONFLICT",
+            message="Enable phone notifications on this device before sending a test.",
+            status_code=409,
+        )
     now = clock()
     recent = db.scalar(
         select(func.count())
@@ -288,8 +299,8 @@ def enqueue_test_push(db: Session, *, user: User, clock: Clock = utcnow) -> dict
                 "event_id": str(event_id),
                 "type": "PUSH_TEST",
                 "tag": "bowlbyte-test",
-                "title": "BowlByte — Test notification",
-                "body": "Notifications are set up on this device.",
+                "title": "BowlByte",
+                "body": "BowlByte notifications are connected!",
                 "url": "/student/profile",
             },
             status="PENDING",
@@ -300,3 +311,19 @@ def enqueue_test_push(db: Session, *, user: User, clock: Clock = utcnow) -> dict
     db.commit()
     kick_worker()
     return {"event_id": event_id, "state": "QUEUED"}
+
+
+def test_event_status(db: Session, *, user: User, event_id: UUID) -> dict:
+    """Report whether the push service accepted this student's own test. No endpoints or keys."""
+
+    event = db.get(NotificationOutbox, event_id)
+    if event is None or event.recipient_user_id != user.id or event.event_type != "PUSH_TEST":
+        raise ApiError(code="NOT_FOUND", message="Not found.", status_code=404)
+    rows = list(db.scalars(select(PushDelivery).where(PushDelivery.outbox_id == event.id)))
+    if any(row.status == "ACCEPTED" for row in rows):
+        acceptance = "accepted"
+    elif rows and all(row.status in {"REJECTED", "GONE", "FAILED", "SKIPPED"} for row in rows):
+        acceptance = "rejected"
+    else:
+        acceptance = "unknown"
+    return {"event_id": event.id, "push_service": acceptance}

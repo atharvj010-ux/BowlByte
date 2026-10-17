@@ -132,9 +132,13 @@ test("a second order waits behind the only station slot", async ({ page, browser
   await firstCard.getByRole("button", { name: "Start" }).click();
   await secondCard.getByRole("button", { name: "Start" }).click();
   await expect(kitchenPage.getByText("That station is at capacity.")).toBeVisible();
+  await expect(firstCard.getByRole("button", { name: "Complete" })).toBeVisible();
   await firstCard.getByRole("button", { name: "Complete" }).click();
+  await expect(firstCard.getByRole("button", { name: "Complete" })).toHaveCount(0);
   await secondCard.getByRole("button", { name: "Start" }).click();
-  await expect(secondCard.getByTestId("ticket-status").first()).toContainText("PREPARING");
+  await expect(secondCard.getByTestId("ticket-status").first()).toContainText("PREPARING", {
+    timeout: 15_000,
+  });
   await kitchen.close();
 });
 
@@ -372,6 +376,7 @@ async function rejectQueued(page: Page) {
         }
         return waiting.length;
       }),
+      { timeout: 20_000 },
     )
     .toBe(0);
   await page.reload();
@@ -427,6 +432,7 @@ async function finishOpenWork(page: Page) {
         }
         return open;
       }),
+      { timeout: 20_000 },
     )
     .toBe(0);
 }

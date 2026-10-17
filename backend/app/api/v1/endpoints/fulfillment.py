@@ -22,11 +22,14 @@ from app.schemas.fulfillment import (
     PickupStatusResponse,
     PickupVerifyRequest,
     PickupVerifyResponse,
+    PushConfirmRequest,
+    PushConfirmResponse,
     PushPublicKeyResponse,
     PushSubscribeRequest,
     PushSubscribeResponse,
     PushSubscriptionResponse,
     PushTestResponse,
+    PushTestStatusResponse,
     PushUnsubscribeRequest,
     ReceiptResponse,
     ReverseCashRequest,
@@ -247,6 +250,17 @@ def push_subscribe(
     )
 
 
+@router.post("/push/subscriptions/confirm", response_model=PushConfirmResponse)
+def push_confirm(
+    payload: PushConfirmRequest,
+    principal: Principal = Depends(_student_write),
+    db: Session = Depends(get_db),
+) -> PushConfirmResponse:
+    return PushConfirmResponse(
+        active=push.subscription_active(db, user=principal.user, endpoint=payload.endpoint)
+    )
+
+
 @router.delete("/push/subscriptions", status_code=204)
 def push_unsubscribe(
     payload: PushUnsubscribeRequest,
@@ -262,6 +276,17 @@ def push_test(
     principal: Principal = Depends(_student_write), db: Session = Depends(get_db)
 ) -> PushTestResponse:
     return PushTestResponse.model_validate(notifications.enqueue_test_push(db, user=principal.user))
+
+
+@router.get("/push/test/{event_id}", response_model=PushTestStatusResponse)
+def push_test_status(
+    event_id: UUID,
+    principal: Principal = Depends(_student),
+    db: Session = Depends(get_db),
+) -> PushTestStatusResponse:
+    return PushTestStatusResponse.model_validate(
+        notifications.test_event_status(db, user=principal.user, event_id=event_id)
+    )
 
 
 # --- In-app notifications -----------------------------------------------------------------

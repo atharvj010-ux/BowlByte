@@ -10,7 +10,8 @@ export default function StudentProfilePage() {
     <ProtectedArea role="STUDENT" loginHref="/student/login">
       {(user) => (
         <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:px-6">
-          <h1 className="font-display text-4xl">Profile</h1>
+          <p className="eyebrow">Account</p>
+          <h1 className="font-display text-5xl font-extrabold tracking-tight uppercase">Profile</h1>
           <dl className="grid gap-2 text-sm sm:grid-cols-[8rem_1fr]">
             <dt className="text-muted-foreground">Name</dt>
             <dd data-testid="profile-name">{user.full_name}</dd>

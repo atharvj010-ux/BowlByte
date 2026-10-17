@@ -232,6 +232,18 @@ def list_my_subscriptions(db: Session, *, user: User) -> list[dict]:
     ]
 
 
+def subscription_active(db: Session, *, user: User, endpoint: str) -> bool:
+    """True when this endpoint is stored and enabled for this user."""
+
+    row = db.scalar(
+        select(PushSubscription).where(
+            PushSubscription.endpoint_hash == endpoint_hash(endpoint.strip()),
+            PushSubscription.user_id == user.id,
+        )
+    )
+    return bool(row is not None and row.enabled)
+
+
 def public_key_info() -> dict:
     settings = get_settings()
     return {
