@@ -61,7 +61,12 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from: str = "BowlByte <noreply@bowlbyte.local>"
-    smtp_starttls: bool = False
+    smtp_from_email: str = ""
+    smtp_from_name: str = "BowlByte"
+    smtp_starttls: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("SMTP_STARTTLS", "SMTP_USE_STARTTLS"),
+    )
     smtp_use_tls: bool = False
 
     verification_ttl_seconds: int = 15 * 60
@@ -157,6 +162,8 @@ class Settings(BaseSettings):
                 raise ValueError("Set PICKUP_HASH_KEY and PUSH_ENCRYPTION_KEY in production.")
             if not self.vapid_public_key or self.vapid_public_key.startswith("replace-with"):
                 raise ValueError("Set VAPID_PUBLIC_KEY in production.")
+        if self.smtp_from_email and "<" not in self.smtp_from:
+            self.smtp_from = f"{self.smtp_from_name or 'BowlByte'} <{self.smtp_from_email}>"
         return self
 
     @property

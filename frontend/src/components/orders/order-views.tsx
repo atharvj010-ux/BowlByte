@@ -52,8 +52,12 @@ export function OrderHistory() {
   if (orders.isLoading) {
     return <p>Loading orders.</p>;
   }
-  if (orders.isError) {
-    return <p className="text-sm text-destructive">{orders.error.message}</p>;
+  if (!orders.isSuccess) {
+    return (
+      <p className="text-sm text-destructive" data-testid="orders-denied">
+        {orders.isError ? orders.error.message : "Sign in to see your orders."}
+      </p>
+    );
   }
   const history = orders.data;
   if (!history || history.orders.length === 0) {
@@ -83,7 +87,6 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["order", orderId] });
   }, [orderId, queryClient]);
-  const live = useLiveResource(`/api/v1/ws/orders/${orderId}`, refresh);
   const order = useQuery({
     queryKey: ["order", orderId],
     queryFn: async () => {
@@ -94,6 +97,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       return trackedOrderSchema.parse(await response.json());
     },
   });
+  const live = useLiveResource(`/api/v1/ws/orders/${orderId}`, refresh, order.isSuccess);
 
   async function cancel() {
     setMessage("");
@@ -106,13 +110,13 @@ export function OrderDetail({ orderId }: { orderId: string }) {
     setMessage("The order is cancelled and its portions were released.");
   }
 
-  if (order.isLoading && !order.data) {
+  if (order.isLoading && !order.isSuccess) {
     return <p>Loading the order.</p>;
   }
-  if (order.isError && !order.data) {
+  if (!order.isSuccess) {
     return (
       <p role="alert" className="text-sm text-destructive" data-testid="order-denied">
-        {order.error.message}
+        {order.isError ? order.error.message : "Sign in to see this order."}
       </p>
     );
   }
@@ -130,11 +134,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <div className="flex items-center justify-between gap-3">
             <p className="eyebrow">Ticket</p>
             <p className="font-mono text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase" data-testid="connection-state">
-              {order.isError
-                ? "Showing the last confirmed order while updates are unavailable"
-                : live === "live"
-                  ? "Live updates connected"
-                  : "Checking for updates"}{" "}
+              {live === "live" ? "Live updates connected" : "Checking for updates"}{" "}
               · updated {new Date(current.updated_at).toLocaleTimeString()}
             </p>
           </div>
@@ -231,7 +231,12 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           paidAt={current.payment.paid_at ?? null}
           pickedUpAt={current.picked_up_at ?? null}
         />
-        <PickupPass orderId={orderId} orderStatus={current.status} />
+        <PickupPass
+          orderId={orderId}
+          orderStatus={current.status}
+          ticketNumber={current.ticket_number}
+          paymentStatus={current.payment.status}
+        />
         <section className="summary" aria-label="Order items">
           {current.items.map((item) => (
             <div key={item.menu_item_id} className="summary-row">

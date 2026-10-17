@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 export type LiveState = "connecting" | "live" | "polling";
 
-export function useLiveResource(path: string, onSignal: () => void): LiveState {
+export function useLiveResource(path: string, onSignal: () => void, enabled = true): LiveState {
   const [state, setState] = useState<LiveState>("connecting");
 
   useEffect(() => {
@@ -14,6 +14,9 @@ export function useLiveResource(path: string, onSignal: () => void): LiveState {
     let attempt = 0;
 
     function connect() {
+      if (!enabled) {
+        return;
+      }
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(`${protocol}//${window.location.host}${path}`);
       socket.onopen = () => {
@@ -34,9 +37,11 @@ export function useLiveResource(path: string, onSignal: () => void): LiveState {
       };
     }
 
-    connect();
+    if (enabled) {
+      connect();
+    }
     const poll = window.setInterval(() => {
-      if (socket?.readyState !== WebSocket.OPEN) {
+      if (enabled && socket?.readyState !== WebSocket.OPEN) {
         onSignal();
       }
     }, 4000);
@@ -46,7 +51,7 @@ export function useLiveResource(path: string, onSignal: () => void): LiveState {
       window.clearInterval(poll);
       socket?.close();
     };
-  }, [onSignal, path]);
+  }, [enabled, onSignal, path]);
 
   return state;
 }

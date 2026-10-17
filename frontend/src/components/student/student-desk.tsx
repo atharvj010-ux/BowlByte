@@ -47,9 +47,10 @@ export function StudentDesk({ user }: { user: CurrentUser }) {
       return ordersResponse.parse(await response.json());
     },
   });
-  const available = (menu.data?.items ?? []).filter(canOrder);
-  const active = (orders.data?.orders ?? []).filter((order) => openStatuses.has(order.status));
-  const recent = (orders.data?.orders ?? []).slice(0, 3);
+  const available = (menu.isSuccess ? menu.data.items : []).filter(canOrder);
+  const ownOrders = orders.isSuccess ? orders.data.orders : [];
+  const active = ownOrders.filter((order) => openStatuses.has(order.status));
+  const recent = ownOrders.slice(0, 3);
 
   return (
     <div className="space-y-8">
@@ -123,9 +124,15 @@ export function StudentDesk({ user }: { user: CurrentUser }) {
         <section className="rounded-[1.6rem] border border-border bg-card p-5">
           <h2 className="eyebrow">Recent orders</h2>
           {orders.isLoading ? <p className="mt-2 text-sm">Loading orders.</p> : null}
-          {recent.length === 0 && !orders.isLoading ? (
+          {orders.isError ? (
+            <p className="mt-2 text-sm text-destructive" data-testid="orders-denied">
+              {orders.error.message}
+            </p>
+          ) : null}
+          {orders.isSuccess && recent.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No orders yet.</p>
-          ) : (
+          ) : null}
+          {orders.isSuccess && recent.length > 0 ? (
             <ul className="mt-3 space-y-2 text-sm">
               {recent.map((order) => (
                 <li key={order.id} className="flex items-center justify-between gap-3">
@@ -138,7 +145,7 @@ export function StudentDesk({ user }: { user: CurrentUser }) {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </section>
       </div>
 
