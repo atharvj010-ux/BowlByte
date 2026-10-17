@@ -9,6 +9,7 @@ import { PasswordField, textInputClass } from "@/components/auth/password-field"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch, currentUserSchema, homeForRole, loginFormSchema, readError } from "@/lib/auth";
+import { clearPrivateBrowserState } from "@/lib/session-privacy";
 import { z } from "zod";
 
 export function LoginForm({ title, description }: { title: string; description: string }) {
@@ -52,6 +53,8 @@ export function LoginForm({ title, description }: { title: string; description: 
         return;
       }
       const body = z.object({ user: currentUserSchema }).parse(await response.json());
+      queryClient.clear();
+      clearPrivateBrowserState();
       queryClient.setQueryData(["me"], body.user);
       router.push(homeForRole(body.user.role));
       router.refresh();

@@ -38,7 +38,7 @@ export function StudentDesk({ user }: { user: CurrentUser }) {
     },
   });
   const orders = useQuery({
-    queryKey: ["my-orders"],
+    queryKey: ["my-orders", user.id],
     queryFn: async () => {
       const response = await apiFetch("/api/v1/orders");
       if (!response.ok) {

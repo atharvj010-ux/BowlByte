@@ -9,6 +9,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { SESSION_EPOCH_KEY } from "@/components/session-privacy";
+import { clearPrivateBrowserState } from "@/lib/session-privacy";
 import { apiFetch, fetchCurrentUser, roleLabel } from "@/lib/auth";
 import { roles } from "@/lib/content";
 import { releaseDeviceForLogout } from "@/lib/push";
@@ -39,6 +40,7 @@ export function SiteHeader() {
     }
     await apiFetch("/api/v1/auth/logout", { method: "POST" });
     queryClient.clear();
+    clearPrivateBrowserState();
     window.localStorage.setItem(SESSION_EPOCH_KEY, String(Date.now()));
     router.push("/");
     router.refresh();

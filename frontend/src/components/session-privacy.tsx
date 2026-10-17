@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { csrfCookieName, readCookie } from "@/lib/cookies";
-import { isPrivatePath, loginHrefFor } from "@/lib/session-privacy";
+import { clearPrivateBrowserState, isPrivatePath, loginHrefFor } from "@/lib/session-privacy";
 
 export const SESSION_EPOCH_KEY = "bowlbyte-session-epoch";
 
@@ -17,6 +17,7 @@ export function SessionPrivacy() {
   useEffect(() => {
     function purge(redirect: boolean) {
       queryClient.clear();
+      clearPrivateBrowserState();
       if (!redirect || !isPrivatePath(window.location.pathname)) {
         return;
       }
@@ -38,6 +39,10 @@ export function SessionPrivacy() {
       if (event.persisted && signedOut()) {
         purge(true);
       }
+    }
+
+    if (signedOut() && isPrivatePath(window.location.pathname)) {
+      purge(true);
     }
 
     const watch = window.setInterval(() => {

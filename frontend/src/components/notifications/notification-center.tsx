@@ -7,14 +7,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { unreadKey } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { notificationListSchema } from "@/lib/cash";
-import { apiFetch, readError } from "@/lib/auth";
+import { apiFetch, fetchCurrentUser, readError } from "@/lib/auth";
 import { useLiveResource } from "@/lib/live";
 
 export function NotificationCenter() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
   const list = useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications", me.data?.id],
+    enabled: Boolean(me.data?.id),
     queryFn: async () => {
       const response = await apiFetch("/api/v1/notifications?limit=50");
       if (!response.ok) {
@@ -24,10 +26,10 @@ export function NotificationCenter() {
     },
   });
   const refresh = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", me.data?.id] });
     void queryClient.invalidateQueries({ queryKey: unreadKey });
-  }, [queryClient]);
-  const live = useLiveResource("/api/v1/ws/notifications", refresh);
+  }, [me.data?.id, queryClient]);
+  const live = useLiveResource("/api/v1/ws/notifications", refresh, Boolean(me.data?.id) && list.isSuccess);
 
   async function markRead(id: string) {
     const response = await apiFetch(`/api/v1/notifications/${id}/read`, { method: "POST" });
@@ -48,20 +50,14 @@ export function NotificationCenter() {
     refresh();
   }
 
-  if (list.isLoading) {
-    return <p>Loading notifications.</p>;
-  }
-  if (list.isError) {
+  if (!me.data?.id || !list.isSuccess || !list.data) {
     return (
-      <p role="alert" className="text-sm text-destructive">
-        {list.error.message}
+      <p role="alert" className="text-sm text-destructive" data-testid="notifications-denied">
+        {list.isError ? list.error.message : "Sign in to see notifications."}
       </p>
     );
   }
   const data = list.data;
-  if (!data) {
-    return <p>Loading notifications.</p>;
-  }
   return (
     <section className="space-y-4" aria-labelledby="notifications-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">

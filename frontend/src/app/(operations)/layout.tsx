@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
+import { connection } from "next/server";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-export default function OperationsLayout({ children }: { children: ReactNode }) {
+export default async function OperationsLayout({ children }: { children: ReactNode }) {
+  await connection();
   return children;
 }

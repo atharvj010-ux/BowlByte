@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { PickupPass } from "@/components/orders/pickup-pass";
 import { Button } from "@/components/ui/button";
-import { apiFetch, readError } from "@/lib/auth";
+import { apiFetch, fetchCurrentUser, readError } from "@/lib/auth";
 import { formatEta, trackedOrderSchema } from "@/lib/kitchen";
 import { useLiveResource } from "@/lib/live";
 import { formatInrFromPaise } from "@/lib/money";
@@ -39,8 +39,10 @@ function paymentLabel(order: CanteenOrder) {
 }
 
 export function OrderHistory() {
+  const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
   const orders = useQuery({
-    queryKey: ["my-orders"],
+    queryKey: ["my-orders", me.data?.id],
+    enabled: me.data?.role === "STUDENT",
     queryFn: async () => {
       const response = await apiFetch("/api/v1/orders");
       if (!response.ok) {
@@ -49,10 +51,10 @@ export function OrderHistory() {
       return listSchema.parse(await response.json());
     },
   });
-  if (orders.isLoading) {
+  if (me.isPending || (me.data?.role === "STUDENT" && orders.isPending)) {
     return <p>Loading orders.</p>;
   }
-  if (!orders.isSuccess) {
+  if (me.data?.role !== "STUDENT" || !orders.isSuccess) {
     return (
       <p className="text-sm text-destructive" data-testid="orders-denied">
         {orders.isError ? orders.error.message : "Sign in to see your orders."}
@@ -84,11 +86,13 @@ const progress = ["PLACED", "ACCEPTED", "QUEUED", "PREPARING", "READY", "PICKED_
 export function OrderDetail({ orderId }: { orderId: string }) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
   const refresh = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["order", orderId] });
-  }, [orderId, queryClient]);
+    void queryClient.invalidateQueries({ queryKey: ["order", me.data?.id, orderId] });
+  }, [me.data?.id, orderId, queryClient]);
   const order = useQuery({
-    queryKey: ["order", orderId],
+    queryKey: ["order", me.data?.id, orderId],
+    enabled: me.data?.role === "STUDENT",
     queryFn: async () => {
       const response = await apiFetch(`/api/v1/orders/${orderId}/tracking`);
       if (!response.ok) {
@@ -97,7 +101,11 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       return trackedOrderSchema.parse(await response.json());
     },
   });
-  const live = useLiveResource(`/api/v1/ws/orders/${orderId}`, refresh, order.isSuccess);
+  const live = useLiveResource(
+    `/api/v1/ws/orders/${orderId}`,
+    refresh,
+    me.data?.role === "STUDENT" && order.isSuccess,
+  );
 
   async function cancel() {
     setMessage("");
@@ -106,14 +114,14 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       setMessage(await readError(response));
       return;
     }
-    await queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+    await queryClient.invalidateQueries({ queryKey: ["order", me.data?.id, orderId] });
     setMessage("The order is cancelled and its portions were released.");
   }
 
-  if (order.isLoading && !order.isSuccess) {
+  if (me.isPending || (me.data?.role === "STUDENT" && order.isPending)) {
     return <p>Loading the order.</p>;
   }
-  if (!order.isSuccess) {
+  if (me.data?.role !== "STUDENT" || !order.isSuccess) {
     return (
       <p role="alert" className="text-sm text-destructive" data-testid="order-denied">
         {order.isError ? order.error.message : "Sign in to see this order."}

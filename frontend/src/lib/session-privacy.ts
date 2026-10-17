@@ -1,4 +1,11 @@
 const PRIVATE_ROOTS = ["/student", "/staff", "/cashier", "/admin"];
+export const CART_STORAGE_KEY = "bowlbyte.cart.v1";
+
+/** Drop cart lines that belong to the signed-in browser session. */
+export function clearPrivateBrowserState(): void {
+  window.localStorage.removeItem(CART_STORAGE_KEY);
+  window.dispatchEvent(new Event("bowlbyte-cart"));
+}
 
 export function isPrivatePath(pathname: string): boolean {
   if (

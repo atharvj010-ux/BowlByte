@@ -62,12 +62,15 @@ services:
       COLLEGE_EMAIL_DOMAIN: ${COLLEGE_EMAIL_DOMAIN:-}
       CANTEEN_NAME: ${CANTEEN_NAME:-Pilot Canteen}
       CANTEEN_SLUG: ${CANTEEN_SLUG:-pilot}
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_FROM: ${SMTP_FROM:-BowlByte <noreply@bowlbyte.local>}
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_STARTTLS: "false"
+      # Values come from the private environment. They are not written into the image.
+      # An unset host keeps local Mailpit. Do not put the SMTP key in this file.
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-BowlByte}
+      SMTP_STARTTLS: ${SMTP_USE_STARTTLS:-false}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
       PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:-}
       <<: *push-env
