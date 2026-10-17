@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EligibilityMode = Literal["disabled", "institutional_domain", "roster"]
@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://bowlbyte:bowlbyte@localhost:5432/bowlbyte",
     )
+    # Supabase is optional until cutover. The publishable key is public.
+    # The secret key and database URL stay server-side and are never given a NEXT_PUBLIC name.
+    supabase_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+    )
+    supabase_publishable_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "SUPABASE_PUBLISHABLE_KEY",
+            "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+        ),
+    )
+    supabase_secret_key: str = ""
+    supabase_db_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     public_app_url: str = "http://127.0.0.1:3000"

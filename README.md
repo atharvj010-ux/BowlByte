@@ -12,7 +12,7 @@ Payments are cash only. There is no online payment integration.
 
 ## Run the stack
 
-Docker Desktop is required.
+Docker Desktop is required. P011 has not moved BowlByte onto Supabase. The project URL and publishable key cannot import passwords or restore PostgreSQL. Docker Compose stays the runtime until that cutover is verified. See `docs/P011_SUPABASE_ARCHITECTURE.md`.
 
 ```powershell
 docker compose up --build
