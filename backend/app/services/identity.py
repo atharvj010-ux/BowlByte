@@ -160,14 +160,19 @@ def _send_verification(user: User, raw_token: str) -> None:
 def _send_existing_account_notice(user: User) -> None:
     if user.status == PENDING_VERIFICATION:
         return
+    text, html = branded_message(
+        heading="BowlByte sign-in",
+        intro="A registration was requested for this email address.",
+        note=(
+            "If you already have a BowlByte account, sign in. "
+            "If you did not request this, you can ignore this message."
+        ),
+    )
     send_email(
         recipient=user.email,
         subject="BowlByte sign-in",
-        body=(
-            "A registration was requested for this email address.\n\n"
-            "If you already have a BowlByte account, sign in. "
-            "If you did not request this, you can ignore this message.\n"
-        ),
+        body=text,
+        html=html,
     )
 
 
@@ -640,15 +645,19 @@ def invite_staff(
     )
     link = _public_url(f"/invite/accept#token={raw}")
     hours = max(1, get_settings().invitation_ttl_seconds // 3600)
+    text, html = branded_message(
+        heading="You're invited",
+        intro="You have been invited to BowlByte.",
+        action_label="Accept invitation",
+        action_url=link,
+        note=f"This link expires in {hours} hours and works once.",
+    )
     try:
         send_email(
             recipient=normalized,
             subject="BowlByte staff invitation",
-            body=(
-                "You have been invited to BowlByte.\n\n"
-                f"Open this link to choose a password:\n{link}\n\n"
-                f"The link expires in {hours} hours and works once.\n"
-            ),
+            body=text,
+            html=html,
         )
     except EmailDeliveryError as exc:
         db.rollback()

@@ -1,6 +1,6 @@
 # P013 status
 
-Status: blocked for Brevo delivery, Supabase Auth import, and cutover.
+Status: Brevo SMTP submission succeeded. Inbox delivery, Supabase Auth import, and cutover remain unverified.
 
 ## Credentials
 
@@ -8,11 +8,13 @@ The Supabase secret and database password in `.env` no longer match the previous
 
 ## Brevo
 
-`SMTP_HOST` is `smtp-relay.brevo.com`, port 587, STARTTLS. The password prefix is a Brevo SMTP key, not a REST API key. The server rejected login with `525 Unauthorized IP address`. No message was sent.
+`SMTP_HOST` is `smtp-relay.brevo.com`, port 587, STARTTLS. The password is a Brevo SMTP key, not a REST API key. The username is a Brevo SMTP login. P013.1 connected from this machine with certificate verification, authenticated, and Brevo accepted one message to `SMTP_TEST_RECIPIENT` with subject `BowlByte | SMTP Connection Test`.
 
-EMAIL DELIVERY NOT VERIFIED.
+SMTP SUBMISSION SUCCESSFUL — INBOX DELIVERY NOT YET VERIFIED.
 
-Compose still points the API at Mailpit and does not pass the Brevo password into the container. Supabase Auth SMTP is a separate dashboard setting and was not changed. To send real mail, authorize this machine's IP in Brevo (or remove the IP restriction), then point FastAPI `SMTP_HOST` at the relay. Supabase Auth needs the same host, port 587, STARTTLS, the SMTP login, the SMTP key, and the verified sender in the Auth SMTP settings. Keep autoconfirm off and public signup disabled.
+No Brevo REST key is configured, so the delivery event (delivered, deferred, bounced, or blocked) is unknown. Check Transactional → Logs in the Brevo dashboard for that subject. Compose still points the API container at Mailpit and does not pass the Brevo password into the container. The host mailer now verifies TLS certificates and uses `SMTP_FROM_EMAIL` when `SMTP_FROM` is still the local placeholder.
+
+Supabase Auth SMTP is separate. A prior invite through the dashboard settings returned HTTP 200; this run did not send a second Auth email. Public Auth settings currently report email enabled, autoconfirm off, and `disable_signup` false. Turn off new-user signup in the Auth dashboard before any student import. Email OTP is not a BowlByte mailer path.
 
 ## Privacy and pickup
 

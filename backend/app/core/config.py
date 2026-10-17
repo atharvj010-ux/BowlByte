@@ -162,7 +162,8 @@ class Settings(BaseSettings):
                 raise ValueError("Set PICKUP_HASH_KEY and PUSH_ENCRYPTION_KEY in production.")
             if not self.vapid_public_key or self.vapid_public_key.startswith("replace-with"):
                 raise ValueError("Set VAPID_PUBLIC_KEY in production.")
-        if self.smtp_from_email and "<" not in self.smtp_from:
+        local_from = "BowlByte <noreply@bowlbyte.local>"
+        if self.smtp_from_email and ("<" not in self.smtp_from or self.smtp_from == local_from):
             self.smtp_from = f"{self.smtp_from_name or 'BowlByte'} <{self.smtp_from_email}>"
         return self
 
