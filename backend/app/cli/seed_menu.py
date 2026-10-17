@@ -22,6 +22,14 @@ from app.models.ordering import (
 from app.services.identity import ensure_college
 from app.services.ordering import service_today
 
+CATEGORY_ORDER = {
+    "Breakfast": 10,
+    "Quick Bites & Snacks": 20,
+    "Sandwiches & Toasties": 30,
+    "Rice & Noodles": 40,
+    "Beverages": 50,
+}
+
 SAMPLES = [
     {
         "category": "Breakfast",
@@ -35,7 +43,7 @@ SAMPLES = [
         "stock": 20,
     },
     {
-        "category": "Snacks",
+        "category": "Sandwiches & Toasties",
         "station": "Sandwich Station",
         "capacity": 2,
         "name": "Veg Sandwich",
@@ -46,7 +54,7 @@ SAMPLES = [
         "stock": 20,
     },
     {
-        "category": "Snacks",
+        "category": "Sandwiches & Toasties",
         "station": "Sandwich Station",
         "capacity": 2,
         "name": "Cheese Sandwich",
@@ -57,7 +65,7 @@ SAMPLES = [
         "stock": 20,
     },
     {
-        "category": "Snacks",
+        "category": "Rice & Noodles",
         "station": "Hot Food Station",
         "capacity": 2,
         "name": "Maggi",
@@ -68,7 +76,7 @@ SAMPLES = [
         "stock": 20,
     },
     {
-        "category": "Snacks",
+        "category": "Quick Bites & Snacks",
         "station": "Hot Food Station",
         "capacity": 2,
         "name": "Samosa",
@@ -79,7 +87,7 @@ SAMPLES = [
         "stock": 20,
     },
     {
-        "category": "Main Course",
+        "category": "Rice & Noodles",
         "station": "Hot Food Station",
         "capacity": 2,
         "name": "Veg Fried Rice",
@@ -142,7 +150,7 @@ def main() -> int:
                 category = MenuCategory(
                     canteen_id=canteen.id,
                     name=sample["category"],
-                    sort_order=0,
+                    sort_order=CATEGORY_ORDER.get(sample["category"], 0),
                     is_demo=True,
                 )
                 db.add(category)

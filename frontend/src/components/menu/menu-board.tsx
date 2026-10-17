@@ -13,32 +13,55 @@ import { apiFetch, readError } from "@/lib/auth";
 import { foodImage } from "@/lib/food-art";
 import { formatInrFromPaise } from "@/lib/money";
 import { nutritionLabel } from "@/lib/nutrition";
+import { groupInMenuOrder, type MenuSort } from "@/lib/menu-order";
 import { canOrder, menuItemSchema, type MenuItem } from "@/lib/ordering";
 
-const menuResponse = z.object({ items: z.array(menuItemSchema) });
-const categoriesResponse = z.array(z.object({ id: z.string(), name: z.string() }));
+const menuResponse = z.object({ items: z.array(menuItemSchema), total: z.number() });
+const categoriesResponse = z.array(z.object({ id: z.string(), name: z.string(), sort_order: z.number() }));
 
-async function loadMenu(query: string, categoryId: string) {
-  const params = new URLSearchParams();
+async function loadMenu(query: string, categoryId: string, sort: MenuSort) {
+  const params = new URLSearchParams({ limit: "50", sort });
   if (query) {
     params.set("q", query);
   }
-  if (categoryId) {
+  if (categoryId === "featured") {
+    params.set("featured", "true");
+  } else if (categoryId) {
     params.set("category_id", categoryId);
   }
   const response = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
   if (!response.ok) {
     throw new Error(await readError(response));
   }
-  return menuResponse.parse(await response.json());
+  const page = menuResponse.parse(await response.json());
+  const items = [...page.items];
+  while (items.length < page.total && items.length < 200) {
+    params.set("offset", String(items.length));
+    const next = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
+    if (!next.ok) {
+      throw new Error(await readError(next));
+    }
+    const more = menuResponse.parse(await next.json());
+    if (more.items.length === 0) {
+      break;
+    }
+    items.push(...more.items);
+  }
+  return { items, total: page.total };
 }
 
 export function MenuBoard() {
   const cart = useCart();
+  const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [sort, setSort] = useState<MenuSort>("recommended");
   const [notice, setNotice] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(draft.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
   const categories = useQuery({
     queryKey: ["menu-categories"],
     queryFn: async () => {
@@ -50,12 +73,18 @@ export function MenuBoard() {
     },
   });
   const menu = useQuery({
-    queryKey: ["menu", query, categoryId],
-    queryFn: () => loadMenu(query, categoryId),
+    queryKey: ["menu", query, categoryId, sort],
+    queryFn: () => loadMenu(query, categoryId, sort),
+  });
+  const specials = useQuery({
+    queryKey: ["menu-specials"],
+    queryFn: () => loadMenu("", "featured", "recommended"),
   });
   const items = menu.data?.items ?? [];
   const open = items.find((item) => item.id === openId) ?? null;
   const empty = !menu.isLoading && !menu.isError && items.length === 0;
+  const grouped = sort === "recommended" && categoryId === "" && !query;
+  const sections = grouped ? groupInMenuOrder(items) : [{ id: "results", name: "", items }];
 
   function add(itemId: string, origin: HTMLElement | null, image: string | null, name: string) {
     cart.add(itemId, origin, image, name);
@@ -69,20 +98,51 @@ export function MenuBoard() {
           <p className="eyebrow">Today at the counter</p>
           <KineticText id="menu-heading" as="h2" mode="load" lines={["Menu"]} className="section-title" />
         </div>
-        <label className="text-sm">
-          <span className="sr-only">Search menu</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search"
-            className="min-h-12 w-full rounded-full border border-border bg-card px-5 lg:w-72"
-          />
-        </label>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <label className="relative text-sm">
+            <span className="sr-only">Search menu</span>
+            <input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Search"
+              className="min-h-12 w-full rounded-full border border-border bg-card px-5 sm:w-64"
+            />
+          </label>
+          {draft ? (
+            <button type="button" className="chip-btn" onClick={() => setDraft("")}>
+              Clear search
+            </button>
+          ) : null}
+          <label className="text-sm">
+            <span className="sr-only">Sort menu</span>
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value as MenuSort)}
+              className="min-h-12 w-full rounded-full border border-border bg-card px-4 sm:w-52"
+              data-testid="menu-sort"
+            >
+              <option value="recommended">Recommended</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="name">Name: A to Z</option>
+            </select>
+          </label>
+        </div>
       </div>
-      <div className="flex w-full max-w-full min-w-0 gap-2 overflow-x-auto pb-1" role="group" aria-label="Categories">
+      <div className="menu-cats" role="group" aria-label="Categories" data-testid="menu-categories">
         <button type="button" className="chip-btn" aria-pressed={categoryId === ""} onClick={() => setCategoryId("")}>
-          All
+          All items
         </button>
+        {(specials.data?.total ?? 0) > 0 ? (
+          <button
+            type="button"
+            className="chip-btn"
+            aria-pressed={categoryId === "featured"}
+            onClick={() => setCategoryId("featured")}
+          >
+            {"Today's Specials"}
+          </button>
+        ) : null}
         {categories.data?.map((category) => (
           <button
             key={category.id}
@@ -108,29 +168,40 @@ export function MenuBoard() {
         </div>
       ) : null}
       {menu.isError ? <p className="text-sm text-destructive">{menu.error.message}</p> : null}
-      {empty ? <p className="text-sm text-muted-foreground">Nothing is published for that search.</p> : null}
-      <div className="food-grid">
-        {items.map((item) => (
-          <MenuCard
-            key={item.id}
-            item={item}
-            onOpen={() => setOpenId(item.id)}
-            action={
-              <Button
-                type="button"
-                className="w-full"
-                disabled={!canOrder(item)}
-                onClick={(event) => {
-                  const card = event.currentTarget.closest("article");
-                  add(item.id, card instanceof HTMLElement ? card : null, flightImage(item), item.name);
-                }}
-              >
-                {canOrder(item) ? "Add to cart" : "Unavailable"}
-              </Button>
-            }
-          />
-        ))}
-      </div>
+      {empty ? (
+        <p className="text-sm text-muted-foreground">Nothing matches that search. Clear it to see the menu again.</p>
+      ) : null}
+      {!empty
+        ? sections.map((section) => (
+        <section key={section.id} className="space-y-4">
+          {section.name ? (
+            <h3 className="font-display text-3xl font-extrabold tracking-tight uppercase">{section.name}</h3>
+          ) : null}
+          <div className="food-grid">
+            {section.items.map((item) => (
+              <MenuCard
+                key={item.id}
+                item={item}
+                onOpen={() => setOpenId(item.id)}
+                action={
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={!canOrder(item)}
+                    onClick={(event) => {
+                      const card = event.currentTarget.closest("article");
+                      add(item.id, card instanceof HTMLElement ? card : null, flightImage(item), item.name);
+                    }}
+                  >
+                    {canOrder(item) ? "Add to cart" : "Sold out"}
+                  </Button>
+                }
+              />
+            ))}
+          </div>
+        </section>
+      ))
+        : null}
       {open ? (
         <FoodDetail
           item={open}
@@ -208,7 +279,7 @@ function FoodDetail({
           <div className="flex flex-wrap items-center gap-3">
             <p className="food-price text-2xl">{formatInrFromPaise(item.price_paise)}</p>
             <p className="text-sm text-muted-foreground">
-              {canOrder(item) ? `${item.available_qty} available now` : "Unavailable"}
+              {canOrder(item) ? `${item.available_qty} available now` : "Sold out"}
             </p>
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
@@ -235,7 +306,7 @@ function FoodDetail({
             disabled={!canOrder(item)}
             onClick={() => onAdd(mediaRef.current)}
           >
-            Add to cart
+            {canOrder(item) ? "Add to cart" : "Sold out"}
           </Button>
           <FoodPairings itemId={item.id} />
         </div>

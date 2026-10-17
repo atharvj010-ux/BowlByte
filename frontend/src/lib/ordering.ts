@@ -20,6 +20,9 @@ export const menuItemSchema = z.object({
   image_url: z.string().nullable(),
   available_qty: z.number().int(),
   reserved_qty: z.number().int().nullable().optional(),
+  sort_order: z.number().int().default(0),
+  is_featured: z.boolean().default(false),
+  category_sort_order: z.number().int().default(0),
 });
 
 export type MenuItem = z.infer<typeof menuItemSchema>;

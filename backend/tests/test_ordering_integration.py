@@ -667,3 +667,119 @@ def test_nutrition_requires_a_source_and_pairings_stay_in_stock(client: TestClie
     assert drink["id"] not in ids
     assert body["items"][0]["price_paise"] == coke["price_paise"]
 
+
+def test_menu_order_search_and_student_cannot_rearrange(client: TestClient) -> None:
+    manager_email, college_id, _canteen_id = _bootstrap()
+    student = _add_user("STUDENT", _student_email(), None, college_id)
+    _login(client, manager_email)
+    banana = client.post(
+        "/api/v1/admin/categories",
+        json={"name": "Banana", "sort_order": 5},
+        headers=_csrf(client),
+    )
+    apple = client.post(
+        "/api/v1/admin/categories",
+        json={"name": "Apple", "sort_order": 5},
+        headers=_csrf(client),
+    )
+    assert banana.status_code == 201 and apple.status_code == 201
+    listed = client.get("/api/v1/admin/categories")
+    names = [row["name"] for row in listed.json()]
+    assert names.index("Apple") < names.index("Banana")
+    station = client.post(
+        "/api/v1/admin/stations",
+        json={"name": f"Counter {uuid.uuid4().hex[:4]}", "parallel_capacity": 1},
+        headers=_csrf(client),
+    )
+    assert station.status_code == 201, station.text
+    cheap = client.post(
+        "/api/v1/admin/menu",
+        json={
+            "category_id": apple.json()["id"],
+            "station_id": station.json()["id"],
+            "name": "Mint Water",
+            "description": "Cold mint water",
+            "price_paise": 1500,
+            "prep_seconds": 60,
+            "initial_available_qty": 4,
+        },
+        headers=_csrf(client),
+    )
+    pricey = client.post(
+        "/api/v1/admin/menu",
+        json={
+            "category_id": apple.json()["id"],
+            "station_id": station.json()["id"],
+            "name": "Almond Shake",
+            "description": "Plain shake",
+            "price_paise": 9000,
+            "prep_seconds": 60,
+            "initial_available_qty": 4,
+            "is_featured": True,
+        },
+        headers=_csrf(client),
+    )
+    assert cheap.status_code == 201 and pricey.status_code == 201, pricey.text
+    hidden = client.patch(
+        f"/api/v1/admin/categories/{banana.json()['id']}",
+        json={"is_active": False},
+        headers=_csrf(client),
+    )
+    assert hidden.status_code == 200
+    missing = client.post(
+        f"/api/v1/admin/categories/{apple.json()['id']}/move",
+        json={"direction": "up"},
+    )
+    assert missing.status_code == 403
+
+    _login(client, student.email)
+    categories = client.get("/api/v1/menu/categories")
+    assert categories.status_code == 200
+    visible = [row["name"] for row in categories.json()]
+    assert visible == ["Apple"]
+    by_price = client.get("/api/v1/menu/items?sort=price_asc")
+    assert [row["name"] for row in by_price.json()["items"]] == ["Mint Water", "Almond Shake"]
+    by_name = client.get("/api/v1/menu/items?sort=name")
+    assert [row["name"] for row in by_name.json()["items"]] == ["Almond Shake", "Mint Water"]
+    _login(client, manager_email)
+    paused = client.patch(
+        f"/api/v1/admin/menu/{pricey.json()['id']}",
+        json={"is_available": False},
+        headers=_csrf(client),
+    )
+    assert paused.status_code == 200
+    _login(client, student.email)
+    sold_out_last = client.get("/api/v1/menu/items?sort=name")
+    assert [row["name"] for row in sold_out_last.json()["items"]] == ["Mint Water", "Almond Shake"]
+    found = client.get("/api/v1/menu/items?q=MINT")
+    assert [row["name"] for row in found.json()["items"]] == ["Mint Water"]
+    specials = client.get("/api/v1/menu/items?featured=true")
+    assert [row["name"] for row in specials.json()["items"]] == ["Almond Shake"]
+    denied = client.post(
+        f"/api/v1/admin/menu/{cheap.json()['id']}/move",
+        json={"direction": "down"},
+        headers=_csrf(client),
+    )
+    assert denied.status_code == 403
+    placed = client.post(
+        "/api/v1/orders",
+        json={
+            "items": [{"menu_item_id": cheap.json()["id"], "quantity": 1}],
+            "idempotency_key": uuid.uuid4().hex,
+        },
+        headers=_csrf(client),
+    )
+    assert placed.status_code == 201, placed.text
+    _login(client, manager_email)
+    moved = client.post(
+        f"/api/v1/admin/menu/{cheap.json()['id']}/move",
+        json={"direction": "down"},
+        headers=_csrf(client),
+    )
+    assert moved.status_code == 200
+    _login(client, student.email)
+    again = client.get(f"/api/v1/orders/{placed.json()['id']}")
+    assert again.status_code == 200
+    assert again.json()["total_paise"] == placed.json()["total_paise"]
+    assert again.json()["items"][0]["unit_price_paise"] == 1500
+

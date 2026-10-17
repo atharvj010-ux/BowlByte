@@ -11,7 +11,12 @@ import { apiFetch, readError } from "@/lib/auth";
 import { formatInrFromPaise } from "@/lib/money";
 import { menuItemFormSchema, menuItemSchema, rupeesToPaise } from "@/lib/ordering";
 
-const categorySchema = z.object({ id: z.string(), name: z.string(), sort_order: z.number() });
+const categorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  sort_order: z.number(),
+  is_active: z.boolean().default(true),
+});
 const stationSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -40,9 +45,9 @@ export function MenuManager({ mode, itemId }: { mode: "list" | "create" | "edit"
   const menu = useQuery({
     queryKey: ["admin-menu", query],
     queryFn: () =>
-      apiFetch(`/api/v1/admin/menu?q=${encodeURIComponent(query)}`).then((response) =>
-        readJson(response, menuListSchema),
-      ),
+      apiFetch(
+        `/api/v1/admin/menu?include_inactive=false&sort=recommended&limit=50&q=${encodeURIComponent(query)}`,
+      ).then((response) => readJson(response, menuListSchema)),
     enabled: mode === "list",
   });
 
@@ -62,6 +67,20 @@ export function MenuManager({ mode, itemId }: { mode: "list" | "create" | "edit"
     setMessage("Category saved.");
   }
 
+  async function moveItem(itemId: string, direction: "up" | "down") {
+    setMessage("");
+    const response = await apiFetch(`/api/v1/admin/menu/${itemId}/move`, {
+      method: "POST",
+      body: JSON.stringify({ direction }),
+    });
+    if (!response.ok) {
+      setMessage(await readError(response));
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["admin-menu"] });
+    setMessage("Item order saved.");
+  }
+
   if (mode === "list") {
     return (
       <section className="space-y-6">
@@ -75,6 +94,14 @@ export function MenuManager({ mode, itemId }: { mode: "list" | "create" | "edit"
           </Button>
         </form>
         {message ? <p role="status">{message}</p> : null}
+        <CategoryOrder
+          categories={categories.data ?? []}
+          onChanged={async (text) => {
+            await queryClient.invalidateQueries({ queryKey: ["admin-categories"] });
+            await queryClient.invalidateQueries({ queryKey: ["admin-menu"] });
+            setMessage(text);
+          }}
+        />
         <label className="block space-y-2 text-sm">
           <span className="font-medium">Search menu</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} className={textInputClass} />
@@ -84,17 +111,29 @@ export function MenuManager({ mode, itemId }: { mode: "list" | "create" | "edit"
         </a>
         {menu.isLoading ? <p>Loading menu.</p> : null}
         {menu.isError ? <p className="text-sm text-destructive">{menu.error.message}</p> : null}
+        <p className="text-sm text-muted-foreground">Student menu order. Hidden dishes stay off this list.</p>
         <ul className="grid gap-3">
           {menu.data?.items.map((item) => (
-            <li key={item.id} className="rounded-2xl border border-border bg-card p-4">
-              <a href={`/admin/menu/${item.id}/edit`} className="font-medium underline-offset-4 hover:underline">
-                {item.name}
-              </a>
-              <p className="text-sm text-muted-foreground">
-                {formatInrFromPaise(item.price_paise)} · {item.available_qty} available ·{" "}
-                {item.reserved_qty ?? 0} reserved · {item.is_available ? "Listed" : "Unavailable"}
-                {item.is_demo ? " · Demo" : ""}
-              </p>
+            <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+              <div>
+                <a href={`/admin/menu/${item.id}/edit`} className="font-medium underline-offset-4 hover:underline">
+                  {item.name}
+                </a>
+                <p className="text-sm text-muted-foreground">
+                  {item.category_name} · {formatInrFromPaise(item.price_paise)} · {item.available_qty} available ·{" "}
+                  {item.reserved_qty ?? 0} reserved · {item.is_available ? "Listed" : "Sold out"}
+                  {item.is_featured ? " · Today's special" : ""}
+                  {item.is_demo ? " · Demo" : ""}
+                </p>
+              </div>
+              <span className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => moveItem(item.id, "up")}>
+                  Move up
+                </Button>
+                <Button type="button" variant="outline" onClick={() => moveItem(item.id, "down")}>
+                  Move down
+                </Button>
+              </span>
             </li>
           ))}
         </ul>
@@ -113,6 +152,92 @@ export function MenuManager({ mode, itemId }: { mode: "list" | "create" | "edit"
   );
 }
 
+function CategoryOrder({
+  categories,
+  onChanged,
+}: {
+  categories: { id: string; name: string; is_active: boolean }[];
+  onChanged: (message: string) => Promise<void>;
+}) {
+  const active = categories.filter((category) => category.is_active);
+  const archived = categories.filter((category) => !category.is_active);
+
+  async function move(id: string, direction: "up" | "down") {
+    const response = await apiFetch(`/api/v1/admin/categories/${id}/move`, {
+      method: "POST",
+      body: JSON.stringify({ direction }),
+    });
+    if (!response.ok) {
+      await onChanged(await readError(response));
+      return;
+    }
+    await onChanged("Category order saved.");
+  }
+
+  async function rename(event: FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault();
+    const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+    const response = await apiFetch(`/api/v1/admin/categories/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+    await onChanged(response.ok ? "Category renamed." : await readError(response));
+  }
+
+  async function setActive(id: string, isActive: boolean) {
+    const response = await apiFetch(`/api/v1/admin/categories/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    });
+    await onChanged(response.ok ? "Category updated." : await readError(response));
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-display text-2xl font-extrabold tracking-tight uppercase">Category order</h2>
+      <ul className="grid gap-2">
+        {active.map((category) => (
+          <li key={category.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-border p-3">
+            <form className="flex min-w-0 flex-1 gap-2" onSubmit={(event) => rename(event, category.id)}>
+              <label className="min-w-0 flex-1 text-sm">
+                <span className="sr-only">Category name</span>
+                <input name="name" defaultValue={category.name} required className={textInputClass} />
+              </label>
+              <Button type="submit" variant="outline">
+                Rename
+              </Button>
+            </form>
+            <Button type="button" variant="outline" onClick={() => move(category.id, "up")}>
+              Move up
+            </Button>
+            <Button type="button" variant="outline" onClick={() => move(category.id, "down")}>
+              Move down
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setActive(category.id, false)}>
+              Hide
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {archived.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer text-sm">Archived categories ({archived.length})</summary>
+          <ul className="mt-2 grid gap-2">
+            {archived.map((category) => (
+              <li key={category.id} className="flex items-center justify-between gap-3 text-sm">
+                <span>{category.name}</span>
+                <Button type="button" variant="outline" onClick={() => setActive(category.id, true)}>
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 function ItemForm({
   itemId,
   categories,
@@ -121,7 +246,7 @@ function ItemForm({
   onSaved,
 }: {
   itemId?: string;
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; is_active?: boolean }[];
   categoriesLoading: boolean;
   message: string;
   onSaved: (message: string) => void;
@@ -178,6 +303,7 @@ function ItemForm({
       station_id: parsed.data.stationId,
       is_active: form.get("isActive") === "on",
       is_available: form.get("isAvailable") === "on",
+      is_featured: form.get("isFeatured") === "on",
       initial_available_qty: itemId ? undefined : Number(form.get("stock") || 0),
       ...nutritionPayload(form),
     };
@@ -265,7 +391,9 @@ function ItemForm({
           <option value="" disabled>
             Choose
           </option>
-          {categories.map((category) => (
+          {categories
+            .filter((category) => category.is_active !== false || category.id === existing.data?.category_id)
+            .map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
             </option>
@@ -300,6 +428,10 @@ function ItemForm({
       <label className="flex items-center gap-2 text-sm">
         <input name="isAvailable" type="checkbox" defaultChecked={existing.data?.is_available ?? true} />
         Available
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input name="isFeatured" type="checkbox" defaultChecked={existing.data?.is_featured ?? false} />
+        {"Today's special"}
       </label>
       <fieldset className="grid gap-3 rounded-2xl border border-border p-4">
         <legend className="px-1 text-sm font-medium">Nutrition</legend>

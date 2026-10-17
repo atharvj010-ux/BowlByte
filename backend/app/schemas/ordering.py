@@ -13,18 +13,24 @@ class _Strict(BaseModel):
 
 class CategoryCreateRequest(_Strict):
     name: str = Field(min_length=1, max_length=80)
-    sort_order: int = Field(default=0, ge=0, le=1000)
+    sort_order: int | None = Field(default=None, ge=0, le=100_000)
 
 
 class CategoryUpdateRequest(_Strict):
     name: str | None = Field(default=None, min_length=1, max_length=80)
-    sort_order: int | None = Field(default=None, ge=0, le=1000)
+    sort_order: int | None = Field(default=None, ge=0, le=100_000)
+    is_active: bool | None = None
+
+
+class CategoryMoveRequest(_Strict):
+    direction: Literal["up", "down"]
 
 
 class CategoryResponse(_Strict):
     id: UUID
     name: str
     sort_order: int
+    is_active: bool
     is_demo: bool
 
 
@@ -56,6 +62,8 @@ class MenuItemWrite(_Strict):
     prep_seconds: int = Field(ge=30, le=7200)
     is_active: bool = True
     is_available: bool = True
+    sort_order: int | None = Field(default=None, ge=0, le=100_000)
+    is_featured: bool = False
     initial_available_qty: int | None = Field(default=None, ge=0, le=10_000)
     calories_kcal: int | None = Field(default=None, ge=0, le=5000)
     serving_size_description: str | None = Field(default=None, max_length=80)
@@ -72,6 +80,8 @@ class MenuItemUpdateRequest(_Strict):
     prep_seconds: int | None = Field(default=None, ge=30, le=7200)
     is_active: bool | None = None
     is_available: bool | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=100_000)
+    is_featured: bool | None = None
     calories_kcal: int | None = Field(default=None, ge=0, le=5000)
     serving_size_description: str | None = Field(default=None, max_length=80)
     nutrition_source: Literal["VERIFIED", "ILLUSTRATIVE"] | None = None
@@ -96,6 +106,9 @@ class MenuItemResponse(_Strict):
     is_active: bool
     is_available: bool
     is_demo: bool
+    sort_order: int = 0
+    is_featured: bool = False
+    category_sort_order: int = 0
     calories_kcal: int | None = None
     serving_size_description: str | None = None
     nutrition_source: Literal["VERIFIED", "ILLUSTRATIVE"] | None = None

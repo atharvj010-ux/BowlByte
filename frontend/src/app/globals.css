@@ -1108,6 +1108,38 @@ body > *:not(#content):not(footer) :is(input, select, textarea, [data-testid="ac
   color: var(--ink);
 }
 
+.menu-cats {
+  position: sticky;
+  top: 4.25rem;
+  z-index: 20;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0.35rem 0 0.6rem;
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  scrollbar-width: thin;
+}
+
+.food-flag {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--lime);
+  padding: 0.15rem 0.55rem;
+  color: var(--ink);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.food-card[data-unavailable] .food-card-photo {
+  filter: grayscale(0.65);
+}
+
 .food-dialog {
   width: min(56rem, calc(100vw - 1.5rem));
   max-height: calc(100svh - 2rem);

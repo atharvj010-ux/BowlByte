@@ -46,7 +46,13 @@ def public_categories(
         raise ApiError(code="FORBIDDEN", message="You cannot open this area.", status_code=403)
     rows = list_categories(db, canteen_id=canteen_id, public=principal.user.role == "STUDENT")
     return [
-        CategoryResponse(id=row.id, name=row.name, sort_order=row.sort_order, is_demo=row.is_demo)
+        CategoryResponse(
+            id=row.id,
+            name=row.name,
+            sort_order=row.sort_order,
+            is_active=row.is_active,
+            is_demo=row.is_demo,
+        )
         for row in rows
     ]
 
@@ -55,6 +61,8 @@ def public_categories(
 def public_items(
     q: str | None = None,
     category_id: UUID | None = None,
+    sort: str = Query(default="recommended", pattern="^(recommended|price_asc|price_desc|name)$"),
+    featured: bool = False,
     limit: int = Query(default=20),
     offset: int = Query(default=0),
     principal: Principal = Depends(require_principal),
@@ -72,6 +80,9 @@ def public_items(
         category_id=category_id,
         limit=bounded_limit,
         offset=bounded_offset,
+        sort=sort,
+        featured=featured,
+        include_inactive=False,
     )
     return MenuListResponse(
         items=[MenuItemResponse.model_validate(item) for item in items],

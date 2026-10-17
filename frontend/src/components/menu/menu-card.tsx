@@ -86,8 +86,9 @@ export function MenuCard({
 }) {
   const orderable = canOrder(item);
   return (
-    <article
+      <article
       className="food-card group"
+      data-unavailable={orderable ? undefined : ""}
       style={{ ["--tone" as string]: categoryTone(item.category_name) }}
       onPointerMove={tilt}
       onPointerLeave={untilt}
@@ -98,16 +99,17 @@ export function MenuCard({
       </button>
       <div className="food-card-body">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display text-2xl leading-[0.95] font-extrabold tracking-tight">
+          <h3 className="line-clamp-2 min-h-12 font-display text-2xl leading-6 font-extrabold tracking-tight break-words">
             <button type="button" className="text-left" onClick={onOpen}>
               {item.name}
             </button>
           </h3>
-          <p className="food-price">{formatInrFromPaise(item.price_paise)}</p>
+          <p className="food-price shrink-0">{formatInrFromPaise(item.price_paise)}</p>
         </div>
-        {item.description ? (
-          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
-        ) : null}
+        <p className="line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">
+          {item.description || "\u00a0"}
+        </p>
+        {item.is_featured ? <p className="food-flag">{"Today's special"}</p> : null}
         <div className="food-facts">
           <p>{nutritionLabel(item)}</p>
           {item.calories_kcal == null && item.serving_size_description ? (
@@ -116,7 +118,7 @@ export function MenuCard({
         </div>
         <p className="font-mono text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase">
           {item.category_name}
-          {orderable ? ` · ${item.available_qty} left` : " · Unavailable"}
+          {orderable ? ` · ${item.available_qty} left` : " · Sold out"}
         </p>
         <div className="mt-auto pt-1">{action}</div>
       </div>

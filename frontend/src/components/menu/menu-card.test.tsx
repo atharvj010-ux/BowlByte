@@ -23,6 +23,9 @@ const item: MenuItem = {
   nutrition_source: null,
   nutrition_reference: null,
   available_qty: 0,
+  sort_order: 0,
+  is_featured: false,
+  category_sort_order: 0,
 };
 
 describe("MenuCard", () => {
@@ -30,7 +33,7 @@ describe("MenuCard", () => {
     render(<MenuCard item={item} action={<button type="button" disabled>Unavailable</button>} />);
     expect(screen.getByRole("heading", { name: "Veg Sandwich" })).toBeInTheDocument();
     expect(screen.getByText("₹40.00")).toBeInTheDocument();
-    expect(screen.getByText(/· Unavailable/)).toBeInTheDocument();
+    expect(screen.getByText(/· Sold out/)).toBeInTheDocument();
     expect(screen.getByText("Calories unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Unavailable" })).toBeDisabled();
   });

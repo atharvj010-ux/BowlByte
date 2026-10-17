@@ -10,7 +10,7 @@ import json
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -128,8 +128,18 @@ def _touch(row: MenuItem | KitchenStation | DailyStock | Order) -> None:
     row.updated_at = datetime.now(UTC)
 
 
-def create_category(db: Session, *, manager: User, name: str, sort_order: int) -> MenuCategory:
+def create_category(
+    db: Session, *, manager: User, name: str, sort_order: int | None
+) -> MenuCategory:
     canteen_id = manager_canteen_id(db, manager)
+    if sort_order is None:
+        current = db.scalar(
+            select(func.max(MenuCategory.sort_order)).where(
+                MenuCategory.canteen_id == canteen_id,
+                MenuCategory.is_active.is_(True),
+            )
+        )
+        sort_order = int(current or 0) + 10
     category = MenuCategory(
         canteen_id=canteen_id,
         name=name.strip(),
@@ -156,6 +166,7 @@ def update_category(
     category_id: UUID,
     name: str | None,
     sort_order: int | None,
+    is_active: bool | None = None,
 ) -> MenuCategory:
     canteen_id = manager_canteen_id(db, manager)
     category = db.get(MenuCategory, category_id)
@@ -165,6 +176,16 @@ def update_category(
         category.name = name.strip()
     if sort_order is not None:
         category.sort_order = sort_order
+    if is_active is True and not category.is_active and sort_order is None:
+        current = db.scalar(
+            select(func.max(MenuCategory.sort_order)).where(
+                MenuCategory.canteen_id == canteen_id,
+                MenuCategory.is_active.is_(True),
+            )
+        )
+        category.sort_order = int(current or 0) + 10
+    if is_active is not None:
+        category.is_active = is_active
     try:
         db.commit()
     except IntegrityError as exc:
@@ -182,14 +203,36 @@ def list_categories(db: Session, *, canteen_id: UUID, public: bool) -> list[Menu
     query = select(MenuCategory).where(MenuCategory.canteen_id == canteen_id)
     if public:
         query = query.where(
+            MenuCategory.is_active.is_(True),
             MenuCategory.id.in_(
                 select(MenuItem.category_id).where(
                     MenuItem.canteen_id == canteen_id,
                     MenuItem.is_active.is_(True),
                 )
-            )
+            ),
         )
-    return list(db.scalars(query.order_by(MenuCategory.sort_order, MenuCategory.name)))
+    return list(
+        db.scalars(query.order_by(MenuCategory.sort_order, MenuCategory.name, MenuCategory.id))
+    )
+
+
+def move_category(db: Session, *, manager: User, category_id: UUID, direction: str) -> MenuCategory:
+    canteen_id = manager_canteen_id(db, manager)
+    rows = [
+        row
+        for row in list_categories(db, canteen_id=canteen_id, public=False)
+        if row.is_active
+    ]
+    index = next((position for position, row in enumerate(rows) if row.id == category_id), None)
+    if index is None:
+        raise ApiError(code="NOT_FOUND", message="Category not found.", status_code=404)
+    swap = index - 1 if direction == "up" else index + 1
+    if 0 <= swap < len(rows):
+        rows[index], rows[swap] = rows[swap], rows[index]
+    for position, row in enumerate(rows, start=1):
+        row.sort_order = position * 10
+    db.commit()
+    return rows[swap] if 0 <= swap < len(rows) else rows[index]
 
 
 def create_station(
@@ -289,6 +332,15 @@ def create_menu_item(db: Session, *, manager: User, fields: dict) -> MenuItem:
     canteen_id = manager_canteen_id(db, manager)
     _category_in_canteen(db, fields["category_id"], canteen_id)
     _station_in_canteen(db, fields["station_id"], canteen_id)
+    sort_order = fields.get("sort_order")
+    if sort_order is None:
+        current = db.scalar(
+            select(func.max(MenuItem.sort_order)).where(
+                MenuItem.category_id == fields["category_id"],
+                MenuItem.canteen_id == canteen_id,
+            )
+        )
+        sort_order = int(current or 0) + 10
     item = MenuItem(
         canteen_id=canteen_id,
         category_id=fields["category_id"],
@@ -298,6 +350,8 @@ def create_menu_item(db: Session, *, manager: User, fields: dict) -> MenuItem:
         prep_seconds=fields["prep_seconds"],
         is_active=fields["is_active"],
         is_available=fields["is_available"],
+        sort_order=sort_order,
+        is_featured=bool(fields.get("is_featured", False)),
     )
     from app.services.pairings import apply_nutrition
 
@@ -343,7 +397,14 @@ def update_menu_item(db: Session, *, manager: User, item_id: UUID, fields: dict)
     for key in ("name", "description"):
         if key in fields:
             setattr(item, key, fields[key].strip())
-    for key in ("price_paise", "prep_seconds", "is_active", "is_available"):
+    for key in (
+        "price_paise",
+        "prep_seconds",
+        "is_active",
+        "is_available",
+        "sort_order",
+        "is_featured",
+    ):
         if key in fields:
             setattr(item, key, fields[key])
     from app.services.pairings import apply_nutrition
@@ -418,12 +479,16 @@ def item_view(
     station: KitchenStation | None,
     stock: DailyStock | None,
     include_reserved: bool,
+    category_sort_order: int = 0,
 ) -> dict:
     available = stock.available_qty if stock is not None else 0
     return {
         "id": item.id,
         "category_id": item.category_id,
         "category_name": category_name,
+        "category_sort_order": category_sort_order,
+        "sort_order": item.sort_order,
+        "is_featured": item.is_featured,
         "station_id": station.id if station else None,
         "station_name": station.name if station else None,
         "name": item.name,
@@ -452,23 +517,63 @@ def list_menu_items(
     category_id: UUID | None,
     limit: int,
     offset: int,
+    sort: str = "recommended",
+    featured: bool = False,
+    include_inactive: bool = True,
 ) -> tuple[list[dict], int]:
-    filters = [MenuItem.canteen_id == canteen_id]
-    if public:
+    filters = [MenuItem.canteen_id == canteen_id, MenuCategory.canteen_id == canteen_id]
+    if public or not include_inactive:
         filters.append(MenuItem.is_active.is_(True))
+        filters.append(MenuCategory.is_active.is_(True))
     if category_id is not None:
         filters.append(MenuItem.category_id == category_id)
-    if query:
+    if featured:
+        filters.append(MenuItem.is_featured.is_(True))
+    if query and query.strip():
         safe = query.strip()[:80].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        filters.append(MenuItem.name.ilike(f"%{safe}%", escape="\\"))
-    total = db.scalar(select(func.count()).select_from(MenuItem).where(*filters)) or 0
-    items = list(
-        db.scalars(
-            select(MenuItem).where(*filters).order_by(MenuItem.name).limit(limit).offset(offset)
+        pattern = f"%{safe}%"
+        filters.append(
+            or_(
+                MenuItem.name.ilike(pattern, escape="\\"),
+                MenuItem.description.ilike(pattern, escape="\\"),
+                MenuCategory.name.ilike(pattern, escape="\\"),
+            )
         )
+    stock_qty = func.coalesce(
+        select(DailyStock.available_qty)
+        .where(
+            DailyStock.menu_item_id == MenuItem.id,
+            DailyStock.service_date == service_today(),
+        )
+        .correlate(MenuItem)
+        .scalar_subquery(),
+        0,
     )
+    sold_later = case(
+        (and_(MenuItem.is_available.is_(True), stock_qty > 0), 0),
+        else_=1,
+    )
+    if sort == "price_asc":
+        order = (sold_later, MenuItem.price_paise, MenuItem.name, MenuItem.id)
+    elif sort == "price_desc":
+        order = (sold_later, MenuItem.price_paise.desc(), MenuItem.name, MenuItem.id)
+    elif sort == "name":
+        order = (sold_later, MenuItem.name, MenuItem.id)
+    else:
+        order = (
+            MenuCategory.sort_order,
+            MenuCategory.name,
+            MenuCategory.id,
+            sold_later,
+            MenuItem.sort_order,
+            MenuItem.name,
+            MenuItem.id,
+        )
+    joined = select(MenuItem).join(MenuCategory, MenuCategory.id == MenuItem.category_id)
+    total = db.scalar(select(func.count()).select_from(joined.where(*filters).subquery())) or 0
+    items = list(db.scalars(joined.where(*filters).order_by(*order).limit(limit).offset(offset)))
     categories = {
-        row.id: row.name
+        row.id: row
         for row in db.scalars(select(MenuCategory).where(MenuCategory.canteen_id == canteen_id))
     }
     stations = _station_map(db, [item.id for item in items])
@@ -476,7 +581,12 @@ def list_menu_items(
     views = [
         item_view(
             item,
-            category_name=categories.get(item.category_id, ""),
+            category_name=(
+                categories[item.category_id].name if item.category_id in categories else ""
+            ),
+            category_sort_order=(
+                categories[item.category_id].sort_order if item.category_id in categories else 0
+            ),
             station=stations.get(item.id),
             stock=stocks.get(item.id),
             include_reserved=not public,
@@ -491,15 +601,47 @@ def get_menu_item(db: Session, *, canteen_id: UUID, item_id: UUID, public: bool)
     if item is None or item.canteen_id != canteen_id or (public and not item.is_active):
         raise ApiError(code="NOT_FOUND", message="Menu item not found.", status_code=404)
     category = db.get(MenuCategory, item.category_id)
+    if public and (category is None or not category.is_active):
+        raise ApiError(code="NOT_FOUND", message="Menu item not found.", status_code=404)
     stations = _station_map(db, [item.id])
     stocks = _stock_map(db, [item.id], service_today())
     return item_view(
         item,
         category_name=category.name if category else "",
+        category_sort_order=category.sort_order if category else 0,
         station=stations.get(item.id),
         stock=stocks.get(item.id),
         include_reserved=not public,
     )
+
+
+def move_menu_item(db: Session, *, manager: User, item_id: UUID, direction: str) -> MenuItem:
+    canteen_id = manager_canteen_id(db, manager)
+    item = db.get(MenuItem, item_id)
+    if item is None or item.canteen_id != canteen_id:
+        raise ApiError(code="NOT_FOUND", message="Menu item not found.", status_code=404)
+    rows = list(
+        db.scalars(
+            select(MenuItem)
+            .where(
+                MenuItem.canteen_id == canteen_id,
+                MenuItem.category_id == item.category_id,
+                MenuItem.is_active.is_(True),
+            )
+            .order_by(MenuItem.sort_order, MenuItem.name, MenuItem.id)
+        )
+    )
+    index = next((position for position, row in enumerate(rows) if row.id == item.id), None)
+    if index is None:
+        raise ApiError(code="NOT_FOUND", message="Menu item not found.", status_code=404)
+    swap = index - 1 if direction == "up" else index + 1
+    if 0 <= swap < len(rows):
+        rows[index], rows[swap] = rows[swap], rows[index]
+        index = swap
+    for position, row in enumerate(rows, start=1):
+        row.sort_order = position * 10
+    db.commit()
+    return rows[index]
 
 
 def _lock_stock(db: Session, item_ids: list[UUID], day: date) -> dict[UUID, DailyStock]:

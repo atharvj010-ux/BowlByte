@@ -50,6 +50,7 @@ class MenuCategory(Base):
     __table_args__ = (
         UniqueConstraint("canteen_id", "name", name="uq_menu_categories_name"),
         Index("ix_menu_categories_canteen_id", "canteen_id"),
+        Index("ix_menu_categories_display", "canteen_id", "is_active", "sort_order"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -58,6 +59,7 @@ class MenuCategory(Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -121,6 +123,7 @@ class MenuItem(Base):
         ),
         Index("ix_menu_items_canteen_active", "canteen_id", "is_active"),
         Index("ix_menu_items_category_id", "category_id"),
+        Index("ix_menu_items_display", "category_id", "sort_order"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -137,6 +140,8 @@ class MenuItem(Base):
     image_content_type: Mapped[str | None] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     prep_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     calories_kcal: Mapped[int | None] = mapped_column(Integer)

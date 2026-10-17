@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.ordering import ORDER_STATUSES
 from app.schemas.ordering import (
     CategoryCreateRequest,
+    CategoryMoveRequest,
     CategoryResponse,
     CategoryUpdateRequest,
     ImageUploadRequest,
@@ -40,6 +41,8 @@ from app.services.ordering import (
     list_stations,
     list_stock,
     manager_canteen_id,
+    move_category,
+    move_menu_item,
     service_today,
     set_available_stock,
     set_item_image,
@@ -50,6 +53,16 @@ from app.services.ordering import (
 from app.services.pairings import create_pairing, delete_pairing, manager_pairings
 
 router = APIRouter(prefix="/admin", tags=["catalog"])
+
+
+def _category_out(row) -> CategoryResponse:
+    return CategoryResponse(
+        id=row.id,
+        name=row.name,
+        sort_order=row.sort_order,
+        is_active=row.is_active,
+        is_demo=row.is_demo,
+    )
 
 
 def _manager(principal: Principal) -> Principal:
@@ -74,8 +87,7 @@ def admin_categories(
     _manager(principal)
     canteen_id = manager_canteen_id(db, principal.user)
     return [
-        CategoryResponse(id=row.id, name=row.name, sort_order=row.sort_order, is_demo=row.is_demo)
-        for row in list_categories(db, canteen_id=canteen_id, public=False)
+        _category_out(row) for row in list_categories(db, canteen_id=canteen_id, public=False)
     ]
 
 
@@ -87,9 +99,7 @@ def add_category(
 ) -> CategoryResponse:
     _manager(principal)
     row = create_category(db, manager=principal.user, name=body.name, sort_order=body.sort_order)
-    return CategoryResponse(
-        id=row.id, name=row.name, sort_order=row.sort_order, is_demo=row.is_demo
-    )
+    return _category_out(row)
 
 
 @router.patch("/categories/{category_id}", response_model=CategoryResponse)
@@ -106,9 +116,26 @@ def edit_category(
         category_id=category_id,
         name=body.name,
         sort_order=body.sort_order,
+        is_active=body.is_active,
     )
-    return CategoryResponse(
-        id=row.id, name=row.name, sort_order=row.sort_order, is_demo=row.is_demo
+    return _category_out(row)
+
+
+@router.post("/categories/{category_id}/move", response_model=CategoryResponse)
+def reorder_category(
+    category_id: UUID,
+    body: CategoryMoveRequest,
+    principal: Principal = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> CategoryResponse:
+    _manager(principal)
+    return _category_out(
+        move_category(
+            db,
+            manager=principal.user,
+            category_id=category_id,
+            direction=body.direction,
+        )
     )
 
 
@@ -183,6 +210,8 @@ def edit_station(
 def admin_menu(
     q: str | None = None,
     category_id: UUID | None = None,
+    sort: str = Query(default="recommended", pattern="^(recommended|price_asc|price_desc|name)$"),
+    include_inactive: bool = True,
     limit: int = Query(default=20),
     offset: int = Query(default=0),
     principal: Principal = Depends(require_principal),
@@ -198,6 +227,8 @@ def admin_menu(
         category_id=category_id,
         limit=bounded_limit,
         offset=bounded_offset,
+        sort=sort,
+        include_inactive=include_inactive,
     )
     return MenuListResponse(
         items=[MenuItemResponse.model_validate(item) for item in items],
@@ -252,6 +283,22 @@ def edit_menu_item(
     _manager(principal)
     fields = body.model_dump(exclude_unset=True)
     item = update_menu_item(db, manager=principal.user, item_id=item_id, fields=fields)
+    return MenuItemResponse.model_validate(
+        get_menu_item(db, canteen_id=item.canteen_id, item_id=item.id, public=False)
+    )
+
+
+@router.post("/menu/{item_id}/move", response_model=MenuItemResponse)
+def reorder_menu_item(
+    item_id: UUID,
+    body: CategoryMoveRequest,
+    principal: Principal = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> MenuItemResponse:
+    _manager(principal)
+    item = move_menu_item(
+        db, manager=principal.user, item_id=item_id, direction=body.direction
+    )
     return MenuItemResponse.model_validate(
         get_menu_item(db, canteen_id=item.canteen_id, item_id=item.id, public=False)
     )
