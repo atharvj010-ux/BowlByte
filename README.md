@@ -5,45 +5,43 @@ BowlByte is a college canteen system for counter pickup, kitchen queues, and cas
 ## Stack
 
 - Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query, Zod
-- FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 16, Redis, Celery
-- Vitest, Pytest, Playwright, GitHub Actions, Docker Compose
+- FastAPI, SQLAlchemy 2, Alembic, Supabase PostgreSQL, Redis, Celery
+- Vitest, Pytest, Playwright, GitHub Actions
 
 Payments are cash only. There is no online payment integration.
 
 ## Run the stack
 
-Docker Compose is still the running runtime. Supabase holds the imported identities and a reconciled snapshot, but the native start script is not the active runtime while WSL Redis is unstable. See `docs/P014_1_STATUS.md`. Do not point the app at Supabase and the old Docker database at the same time.
+The live runtime is native Windows processes plus Supabase. Start it only when no BowlByte Docker app container is publishing the same ports or the same queue.
 
 ```powershell
-# Native start, only after Docker BowlByte app containers are stopped.
 powershell -File .\scripts\start-dev.ps1
+powershell -File .\scripts\check-dev.ps1
 powershell -File .\scripts\stop-dev.ps1
 ```
 
-Switching back to the Docker database after new cloud orders exist requires another reconciliation. The old PostgreSQL volume and the dumps under `%LOCALAPPDATA%\BowlByte\p011` stay in place.
+`start-dev.ps1` refuses to launch unless `SUPABASE_DB_URL` is the session pooler on port 5432 with `sslmode=verify-full`, and unless `current_database()` is `postgres`. It listens on http://127.0.0.1:3010 and http://127.0.0.1:8010, starts one Celery worker and one Beat process, and uses Windows Redis on `127.0.0.1:6379`. Details are in `docs/P014_NATIVE_RUNTIME.md` and `docs/P014_REDIS_CELERY.md`.
 
-```powershell
-docker compose up --build
-```
+Do not point a second writer at the old Docker database. New orders live in Supabase. Going back requires another reconciliation. The Docker PostgreSQL volume and the dumps under `%LOCALAPPDATA%\BowlByte\p011` stay in place. Compose files remain only as recovery history. Do not run `docker compose down -v`.
 
 | Service | Address | Purpose |
 | --- | --- | --- |
-| Web | http://127.0.0.1:3000 | Next.js application |
-| API | http://127.0.0.1:8000 | FastAPI, including `/docs` in development |
-| PostgreSQL | `127.0.0.1:5432` | System of record. Loopback only |
-| Redis | `127.0.0.1:6379` | Celery broker. Not bound to a public interface |
-| Worker | no host port | Celery worker. Sends Web Push |
-| Beat | no host port | Celery beat. Drains the notification outbox every 15 seconds |
-| Mailpit | http://127.0.0.1:8025 | Local mailbox UI. SMTP is on 127.0.0.1:1025 |
+| Web | http://127.0.0.1:3010 | Next.js plus the WebSocket proxy |
+| API | http://127.0.0.1:8010 | FastAPI, including `/docs` in development |
+| PostgreSQL | Supabase session pooler, port 5432 | System of record. TLS verified |
+| Redis | `127.0.0.1:6379` | Celery broker. Loopback only |
+| Worker | no host port | Celery worker, solo pool |
+| Beat | no host port | One scheduler. Drains the notification outbox |
+| Mailpit | not part of the live runtime | Disposable tests can still use a local mailbox |
 
-The API container runs `alembic upgrade head` before Uvicorn. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. `0005_cash_pickup_notifications` adds cash receipts and reversals, pickup credentials and events, push subscriptions, notifications, the outbox, and append-only protection for the ledgers. The web container proxies `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
+Apply schema changes with `python -m alembic upgrade head` from `backend/` against the intended database. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. `0005_cash_pickup_notifications` adds cash receipts and reversals, pickup credentials and events, push subscriptions, notifications, the outbox, and append-only protection for the ledgers. The web container proxies `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
 
 ## Push keys
 
 Web Push needs VAPID keys. Generate them once and put the output in `.env`, which is gitignored:
 
 ```powershell
-docker compose exec backend python -m app.cli.generate_vapid
+backend\.venv\Scripts\python.exe -m app.cli.generate_vapid
 ```
 
 The command prints the keys to the terminal only. Never commit them. The private key is passed only to the worker container, which signs and sends the pushes. Without keys the app still works and the profile page says phone notifications are not set up. Phones need HTTPS, so see `docs/P005_PWA_SETUP.md` and `docs/P005_REAL_DEVICE_TESTING.md` before expecting delivery.
@@ -53,7 +51,7 @@ The command prints the keys to the terminal only. Never commit them. The private
 This does not create users or orders. Running it twice does not duplicate the sample items.
 
 ```powershell
-docker compose exec backend python -m app.cli.seed_menu
+backend\.venv\Scripts\python.exe -m app.cli.seed_menu
 ```
 
 ## First manager
@@ -68,11 +66,7 @@ python -m app.cli.bootstrap_manager
 
 The command prompts for the password, or reads one line from stdin when it is not a terminal. It does not accept the password as an argument and it does not print it. A second run is refused after a manager exists.
 
-Inside Compose:
-
-```powershell
-docker compose exec -e BOWLBYTE_BOOTSTRAP_EMAIL=manager@college.edu -e BOWLBYTE_BOOTSTRAP_NAME="Pilot Manager" backend python -m app.cli.bootstrap_manager
-```
+The same command works from `backend/` with the virtualenv Python. It writes the manager into whichever database `DATABASE_URL` points at, so set that to Supabase before using it on the live system.
 
 ## Student eligibility
 

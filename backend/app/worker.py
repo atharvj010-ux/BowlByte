@@ -34,7 +34,12 @@ celery_app.conf.update(
     task_ignore_result=True,
     task_default_queue="bowlbyte",
     broker_connection_retry_on_startup=True,
-    broker_transport_options={"socket_connect_timeout": 1, "socket_timeout": 2},
+    broker_transport_options={
+        "socket_connect_timeout": 5,
+        "socket_timeout": 30,
+        "retry_on_timeout": True,
+        "health_check_interval": 25,
+    },
     worker_hijack_root_logger=False,
     beat_schedule={
         "drain-notification-outbox": {

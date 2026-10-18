@@ -511,31 +511,64 @@ def station_workload(db: Session, canteen_id: UUID) -> list[dict]:
             .order_by(KitchenStation.name)
         )
     )
-    rows = []
-    for station in stations:
-        waiting = _count_tasks(db, station.id, "QUEUED")
-        preparing = _count_tasks(db, station.id, "IN_PROGRESS")
-        oldest = db.scalar(
-            select(Order.ticket_number)
-            .join(PreparationTask, PreparationTask.order_id == Order.id)
+    if not stations:
+        return []
+    station_ids = [station.id for station in stations]
+    counts = {
+        (station_id, status): int(total)
+        for station_id, status, total in db.execute(
+            select(
+                PreparationTask.kitchen_station_id,
+                PreparationTask.status,
+                func.count(),
+            )
             .where(
-                PreparationTask.kitchen_station_id == station.id,
+                PreparationTask.kitchen_station_id.in_(station_ids),
+                PreparationTask.status.in_(("QUEUED", "IN_PROGRESS")),
+            )
+            .group_by(PreparationTask.kitchen_station_id, PreparationTask.status)
+        )
+    }
+    queued_seconds = {
+        station_id: int(total or 0)
+        for station_id, total in db.execute(
+            select(
+                PreparationTask.kitchen_station_id,
+                func.sum(PreparationTask.expected_duration_seconds),
+            )
+            .where(
+                PreparationTask.kitchen_station_id.in_(station_ids),
                 PreparationTask.status == "QUEUED",
             )
-            .order_by(Order.accepted_at.asc().nulls_last(), Order.ticket_number)
-            .limit(1)
+            .group_by(PreparationTask.kitchen_station_id)
         )
-        backlog = waiting * 0
-        queued = list(
-            db.scalars(
-                select(PreparationTask.expected_duration_seconds).where(
-                    PreparationTask.kitchen_station_id == station.id,
-                    PreparationTask.status == "QUEUED",
-                )
+    }
+    oldest_ticket = {
+        station_id: ticket
+        for station_id, ticket in db.execute(
+            select(PreparationTask.kitchen_station_id, Order.ticket_number)
+            .join(Order, Order.id == PreparationTask.order_id)
+            .where(
+                PreparationTask.kitchen_station_id.in_(station_ids),
+                PreparationTask.status == "QUEUED",
+            )
+            .distinct(PreparationTask.kitchen_station_id)
+            .order_by(
+                PreparationTask.kitchen_station_id,
+                Order.accepted_at.asc().nulls_last(),
+                Order.ticket_number,
             )
         )
-        if station.parallel_capacity:
-            backlog = int(sum(queued) / station.parallel_capacity) if queued else 0
+    }
+    rows = []
+    for station in stations:
+        waiting = counts.get((station.id, "QUEUED"), 0)
+        queued = queued_seconds.get(station.id, 0)
+        backlog = (
+            int(queued / station.parallel_capacity)
+            if station.parallel_capacity and queued
+            else 0
+        )
         rows.append(
             {
                 "id": station.id,
@@ -543,9 +576,9 @@ def station_workload(db: Session, canteen_id: UUID) -> list[dict]:
                 "parallel_capacity": station.parallel_capacity,
                 "is_active": station.is_active,
                 "waiting": waiting,
-                "in_progress": preparing,
+                "in_progress": counts.get((station.id, "IN_PROGRESS"), 0),
                 "backlog_seconds": backlog,
-                "longest_waiting_ticket": oldest,
+                "longest_waiting_ticket": oldest_ticket.get(station.id),
             }
         )
     return rows

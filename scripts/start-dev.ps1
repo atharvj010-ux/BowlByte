@@ -83,52 +83,29 @@ if (-not $database -or $database -notmatch "pooler\.supabase\.com:5432" -or $dat
 if ($database -match "^postgres(ql)?://") {
     $env:DATABASE_URL = $database -replace "^postgres(ql)?://", "postgresql+psycopg://"
 }
-
-function Get-RedisPing {
-    $previous = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $output = & wsl -d Ubuntu -u root redis-cli -h 127.0.0.1 ping 2>&1
-        return @($output | ForEach-Object { "$_" } | Where-Object { $_ -eq "PONG" } | Select-Object -Last 1)
-    } finally {
-        $ErrorActionPreference = $previous
-    }
-}
-
-$ping = Get-RedisPing
-if ($ping -ne "PONG") {
-    $previous = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    & wsl -d Ubuntu -u root redis-server --daemonize yes --bind 0.0.0.0 --port 6379 --protected-mode no 2>&1 | Out-Null
-    $ErrorActionPreference = $previous
-    Start-Sleep -Seconds 1
-    $ping = Get-RedisPing
-}
-if ($ping -ne "PONG") {
-    Write-Output "WSL Ubuntu Redis did not answer. Native start refused."
-    exit 2
-}
 Remove-Item Env:E2E_DATABASE -ErrorAction SilentlyContinue
 Remove-Item Env:SOURCE_DATABASE_URL -ErrorAction SilentlyContinue
 Remove-Item Env:TARGET_DATABASE_URL -ErrorAction SilentlyContinue
-$redisHost = "127.0.0.1"
-$candidate = ""
-$previous = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-$candidate = ((& wsl -d Ubuntu hostname -I) | Out-String).Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries) | Select-Object -First 1
-$ErrorActionPreference = $previous
-if ($candidate) {
-    & $python -c "import redis,sys; redis.Redis(host=sys.argv[1], port=6379, socket_connect_timeout=2, socket_timeout=2).ping()" $candidate
-    if ($LASTEXITCODE -eq 0) {
-        $redisHost = $candidate
-    }
-}
-$env:REDIS_URL = "redis://${redisHost}:6379/0"
-& $python -c "import os,redis; redis.Redis.from_url(os.environ['REDIS_URL'], socket_connect_timeout=2, socket_timeout=2).ping()"
+$env:REDIS_URL = "redis://127.0.0.1:6379/0"
+
+& $python -c "import os,psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg','postgresql',1); conn=psycopg.connect(url, connect_timeout=20); name=conn.execute('select current_database()').fetchone()[0]; conn.close(); raise SystemExit(0 if name=='postgres' else 2)"
 if ($LASTEXITCODE -ne 0) {
-    Write-Output "Windows cannot reach WSL Redis. Native start refused."
+    Write-Output "Refusing to start. The application database is not the Supabase database."
     exit 2
 }
+
+$redisHome = Join-Path $env:LOCALAPPDATA "BowlByte\redis"
+New-Item -ItemType Directory -Force -Path $redisHome | Out-Null
+$redisExe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter redis-server.exe -Recurse -ErrorAction SilentlyContinue |
+    Select-Object -First 1 -ExpandProperty FullName
+if (-not $redisExe) {
+    $redisExe = (Get-Command redis-server -ErrorAction SilentlyContinue).Source
+}
+if (-not $redisExe) {
+    Write-Output "Windows Redis was not found. Native start refused."
+    exit 2
+}
+Copy-Item (Join-Path $PSScriptRoot "redis\bowlbyte.conf") (Join-Path $redisHome "bowlbyte.conf") -Force
 
 $pidFile = Join-Path $PSScriptRoot ".bowlbyte-dev.pids"
 if (Test-Path $pidFile) {
@@ -141,7 +118,12 @@ $backend = Join-Path $Root "backend"
 $frontend = Join-Path $Root "frontend"
 $env:PORT = "3010"
 $env:HOSTNAME = "127.0.0.1"
+$env:PYTHONUNBUFFERED = "1"
 
+$redis = Start-Process -FilePath $redisExe -WorkingDirectory $redisHome -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput (Join-Path $logDir "redis.log") `
+    -RedirectStandardError (Join-Path $logDir "redis.err") `
+    -ArgumentList @("bowlbyte.conf")
 $api = Start-Process -FilePath $python -WorkingDirectory $backend -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $logDir "api.log") `
     -RedirectStandardError (Join-Path $logDir "api.err") `
@@ -159,17 +141,29 @@ $web = Start-Process -FilePath "node" -WorkingDirectory $frontend -WindowStyle H
     -RedirectStandardError (Join-Path $logDir "web.err") `
     -ArgumentList @("ws-proxy.mjs", "--dev")
 
-@($api.Id, $worker.Id, $beat.Id, $web.Id) | Set-Content -Path $pidFile
+$started = @($redis, $api, $worker, $beat, $web)
+$started.Id | Set-Content -Path $pidFile
 $ready = $false
 foreach ($attempt in 1..20) {
     Start-Sleep -Seconds 2
-    if ((Test-LocalPort 8010) -and (Test-LocalPort 3010)) {
+    if ((Test-LocalPort 6379) -and (Test-LocalPort 8010) -and (Test-LocalPort 3010)) {
         $ready = $true
         break
     }
 }
 if (-not $ready) {
+    foreach ($process in $started) {
+        if ($process -and -not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Remove-Item $pidFile -ErrorAction SilentlyContinue
     Write-Output "Native processes were launched but a port did not open. See scripts/.bowlbyte-dev-logs."
     exit 2
 }
 Write-Output "Native BowlByte is listening on 3010 and 8010."
+Write-Output "database postgres"
+Write-Output "redis 127.0.0.1:6379"
+foreach ($process in $started) {
+    Write-Output "pid $($process.Id) $($process.ProcessName)"
+}
