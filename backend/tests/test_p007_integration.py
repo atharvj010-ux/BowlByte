@@ -15,6 +15,7 @@ from app.models.ordering import DailyStock, Order, OrderHoldEvent, OrderPayment
 from app.services.pickup import issue_credential
 from app.services.rate_limit import clear_counters
 from app.services.unclaimed import sweep_pickup_holds
+from tests.disposable_guard import require_disposable_database
 from tests.test_ordering_integration import (
     _add_user,
     _bootstrap,
@@ -30,9 +31,8 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 def reset_tables() -> None:
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("P007 integration tests must use the bowlbyte_test database.")
+    require_disposable_database()
+    get_settings()
     db = SessionLocal()
     db.execute(
         text(

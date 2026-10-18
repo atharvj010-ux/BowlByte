@@ -35,6 +35,7 @@ from app.models.ordering import Order, OrderEvent, OrderPayment
 from app.services.push import SIMULATOR_HOST
 from app.services.push_delivery import drain_outbox
 from app.services.rate_limit import clear_counters
+from tests.disposable_guard import require_disposable_database
 from tests.test_kitchen_integration import _order
 from tests.test_ordering_integration import (
     _add_user,
@@ -53,9 +54,8 @@ PRICE = 4000
 
 @pytest.fixture(autouse=True)
 def reset_tables():
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("P005 integration tests must use the bowlbyte_test database.")
+    require_disposable_database()
+    get_settings()
     db = SessionLocal()
     db.execute(
         text(
@@ -186,7 +186,7 @@ def _reverse(client: TestClient, receipt_id: str, key: str | None = None, **over
 
 def _new_client(app, email: str) -> TestClient:
     local = TestClient(app)
-    local.headers.update({"origin": "http://localhost:3000"})
+    local.headers.update({"origin": "http://127.0.0.1:3011"})
     _login(local, email)
     return local
 

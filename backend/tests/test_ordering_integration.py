@@ -22,6 +22,7 @@ from app.models.ordering import DailyStock, MenuItem, Order, OrderItem, OrderPay
 from app.services.identity import bootstrap_first_manager, ensure_college
 from app.services.ordering import place_order, service_today
 from app.services.rate_limit import clear_counters
+from tests.disposable_guard import require_disposable_database
 
 pytestmark = pytest.mark.integration
 
@@ -30,9 +31,8 @@ PASSWORD = "correct-horse-battery"
 
 @pytest.fixture(autouse=True)
 def reset_tables() -> None:
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("Ordering integration tests must use the bowlbyte_test database.")
+    require_disposable_database()
+    get_settings()
     db = SessionLocal()
     db.execute(
         text(
@@ -581,6 +581,54 @@ def test_oversell_and_duplicate_retries(client: TestClient) -> None:
     db = SessionLocal()
     later = db.scalars(select(Order).where(Order.note == "later")).all()
     assert len(later) == 1
+    db.close()
+
+
+def test_post_commit_disconnect_still_returns_the_saved_order(client: TestClient) -> None:
+    from sqlalchemy.exc import OperationalError
+
+    import app.services.ordering as ordering
+
+    manager_email, college_id, _canteen_id = _bootstrap()
+    student = _add_user("STUDENT", _student_email(), None, college_id)
+    _login(client, manager_email)
+    item = _sellable(client, stock=2)
+    _login(client, student.email)
+    original = ordering._payload_after_commit
+
+    def drop_connection(db, order):
+        def refresh(_instance, *_args, **_kwargs):
+            raise OperationalError("SELECT", {}, Exception("connection closed"))
+
+        db.refresh = refresh
+        return original(db, order)
+
+    ordering._payload_after_commit = drop_connection
+    try:
+        response = client.post(
+            "/api/v1/orders",
+            json={
+                "items": [{"menu_item_id": item["id"], "quantity": 1}],
+                "note": "pooler",
+                "idempotency_key": "pooler-drop-0001",
+            },
+            headers=_csrf(client),
+        )
+    finally:
+        ordering._payload_after_commit = original
+    assert response.status_code == 201, response.text
+    order_id = response.json()["id"]
+    db = SessionLocal()
+    orders = db.scalars(select(Order).where(Order.note == "pooler")).all()
+    assert len(orders) == 1
+    assert str(orders[0].id) == order_id
+    items = db.scalars(select(OrderItem).where(OrderItem.order_id == orders[0].id)).all()
+    assert len(items) == 1
+    payments = db.scalars(select(OrderPayment)).all()
+    assert len(payments) == 1
+    stock = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == item["id"]))
+    assert stock is not None
+    assert stock.available_qty == 1
     db.close()
 
 

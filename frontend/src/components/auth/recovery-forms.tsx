@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { PasswordField, textInputClass } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
@@ -76,24 +76,33 @@ export function ForgotPasswordForm() {
   );
 }
 
+let capturedRecoveryToken = "";
+
+function readRecoveryToken(): string {
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const params = new URLSearchParams(hash);
+  const recovery = params.get("type") === "recovery" ? (params.get("access_token") ?? "") : "";
+  const fromHash = params.get("token") || recovery;
+  if (fromHash) {
+    capturedRecoveryToken = fromHash;
+  }
+  return capturedRecoveryToken;
+}
+
 export function ResetPasswordForm() {
-  const [token, setToken] = useState("");
+  const token = useSyncExternalStore(() => () => {}, readRecoveryToken, () => "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
   useEffect(() => {
-    const hash = window.location.hash.startsWith("#")
-      ? window.location.hash.slice(1)
-      : window.location.hash;
-    const params = new URLSearchParams(hash);
-    const recovery = params.get("type") === "recovery" ? (params.get("access_token") ?? "") : "";
-    const fromHash = params.get("token") || recovery;
-    if (fromHash) {
-      setToken(fromHash);
-      window.history.replaceState(null, "", window.location.pathname);
+    if (!window.location.hash) {
+      return;
     }
+    window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {

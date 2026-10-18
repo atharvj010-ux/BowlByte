@@ -24,6 +24,7 @@ from app.services.identity import (
     import_roster,
 )
 from app.services.rate_limit import clear_counters
+from tests.disposable_guard import require_disposable_database
 
 pytestmark = pytest.mark.integration
 
@@ -33,9 +34,8 @@ MAILPIT = os.environ.get("MAILPIT_URL", "http://127.0.0.1:8025")
 
 @pytest.fixture(scope="module", autouse=True)
 def reset_identity_tables() -> None:
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("Auth integration tests must use the bowlbyte_test database.")
+    require_disposable_database()
+    get_settings()
     db = SessionLocal()
     db.execute(
         text(

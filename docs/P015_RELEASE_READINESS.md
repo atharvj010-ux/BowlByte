@@ -2,12 +2,12 @@
 
 Status: PASS WITH ISSUES.
 
-The native Supabase runtime is still the live application. The order-create 500 after a pooler disconnect now reloads the committed row instead of failing the response. Sign-in and related auth screens no longer branch on `window` during the first render.
+The native Supabase runtime was left running. Destructive regression used a separate PostgreSQL 17.6 server on `127.0.0.1:55432`, database `bowlbyte_e2e`, and Redis database 15. Docker was not restarted. The authoritative Supabase database was not modified.
 
-P0 defects found in this phase: none left open in code. The original 500 is fixed and unit-tested, not reproduced with a new live order.
+P0 defects: none.
 
-P1: full integration and Playwright were not rerun because there is no Docker-free disposable PostgreSQL. That is an environment limit, not a failed test.
+P1 defects: none. Integration and Playwright both executed.
 
-P2: menu items have no stored photographs. OTP and recovery inbox delivery remain unverified. Physical push delivery remains unverified.
+P2: menu photographs are still absent. Hosted Supabase Auth was not exercised in the browser; the isolated suite uses local password accounts. A real mailbox, OTP delivery, and a physical phone push were not observed. The Supabase session-pooler disconnect is proven by fault injection, not by a disposable Supabase project.
 
-The application is usable on the native runtime. It is not ready to be described as fully retested end to end until an isolated PostgreSQL database exists and Playwright is pointed at it.
+The optional screenshot capture was skipped. Core order, kitchen, cash, and pickup flows passed on the isolated stack.

@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useSyncExternalStore, useState, type FormEvent } from "react";
 
 import { PasswordField, textInputClass } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,16 @@ export function LoginForm({ title, description }: { title: string; description: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [pending, setPending] = useState(false);
-  const [sessionNote, setSessionNote] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpMessage, setOtpMessage] = useState("");
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("reason") === "expired") {
-      setSessionNote("Your session expired. Sign in again.");
-    }
-  }, []);
+  const sessionNote = useSyncExternalStore(
+    () => () => {},
+    () =>
+      new URLSearchParams(window.location.search).get("reason") === "expired"
+        ? "Your session expired. Sign in again."
+        : "",
+    () => "",
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

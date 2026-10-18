@@ -11,6 +11,8 @@ from app.db.session import SessionLocal
 from app.models.identity import CANTEEN_MANAGER, Canteen
 from app.models.ordering import DailyStock
 from app.services.forecasting import execute_training_job
+from app.services.rate_limit import clear_counters
+from tests.disposable_guard import require_disposable_database
 from tests.test_ordering_integration import (
     _add_user,
     _bootstrap,
@@ -25,12 +27,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 def reset_tables() -> None:
-    from app.core.config import get_settings
-    from app.services.rate_limit import clear_counters
-
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("Food intelligence tests must use the bowlbyte_test database.")
+    require_disposable_database()
     db = SessionLocal()
     db.execute(
         text(
@@ -147,7 +144,7 @@ def test_batch_equation_waste_and_permissions(client: TestClient) -> None:
         college_id,
     )
     outsider_client = TestClient(client.app)
-    outsider_client.headers.update({"origin": "http://localhost:3000"})
+    outsider_client.headers.update({"origin": "http://127.0.0.1:3011"})
     _login(outsider_client, outsider.email)
     hidden = outsider_client.get(f"/api/v1/admin/production/{body['id']}")
     assert hidden.status_code == 404

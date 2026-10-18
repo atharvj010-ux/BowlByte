@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { PasswordField, textInputClass } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ function verifyOnce(token: string): Promise<{ ok: boolean; message: string }> {
   return pending;
 }
 
-function takeToken(): string {
+function readToken(): string {
   if (typeof window === "undefined") {
     return "";
   }
@@ -37,20 +37,22 @@ function takeToken(): string {
   const fromHash = new URLSearchParams(hash).get("token") ?? "";
   if (fromHash) {
     capturedToken = fromHash;
-    window.history.replaceState(null, "", window.location.pathname);
   }
   return capturedToken;
 }
 
+function clientChecked(): boolean {
+  return true;
+}
+
 export function VerifyEmailForm() {
-  const [token, setToken] = useState("");
-  const [checked, setChecked] = useState(false);
+  const token = useSyncExternalStore(() => () => {}, readToken, () => "");
+  const checked = useSyncExternalStore(() => () => {}, clientChecked, () => false);
   useEffect(() => {
-    const next = takeToken();
-    if (next) {
-      setToken(next);
+    if (!window.location.hash.includes("token=")) {
+      return;
     }
-    setChecked(true);
+    window.history.replaceState(null, "", window.location.pathname);
   }, []);
   const [status, setStatus] = useState<"working" | "done" | "error">("working");
   const [message, setMessage] = useState("Confirming your email.");
@@ -145,14 +147,13 @@ export function VerifyEmailForm() {
 }
 
 export function AcceptInviteForm() {
-  const [token, setToken] = useState("");
-  const [checked, setChecked] = useState(false);
+  const token = useSyncExternalStore(() => () => {}, readToken, () => "");
+  const checked = useSyncExternalStore(() => () => {}, clientChecked, () => false);
   useEffect(() => {
-    const next = takeToken();
-    if (next) {
-      setToken(next);
+    if (!window.location.hash.includes("token=")) {
+      return;
     }
-    setChecked(true);
+    window.history.replaceState(null, "", window.location.pathname);
   }, []);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");

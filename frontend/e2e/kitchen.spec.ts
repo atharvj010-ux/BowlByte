@@ -287,7 +287,9 @@ async function fillItem(page: Page, name: string, station: string, stock: string
 async function orderItem(page: Page, name: string) {
   await page.goto("/student/menu");
   await page.locator("#content").getByLabel("Search menu").first().fill(name);
-  await page.getByRole("button", { name: "Add to cart" }).click();
+  const add = page.getByRole("button", { name: "Add to cart" });
+  await expect(add).toHaveCount(1);
+  await add.click();
   await page.goto("/student/cart");
   await page.getByRole("button", { name: "Place order" }).click();
   await expect(page.getByText(/CASH · PENDING/)).toBeVisible();
@@ -299,7 +301,9 @@ async function orderItems(page: Page, names: string[]) {
   await page.goto("/student/menu");
   for (const name of names) {
     await page.locator("#content").getByLabel("Search menu").first().fill(name);
-    await page.getByRole("button", { name: "Add to cart" }).click();
+    const add = page.getByRole("button", { name: "Add to cart" });
+    await expect(add).toHaveCount(1);
+    await add.click();
   }
   await page.goto("/student/cart");
   await page.getByRole("button", { name: "Place order" }).click();
@@ -512,7 +516,7 @@ async function signIn(page: Page, email: string) {
 
 function clearStaff() {
   psqlCommand(
-    "TRUNCATE preparation_plan_events, preparation_plan_items, preparation_plans, demand_forecast_values, demand_forecast_runs, model_evaluations, forecasting_models, forecast_jobs, food_waste_records, production_quantity_events, food_production_batches, demo_demand_days, canteen_closures, push_deliveries, notification_outbox, notifications, pickup_events, pickup_credentials, cash_reversals, cash_receipts; DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
+    "TRUNCATE preparation_plan_events, preparation_plan_items, preparation_plans, demand_forecast_values, demand_forecast_runs, model_evaluations, forecasting_models, forecast_jobs, food_waste_records, production_quantity_events, food_production_batches, demo_demand_days, canteen_closures, push_deliveries, notification_outbox, notifications, pickup_events, pickup_credentials, cash_reversals, cash_receipts, order_hold_events; DELETE FROM order_idempotency_records; DELETE FROM inventory_adjustments; DELETE FROM preparation_tasks; DELETE FROM order_events; DELETE FROM order_payments; DELETE FROM order_items; DELETE FROM orders; DELETE FROM staff_invitations; DELETE FROM audit_log WHERE actor_user_id IN (SELECT id FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER')); DELETE FROM users WHERE role IN ('KITCHEN_STAFF', 'CASHIER', 'CANTEEN_MANAGER');",
   );
 }
 

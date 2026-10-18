@@ -20,6 +20,7 @@ from app.models.ordering import (
 )
 from app.services.ordering import place_order
 from app.services.rate_limit import clear_counters
+from tests.disposable_guard import require_disposable_database
 from tests.test_ordering_integration import (
     _add_user,
     _bootstrap,
@@ -35,9 +36,8 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 def reset_tables() -> None:
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("Kitchen integration tests must use the bowlbyte_test database.")
+    require_disposable_database()
+    get_settings()
     db = SessionLocal()
     db.execute(
         text(
@@ -243,7 +243,7 @@ def test_capacity_and_snapshot_are_stable(client: TestClient) -> None:
 
     def fire(email: str, task: str) -> None:
         local = TestClient(client.app)
-        local.headers.update({"origin": "http://localhost:3000"})
+        local.headers.update({"origin": "http://127.0.0.1:3011"})
         _login(local, email)
         response = local.post(f"/api/v1/staff/preparation-tasks/{task}/start", headers=_csrf(local))
         results.append(response.status_code)
@@ -300,7 +300,7 @@ def test_websocket_auth_and_database_survives_publish_failure(client: TestClient
             socket.receive_json()
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect(
-            "/api/v1/ws/kitchen", headers={"origin": "http://localhost:3000"}
+            "/api/v1/ws/kitchen", headers={"origin": "http://127.0.0.1:3011"}
         ) as socket:
             socket.receive_json()
     manager_email, college_id, canteen_id = _bootstrap()
@@ -311,7 +311,7 @@ def test_websocket_auth_and_database_survives_publish_failure(client: TestClient
     saved = _order(student, uuid.UUID(item["id"]))
     _login(client, kitchen.email)
     with client.websocket_connect(
-        "/api/v1/ws/kitchen", headers={"origin": "http://localhost:3000"}
+        "/api/v1/ws/kitchen", headers={"origin": "http://127.0.0.1:3011"}
     ) as socket:
         hello = socket.receive_json()
         assert hello["type"] == "connected"
@@ -323,7 +323,7 @@ def test_websocket_auth_and_database_survives_publish_failure(client: TestClient
     _login(client, student.email)
     foreign = client.websocket_connect(
         f"/api/v1/ws/orders/{uuid.uuid4()}",
-        headers={"origin": "http://localhost:3000"},
+        headers={"origin": "http://127.0.0.1:3011"},
     )
     with pytest.raises(WebSocketDisconnect):
         with foreign as socket:

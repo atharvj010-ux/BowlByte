@@ -30,8 +30,8 @@ export function hashQrLuminance(luminance: number[], width: number, height: numb
   throw failure instanceof Error ? new Error("QR image could not be decoded.") : failure;
 }
 
-async function captureQr(page: Page, testId: string) {
-  return page.getByTestId(testId).locator("svg").first().evaluate(async (svg) => {
+async function captureQr(page: Page, testId: string, scale: number) {
+  return page.getByTestId(testId).locator("svg").first().evaluate(async (svg, scale) => {
     if (!svg.getAttribute("xmlns")) {
       svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     }
@@ -41,14 +41,16 @@ async function captureQr(page: Page, testId: string) {
       const img = new Image();
       img.src = url;
       await img.decode();
-      const size = Math.max(img.naturalWidth, Number(svg.getAttribute("width")) || 0, 232) * 2;
+      const base = Number(svg.getAttribute("width")) || img.naturalWidth || 232;
+      const size = base * scale;
       const canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) {
         throw new Error("QR canvas was unavailable.");
       }
+      context.imageSmoothingEnabled = false;
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, size, size);
       context.drawImage(img, 0, 0, size, size);
@@ -70,19 +72,21 @@ async function captureQr(page: Page, testId: string) {
     } finally {
       URL.revokeObjectURL(url);
     }
-  });
+  }, scale);
 }
 
 export async function qrImageHash(page: Page, testId = "pickup-qr"): Promise<string> {
   let failure: unknown;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const image = await captureQr(page, testId);
-      return hashQrLuminance(image.luminance, image.width, image.height);
-    } catch (error) {
-      failure = error;
-      await page.waitForTimeout(250);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (const scale of [1, 2, 3]) {
+      try {
+        const image = await captureQr(page, testId, scale);
+        return hashQrLuminance(image.luminance, image.width, image.height);
+      } catch (error) {
+        failure = error;
+      }
     }
+    await page.waitForTimeout(300);
   }
   throw failure instanceof Error ? failure : new Error("QR image could not be decoded.");
 }

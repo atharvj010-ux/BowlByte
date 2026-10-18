@@ -1,10 +1,13 @@
-/** Teardown never archives or truncates the live bowlbyte database. */
+/** Teardown never archives or truncates a live database. */
+
+const BOOLEAN_FLAGS = new Set(["1", "true", "yes", "on"]);
 
 export default function globalTeardown() {
-  if (!process.env.E2E_DATABASE) {
+  const name = (process.env.E2E_DATABASE ?? "").trim();
+  if (!name) {
     return;
   }
-  if (process.env.E2E_DATABASE.trim() === "bowlbyte") {
-    throw new Error("Refusing Playwright teardown against the authoritative database.");
+  if (BOOLEAN_FLAGS.has(name.toLowerCase()) || name !== "bowlbyte_e2e") {
+    throw new Error("Refusing Playwright teardown against an unexpected database.");
   }
 }

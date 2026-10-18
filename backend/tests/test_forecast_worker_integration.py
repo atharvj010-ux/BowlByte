@@ -15,6 +15,7 @@ from app.models.ordering import Order
 from app.services.forecasting import seed_demo
 from app.services.rate_limit import clear_counters
 from app.worker import train_forecast_task
+from tests.disposable_guard import require_disposable_database
 from tests.test_ordering_integration import _bootstrap, _login, _sellable
 
 pytestmark = pytest.mark.integration
@@ -22,9 +23,8 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 def reset_tables() -> None:
-    database = get_settings().database_url.rsplit("/", 1)[-1].split("?")[0]
-    if database != "bowlbyte_test":
-        pytest.fail("Forecast worker tests must use the bowlbyte_test database.")
+    require_disposable_database()
+    get_settings()
     db = SessionLocal()
     db.execute(
         text(
