@@ -1,10 +1,22 @@
+import os
 import sys
+from urllib.parse import urlparse
 
 from celery import Celery
 
 from app.core.config import get_settings
 
 settings = get_settings()
+expected_database = os.environ.get("E2E_DATABASE", "").strip()
+if expected_database and "worker" in sys.argv and "beat" not in sys.argv:
+    actual_database = settings.database_url.rsplit("/", 1)[-1].split("?")[0]
+    redis_db = urlparse(settings.redis_url).path.strip("/") or "0"
+    if (
+        expected_database in {"bowlbyte", "postgres"}
+        or actual_database != expected_database
+        or redis_db == "0"
+    ):
+        raise RuntimeError("Refusing to start a worker for this database.")
 if (
     settings.environment == "production"
     and "worker" in sys.argv

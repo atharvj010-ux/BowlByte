@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { apiFetch, readError } from "@/lib/auth";
 import { formatEta, queueSchema, type TrackedOrder } from "@/lib/kitchen";
-import { useLiveResource } from "@/lib/live";
+import { liveStatusLabel, useLiveResource } from "@/lib/live";
 import { formatInrFromPaise } from "@/lib/money";
 import { orderSchema } from "@/lib/ordering";
 import { z } from "zod";
@@ -25,7 +25,6 @@ export function KitchenDesk() {
     void queryClient.invalidateQueries({ queryKey: ["kitchen-queue"] });
     void queryClient.invalidateQueries({ queryKey: ["incoming-orders"] });
   }, [queryClient]);
-  const live = useLiveResource("/api/v1/ws/kitchen", refresh);
   const incoming = useQuery({
     queryKey: ["incoming-orders"],
     queryFn: async () => {
@@ -47,6 +46,12 @@ export function KitchenDesk() {
     },
     refetchInterval: 3000,
   });
+  const live = useLiveResource(
+    "/api/v1/ws/kitchen",
+    refresh,
+    true,
+    incoming.isSuccess || queue.isSuccess,
+  );
 
   async function act(path: string, body?: unknown) {
     setMessage("");
@@ -94,7 +99,7 @@ export function KitchenDesk() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground" data-testid="connection-state">
-          {live === "live" ? "Live updates connected" : "Polling for kitchen changes"}
+          {liveStatusLabel(live)}
         </p>
         <Button
           type="button"

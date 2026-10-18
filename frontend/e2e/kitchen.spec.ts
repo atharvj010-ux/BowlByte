@@ -187,7 +187,8 @@ test("a disconnected student recovers the current kitchen status", async ({ page
   await expect(page.getByTestId("connection-state").first()).toContainText("Live updates connected");
   await page.routeWebSocket(/\/api\/v1\/ws\//, (socket) => socket.close());
   await page.reload();
-  await expect(page.getByTestId("connection-state").first()).toContainText("Checking for updates");
+  await expect(page.getByTestId("connection-state").first()).toContainText(/Reconnecting|Polling for updates/);
+  await expect(page.getByTestId("connection-state").first()).not.toContainText("Live updates connected");
   const kitchen = await browser.newContext();
   const kitchenPage = await kitchen.newPage();
   await kitchenPage.goto("/staff/login");

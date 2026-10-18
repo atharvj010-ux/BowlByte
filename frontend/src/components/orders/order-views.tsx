@@ -9,7 +9,7 @@ import { PickupPass } from "@/components/orders/pickup-pass";
 import { Button } from "@/components/ui/button";
 import { apiFetch, fetchCurrentUser, readError } from "@/lib/auth";
 import { formatEta, trackedOrderSchema } from "@/lib/kitchen";
-import { useLiveResource } from "@/lib/live";
+import { liveStatusLabel, useLiveResource } from "@/lib/live";
 import { formatInrFromPaise } from "@/lib/money";
 import { orderSchema, type CanteenOrder } from "@/lib/ordering";
 
@@ -105,6 +105,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
     `/api/v1/ws/orders/${orderId}`,
     refresh,
     me.data?.role === "STUDENT" && order.isSuccess,
+    order.isSuccess,
   );
 
   async function cancel() {
@@ -142,7 +143,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <div className="flex items-center justify-between gap-3">
             <p className="eyebrow">Ticket</p>
             <p className="font-mono text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase" data-testid="connection-state">
-              {live === "live" ? "Live updates connected" : "Checking for updates"}{" "}
+              {liveStatusLabel(live)}{" "}
               · updated {new Date(current.updated_at).toLocaleTimeString()}
             </p>
           </div>

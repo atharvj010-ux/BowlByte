@@ -67,6 +67,15 @@ export function PickupPass({
   }
 
   useEffect(() => {
+    if (orderStatus === "READY") {
+      return;
+    }
+    requested.current = false;
+    const handle = window.setTimeout(() => setCredential(null), 0);
+    return () => window.clearTimeout(handle);
+  }, [orderStatus]);
+
+  useEffect(() => {
     if (orderStatus !== "READY" || requested.current) {
       return;
     }

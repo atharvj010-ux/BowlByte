@@ -5,13 +5,14 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { apiFetch } from "@/lib/auth";
+import { apiFetch, fetchCurrentUser } from "@/lib/auth";
 import { useLiveResource } from "@/lib/live";
 
 export const unreadKey = ["notifications-unread"] as const;
 
 export function NotificationBell() {
   const queryClient = useQueryClient();
+  const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
   const unread = useQuery({
     queryKey: unreadKey,
     queryFn: async () => {
@@ -26,7 +27,12 @@ export function NotificationBell() {
     void queryClient.invalidateQueries({ queryKey: unreadKey });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
   }, [queryClient]);
-  useLiveResource("/api/v1/ws/notifications", refresh);
+  useLiveResource(
+    "/api/v1/ws/notifications",
+    refresh,
+    me.data?.role === "STUDENT",
+    unread.isSuccess && me.data?.role === "STUDENT",
+  );
 
   const count = unread.data ?? 0;
   return (

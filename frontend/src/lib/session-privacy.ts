@@ -5,6 +5,7 @@ export const CART_STORAGE_KEY = "bowlbyte.cart.v1";
 export function clearPrivateBrowserState(): void {
   window.localStorage.removeItem(CART_STORAGE_KEY);
   window.dispatchEvent(new Event("bowlbyte-cart"));
+  window.dispatchEvent(new Event("bowlbyte-session-end"));
 }
 
 export function isPrivatePath(pathname: string): boolean {

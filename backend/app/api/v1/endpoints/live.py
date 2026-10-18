@@ -1,6 +1,7 @@
 """Authenticated WebSocket streams. Payloads carry ids and versions only."""
 
 import asyncio
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket
@@ -18,6 +19,7 @@ from app.services.ordering import cashier_canteen_id, kitchen_canteen_id
 from app.services.rate_limit import consume_allowance
 
 router = APIRouter(tags=["live"])
+logger = logging.getLogger(__name__)
 
 
 @router.websocket("/ws/kitchen")
@@ -44,10 +46,12 @@ async def _stream(websocket: WebSocket, channel_for) -> None:
     settings = get_settings()
     origin = websocket.headers.get("origin")
     if origin not in settings.allowed_origins:
+        logger.warning("websocket origin rejected")
         await websocket.close(code=1008)
         return
     principal = _principal(websocket)
     if principal is None:
+        logger.warning("websocket session missing")
         await websocket.close(code=4401)
         return
     try:
@@ -68,6 +72,7 @@ async def _stream(websocket: WebSocket, channel_for) -> None:
             limited_message="Too many live connections. Wait and try again.",
         )
     except ApiError as exc:
+        logger.warning("websocket limited")
         await websocket.close(code=4429 if exc.status_code == 429 else 1013)
         return
     await websocket.accept()

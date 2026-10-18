@@ -16,7 +16,7 @@ import {
   verifySchema,
   type CounterOrder,
 } from "@/lib/cash";
-import { useLiveResource } from "@/lib/live";
+import { liveStatusLabel, useLiveResource } from "@/lib/live";
 import { formatInrFromPaise } from "@/lib/money";
 
 type Credential = { token: string } | { ticket: string; code: string };
@@ -54,7 +54,7 @@ export function CashierDesk() {
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["cashier-board"] });
   }, [queryClient]);
-  const live = useLiveResource("/api/v1/ws/cashier", refresh);
+  const live = useLiveResource("/api/v1/ws/cashier", refresh, true, board.isSuccess);
 
   async function verify(credential: Credential) {
     if (verifying.current) {
@@ -197,7 +197,7 @@ export function CashierDesk() {
             Cashier desk
           </h1>
           <p className="text-sm text-muted-foreground" data-testid="cashier-live">
-            {live === "live" ? "Live updates connected" : "Checking for updates"}
+            {liveStatusLabel(live)}
           </p>
         </div>
         <Button asChild variant="outline">

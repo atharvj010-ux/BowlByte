@@ -5,6 +5,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from "@pla
 
 const contexts: BrowserContext[] = [];
 
+import { qrImageHash, sha256 } from "./qr-decode";
 import { bootstrapIsolatedManager, psqlCommand, psqlQuery } from "./safe-db";
 
 const mailpit = process.env.MAILPIT_URL ?? "http://127.0.0.1:8025";
@@ -56,6 +57,7 @@ test.describe("isolated order privacy and pickup", () => {
   let orderId = "";
   let ticket = "";
   let pickupCode = "";
+let retiredCode = "";
 
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(240_000);
@@ -94,7 +96,7 @@ test.describe("isolated order privacy and pickup", () => {
     await manager.locator("#content").getByLabel("Station").first().selectOption({ label: `Grill ${suffix}` });
     await manager.locator("#content").getByLabel("Initial stock").first().fill("20");
     await manager.getByRole("button", { name: "Create item" }).click();
-    await expect(manager.getByRole("heading", { name: "Edit item" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "Edit item" })).toBeVisible({ timeout: 20_000 });
 
     await invite(manager, kitchen, kitchenEmail, "KITCHEN_STAFF", "Kitchen Lead");
     await invite(manager, cashier, cashierEmail, "CASHIER", "Counter Cashier");
@@ -174,7 +176,11 @@ test.describe("isolated order privacy and pickup", () => {
     await signIn(student, studentEmail);
     await student.goto(`/student/orders/${orderId}`);
     await expect(student.getByRole("heading", { level: 2, name: ticket })).toBeVisible();
+    const sessionCookies = await student.context().cookies();
+    const sessionHeader = sessionCookies.map((item) => `${item.name}=${item.value}`).join("; ");
     psqlCommand(`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = '${studentEmail}')`);
+    const revoked = await websocketHandshake(`/api/v1/ws/orders/${orderId}`, sessionHeader);
+    expect(revoked.startsWith("HTTP/1.1 101")).toBeFalsy();
     await student.reload();
     await expect(student.getByRole("heading", { name: "Student sign-in" })).toBeVisible();
     await student.goto("/student/login");
@@ -191,6 +197,12 @@ test.describe("isolated order privacy and pickup", () => {
 
     await other.goto(`/student/orders/${orderId}`);
     await expect(other.getByTestId("order-denied")).toBeVisible();
+    const foreignCookies = await other.context().cookies();
+    const foreignSocket = await websocketHandshake(
+      `/api/v1/ws/orders/${orderId}`,
+      foreignCookies.map((item) => `${item.name}=${item.value}`).join("; "),
+    );
+    expect(foreignSocket.startsWith("HTTP/1.1 101")).toBeFalsy();
     await expect(other.getByTestId("pickup-code")).toHaveCount(0);
     const foreign = await other.evaluate(async (id) => {
       const response = await fetch(`/api/v1/orders/${id}`, { credentials: "include" });
@@ -216,10 +228,45 @@ test.describe("isolated order privacy and pickup", () => {
   test("kitchen acceptance updates the student page and a ready order issues a real code", async () => {
     test.setTimeout(120_000);
     await student.goto(`/student/orders/${orderId}`);
+    await expect(student.getByTestId("connection-state").first()).toContainText("Live updates connected", {
+      timeout: 15_000,
+    });
+    await student.evaluate(
+      (id) =>
+        new Promise<string>((resolve, reject) => {
+          const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+          const socket = new WebSocket(`${protocol}//${location.host}/api/v1/ws/orders/${id}`);
+          const events: string[] = [];
+          (window as unknown as { __bbEvents?: string[] }).__bbEvents = events;
+          const timer = window.setTimeout(() => reject(new Error("socket timeout")), 8_000);
+          socket.addEventListener("open", () => {
+            window.clearTimeout(timer);
+            resolve("open");
+          });
+          socket.addEventListener("message", (event) => {
+            try {
+              const body = JSON.parse(String(event.data)) as { type?: string };
+              if (body.type && body.type !== "connected") {
+                events.push(body.type);
+              }
+            } catch {
+              events.push("invalid");
+            }
+          });
+          socket.addEventListener("error", () => {
+            window.clearTimeout(timer);
+            reject(new Error("socket failed"));
+          });
+        }),
+      orderId,
+    );
     await kitchen.goto("/staff");
     const incoming = kitchen.getByTestId("incoming-order").filter({ hasText: ticket });
     await expect(incoming).toBeVisible();
     await incoming.getByRole("button", { name: "Accept" }).click();
+    await expect
+      .poll(() => student.evaluate(() => (window as unknown as { __bbEvents: string[] }).__bbEvents))
+      .toContain("order.accepted");
     await expect(student.getByTestId("order-status").first()).toContainText(/ACCEPTED|QUEUED/);
     const cookies = await student.context().cookies();
     const handshake = await websocketHandshake(
@@ -248,50 +295,20 @@ test.describe("isolated order privacy and pickup", () => {
     expect(response.ok()).toBeTruthy();
     const credential = (await response.json()) as { token: string; code: string; expires_at: string };
     pickupCode = ((await student.getByTestId("pickup-code").textContent()) ?? "").replace(/\s/g, "");
-    expect(pickupCode).toBe(credential.code);
-    expect(pickupCode.replace(/-/g, "")).toMatch(/^[0-9A-Z]{12}$/);
+    expect(/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(pickupCode)).toBeTruthy();
+    expect(sha256(pickupCode)).toBe(sha256(credential.code));
+    expect(await qrImageHash(student)).toBe(sha256(credential.token));
     await expect(student.getByTestId("pickup-expiry")).toContainText(/Expires in \d+:\d{2}/);
-    const decoded = await student.evaluate(async () => {
-      const svg = document.querySelector("[data-testid='pickup-qr'] svg");
-      if (!svg || !("BarcodeDetector" in window)) {
-        return "UNAVAILABLE";
-      }
-      const xml = new XMLSerializer().serializeToString(svg);
-      const image = new Image();
-      image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
-      await image.decode();
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth || 232;
-      canvas.height = image.naturalHeight || 232;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        return "UNAVAILABLE";
-      }
-      context.drawImage(image, 0, 0);
-      const Detector = (
-        window as Window & {
-          BarcodeDetector?: new (options: { formats: string[] }) => {
-            detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>>;
-          };
-        }
-      ).BarcodeDetector;
-      if (!Detector) {
-        return "UNAVAILABLE";
-      }
-      const codes = await new Detector({ formats: ["qr_code"] }).detect(canvas);
-      return codes[0]?.rawValue ?? "";
-    });
-    if (decoded !== "UNAVAILABLE") {
-      expect(decoded).toBe(credential.token);
-    }
     const renewed = student.waitForResponse(
       (response) => response.url().includes("/pickup-credential") && response.request().method() === "POST" && response.ok(),
     );
     await student.getByRole("button", { name: "Get a new code" }).click();
-    const fresh = (await (await renewed).json()) as { code: string };
+    const fresh = (await (await renewed).json()) as { token: string; code: string };
     const shown = ((await student.getByTestId("pickup-code").textContent()) ?? "").replace(/\s/g, "");
-    expect(shown).toBe(fresh.code);
-    expect(shown).not.toBe(pickupCode);
+    expect(sha256(shown)).toBe(sha256(fresh.code));
+    expect(sha256(shown)).not.toBe(sha256(pickupCode));
+    expect(await qrImageHash(student)).toBe(sha256(fresh.token));
+    retiredCode = pickupCode;
     pickupCode = shown;
   });
 
@@ -300,6 +317,11 @@ test.describe("isolated order privacy and pickup", () => {
     await cashier.goto("/cashier");
     await cashier.getByTestId("manual-ticket").fill(ticket);
     await cashier.getByTestId("manual-code").fill("AAAA-AAAA-AAAA");
+    await cashier.getByTestId("manual-verify").click();
+    await expect(cashier.getByTestId("cashier-error")).toBeVisible();
+
+    await cashier.getByTestId("manual-ticket").fill(ticket);
+    await cashier.getByTestId("manual-code").fill(retiredCode);
     await cashier.getByTestId("manual-verify").click();
     await expect(cashier.getByTestId("cashier-error")).toBeVisible();
 
@@ -387,9 +409,14 @@ test.describe("isolated order privacy and pickup", () => {
   });
 });
 
+function frontendPort(): number {
+  return Number(new URL(process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3011").port || 80);
+}
+
 async function websocketHandshake(path: string, cookie: string): Promise<string> {
+  const port = frontendPort();
   return new Promise((resolve) => {
-    const socket = net.connect(8011, "127.0.0.1");
+    const socket = net.connect(port, "127.0.0.1");
     let data = "";
     const timer = setTimeout(() => {
       socket.destroy();
@@ -408,7 +435,7 @@ async function websocketHandshake(path: string, cookie: string): Promise<string>
       resolve("error");
     });
     socket.write(
-      `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:8011\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: http://127.0.0.1:3011\r\nCookie: ${cookie}\r\n\r\n`,
+      `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: http://127.0.0.1:${port}\r\nCookie: ${cookie}\r\n\r\n`,
     );
   });
 }

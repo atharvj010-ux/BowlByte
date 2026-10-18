@@ -20,7 +20,9 @@ const kitchenEmail = `kitchen-shot-${suffix}@staff.bowlbyte.edu`;
 const cashierEmail = `cashier-shot-${suffix}@staff.bowlbyte.edu`;
 const studentEmail = `student-shot-${suffix}@student.bowlbyte.edu`;
 const dish = `Demo Dosa ${suffix}`;
-const outDir = path.resolve(__dirname, "../../deliverables/report/screenshots");
+const outDir = path.resolve(
+  process.env.E2E_SCREENSHOT_DIR ?? path.join(__dirname, "../../deliverables/report/screenshots"),
+);
 const widths = [
   { name: "390", width: 390, height: 844 },
   { name: "768", width: 768, height: 1024 },
@@ -97,12 +99,18 @@ test("capture pilot screens at three widths", async ({ browser }) => {
   await student.waitForURL(/\/student\/orders\/[0-9a-f-]+$/);
   const orderId = student.url().split("/").pop() ?? "";
   await expect(student.getByTestId("order-status").filter({ visible: true })).toContainText(/PLACED|ACCEPTED|QUEUED|PREPARING|READY/);
+  await expect(student.getByTestId("connection-state").first()).toContainText("Live updates connected", {
+    timeout: 15_000,
+  });
   await shoot(student, "tracking");
 
   const accepted = await api(kitchen, "POST", `/api/v1/staff/orders/${orderId}/accept`);
   expect(accepted.status, JSON.stringify(accepted.json)).toBe(200);
   await kitchen.goto("/staff/queue");
   await expect(kitchen.getByText(dish).first()).toBeVisible({ timeout: 15_000 });
+  await expect(kitchen.getByTestId("connection-state").first()).toContainText("Live updates connected", {
+    timeout: 15_000,
+  });
   await shoot(kitchen, "kitchen");
 
   const queue = await api(kitchen, "GET", "/api/v1/staff/queue");
@@ -127,6 +135,9 @@ test("capture pilot screens at three widths", async ({ browser }) => {
 
   await cashier.goto("/cashier");
   await expect(cashier.getByRole("button", { name: "Scan QR code" })).toBeVisible();
+  await expect(cashier.getByTestId("cashier-live").first()).toContainText("Live updates connected", {
+    timeout: 15_000,
+  });
   await shoot(cashier, "cashier");
 
   const price = Number(sql(`SELECT total_paise FROM orders WHERE id = '${orderId}'`).trim());

@@ -1,3 +1,4 @@
+import { qrImageHash, sha256 } from "./qr-decode";
 import { bootstrapIsolatedManager, psqlCommand, psqlQuery } from "./safe-db";
 import { randomBytes } from "node:crypto";
 
@@ -130,10 +131,19 @@ test("scenario 2: student shows a pickup code, cashier verifies, confirms paymen
   await expect(pages.student.getByTestId("payment-notice").first()).toContainText(
     /Your order is ready\. Pay .* in cash at the counter\./,
   );
+  const issued = pages.student.waitForResponse(
+    (response) =>
+      response.url().includes("/pickup-credential") &&
+      response.request().method() === "POST" &&
+      response.ok(),
+  );
   await pages.student.getByTestId("show-pickup").first().click();
+  const credential = (await (await issued).json()) as { token: string; code: string };
   await expect(pages.student.getByTestId("pickup-qr").first()).toBeVisible();
-  const code = (await pages.student.getByTestId("pickup-code").first().textContent())?.trim() ?? "";
-  expect(code).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+  const code = ((await pages.student.getByTestId("pickup-code").first().textContent()) ?? "").replace(/\s/g, "");
+  expect(/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(code)).toBeTruthy();
+  expect(sha256(code)).toBe(sha256(credential.code));
+  expect(await qrImageHash(pages.student)).toBe(sha256(credential.token));
 
   await pages.cashier.goto("/cashier");
   await pages.cashier.getByTestId("manual-ticket").first().fill(ticket);
@@ -158,6 +168,12 @@ test("scenario 2: student shows a pickup code, cashier verifies, confirms paymen
   await expect(pages.student.getByTestId("order-status").first()).toContainText("PICKED_UP · CASH · PAID");
   await expect(pages.student.getByTestId("payment-notice").first()).toContainText("collected successfully");
   await expect(pages.student.getByTestId("pickup-pass").first()).toContainText("The pickup code no longer works.");
+  await expect(pages.student.getByTestId("pickup-qr")).toHaveCount(0);
+  await expect(pages.student.getByTestId("pickup-code")).toHaveCount(0);
+  await pages.cashier.getByTestId("manual-ticket").first().fill(ticket);
+  await pages.cashier.getByTestId("manual-code").first().fill(code);
+  await pages.cashier.getByTestId("manual-verify").first().click();
+  await expect(pages.cashier.getByTestId("cashier-error").first()).toBeVisible();
   expect(
     sql(`SELECT count(*) FROM pickup_credentials WHERE order_id = '${orderId}' AND redeemed_at IS NOT NULL`).trim(),
   ).toBe("1");
@@ -404,7 +420,8 @@ test("scenario 8: with the WebSocket disconnected, a reload shows the real statu
   await expect(page.getByTestId("order-status").first()).toContainText("PLACED");
   await page.routeWebSocket(/\/api\/v1\/ws\//, (socket) => socket.close());
   await page.reload();
-  await expect(page.getByTestId("connection-state").first()).toContainText("Checking for updates");
+  await expect(page.getByTestId("connection-state").first()).toContainText(/Reconnecting|Polling for updates/);
+  await expect(page.getByTestId("connection-state").first()).not.toContainText("Live updates connected");
 
   await kitchenToReady(pages.kitchen, orderId);
   await page.reload();

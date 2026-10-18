@@ -8,7 +8,7 @@ import { unreadKey } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { notificationListSchema } from "@/lib/cash";
 import { apiFetch, fetchCurrentUser, readError } from "@/lib/auth";
-import { useLiveResource } from "@/lib/live";
+import { liveStatusLabel, useLiveResource } from "@/lib/live";
 
 export function NotificationCenter() {
   const queryClient = useQueryClient();
@@ -29,7 +29,12 @@ export function NotificationCenter() {
     void queryClient.invalidateQueries({ queryKey: ["notifications", me.data?.id] });
     void queryClient.invalidateQueries({ queryKey: unreadKey });
   }, [me.data?.id, queryClient]);
-  const live = useLiveResource("/api/v1/ws/notifications", refresh, Boolean(me.data?.id) && list.isSuccess);
+  const live = useLiveResource(
+    "/api/v1/ws/notifications",
+    refresh,
+    Boolean(me.data?.id) && list.isSuccess,
+    list.isSuccess,
+  );
 
   async function markRead(id: string) {
     const response = await apiFetch(`/api/v1/notifications/${id}/read`, { method: "POST" });
@@ -69,7 +74,7 @@ export function NotificationCenter() {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground" data-testid="notification-live">
-        {data.unread_count} unread · {live === "live" ? "Live updates connected" : "Checking for updates"}
+        {data.unread_count} unread · {liveStatusLabel(live)}
       </p>
       {message ? (
         <p role="alert" className="text-sm text-destructive">
