@@ -1,21 +1,25 @@
 # P014 status
 
-Status: BLOCKED at credential rotation. No Auth users were imported, `DATABASE_URL` was not switched, and Docker is still the BowlByte runtime.
+Status: BLOCKED before database cutover. Supabase Auth now holds the 263 BowlByte identities. Docker is still the application runtime, and `DATABASE_URL` was not switched.
 
-Git HEAD at the start of this check was `62ad022`.
+## Credential verification
 
-## What was verified
+The operator confirmed, through the Supabase dashboard, that the exposed secret key was deleted and the database password was reset after exposure. `SUPABASE_CREDENTIALS_ROTATED=yes` is set in `.env` only. The replacement secret returns HTTP 200. The replacement pooler password authenticates on port 5432 with `sslmode=verify-full` and the existing CA. The old secret and old password were not replayed. No secret or database URI was printed.
 
-The replacement Supabase secret is installed and usable. It does not start with the previously disclosed prefix. The admin API returned HTTP 200 and 0 Auth users. Public signup is disabled, email confirmation is required, and the email provider is enabled.
+## Identity import
 
-The session pooler URI uses port 5432 and `sslmode=verify-full`. The configured CA file exists, and a read-only connection authenticated. The remote database is `postgres` at Alembic `0010_supabase_auth_link` on PostgreSQL 17.11. The local Docker database is still `bowlbyte`, Alembic `0010_supabase_auth_link`, with 263 users.
+A disposable Argon2id hash was imported through the Auth admin API, a real password login returned HTTP 200, and that disposable user was deleted.
 
-`SUPABASE_CREDENTIALS_ROTATED` is unset. The old secret was not replayed, and there is no dashboard evidence that it was deleted. The old database password was not tested, so its invalidation is also unproven. Neither value is stored in Git. `sb_secret_` appears in tracked files only as a placeholder comment in `.env.example`.
+All 263 application user ids match on the local database and on Supabase. The idempotent importer created 263 Auth users: 262 confirmed active accounts and 1 pending account left unconfirmed. Disabled accounts: 0. Hash failures: 0. `users.supabase_auth_user_id` matches `auth.users.id` for all 263 rows on both databases. Order and payment counts were unchanged by the import. Auth user count after a later OTP probe was deleted: 263.
 
-## Required before import or cutover
+## Email
 
-1. In the Supabase dashboard, delete the previously exposed secret key. Confirm that key is gone, not merely unused.
-2. Reset the database password so the previously exposed password is rejected. Keep the new URI on the session pooler, port 5432, with `sslmode=verify-full` and the existing CA. Do not paste the URI into chat or logs.
-3. Set `SUPABASE_CREDENTIALS_ROTATED=yes` in `.env` only after both of those steps are done.
+Public signup remains disabled and email confirmation remains required. One OTP request for the authorized test recipient, with user creation disabled, returned HTTP 200 from Supabase Auth. The disposable Auth row used for that probe was removed. Inbox receipt was not observed.
 
-Do not import the 263 users, do not switch the live database, and do not retire Docker until that flag is honestly set.
+SMTP SUBMISSION ACCEPTED — INBOX DELIVERY NOT VERIFIED.
+
+## Not switched
+
+Local PostgreSQL is still authoritative. Since the earlier snapshot it has 2 orders, 4 order items, and 2 payments; Supabase has 1 order, 2 order items, and 1 payment. Sessions also differ. Those rows were not copied. Writers were not stopped, no new backup was taken, and Docker was not retired. The running application still checks BowlByte password hashes and cookie sessions.
+
+Native Next.js, FastAPI, Redis, Celery, and a second Beat process were not started.

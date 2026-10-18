@@ -1,5 +1,8 @@
 from datetime import UTC, datetime
 
+import pytest
+
+from app.cli.import_identities import assert_import_targets
 from app.services.supabase_identity import (
     IdentitySource,
     apply_identity,
@@ -80,3 +83,17 @@ def test_cutover_settings_reject_the_publishable_key_and_transaction_pooler() ->
     assert credentials_rotation_acknowledged("yes")
     assert not credentials_rotation_acknowledged("")
     assert not credentials_rotation_acknowledged("no")
+
+
+def test_identity_import_refuses_an_unrotated_or_local_target() -> None:
+    source = "postgresql://bowlbyte:bowlbyte@127.0.0.1:5433/bowlbyte"
+    target = "postgresql://user:secret@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=verify-full"
+    with pytest.raises(SystemExit):
+        assert_import_targets(source, target, "")
+    with pytest.raises(SystemExit):
+        assert_import_targets(
+            "postgresql://bowlbyte:bowlbyte@127.0.0.1:5433/bowlbyte_test",
+            target,
+            "yes",
+        )
+    assert_import_targets(source, target, "yes")
