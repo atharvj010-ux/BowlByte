@@ -1,6 +1,4 @@
-# Start BowlByte only after the Supabase cutover settings are usable.
-# This script does not print secret values and does not stop Docker.
-# While the check fails, the Docker Compose stack remains the runtime.
+# Start the native BowlByte processes. This script does not call Docker and does not print secrets.
 
 $ErrorActionPreference = "Stop"
 if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
@@ -61,18 +59,6 @@ foreach ($port in 3010, 8010) {
         Write-Output "Port $port is already in use. Native start refused."
         exit 2
     }
-}
-
-$dockerNames = @()
-try {
-    $dockerNames = @(docker ps --filter "name=bowlbyte" --format "{{.Names}}" 2>$null)
-} catch {
-    $dockerNames = @()
-}
-$blocking = @($dockerNames | Where-Object { $_ -match "backend|frontend|worker|beat|redis" })
-if ($blocking.Count -gt 0) {
-    Write-Output "BowlByte Docker app or Redis is still running. Native start refused."
-    exit 2
 }
 
 $database = $env:SUPABASE_DB_URL

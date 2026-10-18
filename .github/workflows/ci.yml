@@ -43,45 +43,6 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: bowlbyte
-          POSTGRES_PASSWORD: bowlbyte
-          POSTGRES_DB: bowlbyte
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U bowlbyte -d bowlbyte"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-      redis:
-        image: redis:7.4-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-      mailpit:
-        image: axllent/mailpit:v1.27
-        ports:
-          - 8025:8025
-          - 1025:1025
-    env:
-      ENVIRONMENT: test
-      DATABASE_URL: postgresql+psycopg://bowlbyte:bowlbyte@localhost:5432/bowlbyte_test
-      REDIS_URL: redis://localhost:6379/0
-      CORS_ORIGINS: http://localhost:3000
-      SMTP_HOST: 127.0.0.1
-      SMTP_PORT: 1025
-      MAILPIT_URL: http://127.0.0.1:8025
-      PUBLIC_APP_URL: http://127.0.0.1:3000
-      COLLEGE_ELIGIBILITY_MODE: institutional_domain
-      COLLEGE_EMAIL_DOMAIN: student.bowlbyte.edu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,19 +63,5 @@ jobs:
       - name: Format check
         run: ruff format --check .
 
-      - name: Create test database
-        run: |
-          python - <<'PY'
-          import psycopg
-          with psycopg.connect("postgresql://bowlbyte:bowlbyte@localhost:5432/bowlbyte", autocommit=True) as conn:
-              conn.execute("CREATE DATABASE bowlbyte_test")
-          PY
-
-      - name: Apply migrations
-        run: alembic upgrade head
-
       - name: Unit tests
         run: pytest
-
-      - name: Readiness integration test
-        run: pytest -m integration

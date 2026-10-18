@@ -75,8 +75,8 @@ function trustedClientAddress(request: NextRequest): string {
       return appended;
     }
   }
-  // Next.js 16 route handlers do not expose the TCP peer. Local Docker also
-  // NATs host browsers to one address. 0.0.0.0 is the shared fallback.
+  // Next.js 16 route handlers do not expose the TCP peer. 0.0.0.0 is the
+  // shared fallback when the trusted proxy does not append a client address.
   // Per-email login limits still apply. Staging sets TRUST_PROXY=true.
   return "0.0.0.0";
 }

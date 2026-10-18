@@ -12,7 +12,7 @@ Payments are cash only. There is no online payment integration.
 
 ## Run the stack
 
-The live runtime is native Windows processes plus Supabase. Start it only when no BowlByte Docker app container is publishing the same ports or the same queue.
+The live runtime is native Windows processes plus Supabase. Docker is not used.
 
 ```powershell
 powershell -File .\scripts\start-dev.ps1
@@ -22,7 +22,7 @@ powershell -File .\scripts\stop-dev.ps1
 
 `start-dev.ps1` refuses to launch unless `SUPABASE_DB_URL` is the session pooler on port 5432 with `sslmode=verify-full`, and unless `current_database()` is `postgres`. It listens on http://127.0.0.1:3010 and http://127.0.0.1:8010, starts one Celery worker and one Beat process, and uses Windows Redis on `127.0.0.1:6379`. Details are in `docs/P014_NATIVE_RUNTIME.md` and `docs/P014_REDIS_CELERY.md`.
 
-Do not point a second writer at the old Docker database. New orders live in Supabase. Going back requires another reconciliation. The Docker PostgreSQL volume and the dumps under `%LOCALAPPDATA%\BowlByte\p011` stay in place. Compose files remain only as recovery history. Do not run `docker compose down -v`.
+New orders live in Supabase. Historical dumps under `%LOCALAPPDATA%\BowlByte\p011` stay in place. Do not delete those backups. Docker is retired; see `docs/P016_ZERO_DOCKER_AUDIT.md`.
 
 | Service | Address | Purpose |
 | --- | --- | --- |
@@ -32,9 +32,9 @@ Do not point a second writer at the old Docker database. New orders live in Supa
 | Redis | `127.0.0.1:6379` | Celery broker. Loopback only |
 | Worker | no host port | Celery worker, solo pool |
 | Beat | no host port | One scheduler. Drains the notification outbox |
-| Mailpit | not part of the live runtime | Disposable tests can still use a local mailbox |
+| Mail | Brevo SMTP in `.env` | Live mail. Inbox receipt is a separate check. |
 
-Apply schema changes with `python -m alembic upgrade head` from `backend/` against the intended database. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. `0005_cash_pickup_notifications` adds cash receipts and reversals, pickup credentials and events, push subscriptions, notifications, the outbox, and append-only protection for the ledgers. The web container proxies `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
+Apply schema changes with `python -m alembic upgrade head` from `backend/` against the intended database. `0002_identity` creates the account tables. `0003_menu_ordering` creates the menu, stock, and order tables. `0004_kitchen_queue` adds preparation tasks and stored readiness estimates. `0005_cash_pickup_notifications` adds cash receipts and reversals, pickup credentials and events, push subscriptions, notifications, the outbox, and append-only protection for the ledgers. The Node proxy on port 3010 forwards `/api/v1/ws` to the API so the browser can use the same origin as its session cookie.
 
 ## Push keys
 
@@ -44,7 +44,7 @@ Web Push needs VAPID keys. Generate them once and put the output in `.env`, whic
 backend\.venv\Scripts\python.exe -m app.cli.generate_vapid
 ```
 
-The command prints the keys to the terminal only. Never commit them. The private key is passed only to the worker container, which signs and sends the pushes. Without keys the app still works and the profile page says phone notifications are not set up. Phones need HTTPS, so see `docs/P005_PWA_SETUP.md` and `docs/P005_REAL_DEVICE_TESTING.md` before expecting delivery.
+The command prints the keys to the terminal only. Never commit them. The private key is read only by the Celery worker, which signs and sends the pushes. Without keys the app still works and the profile page says phone notifications are not set up. Phones need HTTPS, so see `docs/P005_PWA_SETUP.md` and `docs/P005_REAL_DEVICE_TESTING.md` before expecting delivery.
 
 ## Development menu sample
 
@@ -77,25 +77,16 @@ The same command works from `backend/` with the virtualenv Python. It writes the
 
 Do not open registration until that data is real. A personal email address is not evidence of enrollment.
 
-Host ports stay on `127.0.0.1`. If a port is already taken, set `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, or `FRONTEND_PORT` in `.env`. When `BACKEND_PORT` changes, set `NEXT_PUBLIC_API_URL` to that same host port and rebuild the web image, because the browser reads the API origin from the built page.
+The web app listens on `127.0.0.1:3010` and the API on `127.0.0.1:8010`.
 
 Check the running API:
 
 ```powershell
-curl http://127.0.0.1:8000/api/v1/health
-curl http://127.0.0.1:8000/api/v1/ready
+curl http://127.0.0.1:8010/api/v1/health
+curl http://127.0.0.1:8010/api/v1/ready
 ```
 
 `/api/v1/ready` returns HTTP 200 only when PostgreSQL and Redis both answer. The web status page calls the same endpoints.
-
-## Local development without rebuilding images
-
-Start PostgreSQL and Redis with Compose, then:
-
-```powershell
-scripts/dev-api.ps1
-scripts/dev-web.ps1
-```
 
 Copy `.env.example` to `.env` only if you need overrides. The example values are development placeholders, not production secrets. `.env` is gitignored.
 
@@ -122,16 +113,14 @@ ruff format --check .
 pytest
 ```
 
-With Compose (or another PostgreSQL 16 and Redis) already listening on localhost:
+Integration tests refuse every database except the disposable server on `127.0.0.1:55432`, database `bowlbyte_e2e`, and they refuse Redis database 0. Point `DATABASE_URL` and `REDIS_URL` at those targets, then:
 
 ```powershell
-$env:DATABASE_URL = "postgresql+psycopg://bowlbyte:bowlbyte@localhost:5432/bowlbyte"
-$env:REDIS_URL = "redis://localhost:6379/0"
 alembic upgrade head
-pytest -m integration
+pytest -o addopts= -m integration
 ```
 
-The integration test is supposed to fail when a dependency is down. Do not treat a skip as a passed connectivity check.
+Do not point that command at Supabase. The integration test is supposed to fail when the disposable database is down. Do not treat a skip as a passed connectivity check.
 
 Playwright:
 
@@ -185,6 +174,7 @@ npm run test:e2e
 | `docs/P006_TEST_RESULTS.md` | Commands that were run for P006 |
 | `docs/P006_KNOWN_LIMITATIONS.md` | What this phase does not do |
 | `docs/P007_RELEASE_READINESS.md` | Pilot decision and remaining blockers |
+| `docs/P016_RELEASE_READINESS.md` | Final local release decision and remaining limits |
 
 ## Pilot limits
 
