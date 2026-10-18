@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { PasswordField, textInputClass } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
@@ -83,7 +83,7 @@ export function ResetPasswordForm() {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
-  if (typeof window !== "undefined" && token === "") {
+  useEffect(() => {
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
@@ -94,7 +94,7 @@ export function ResetPasswordForm() {
       setToken(fromHash);
       window.history.replaceState(null, "", window.location.pathname);
     }
-  }
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

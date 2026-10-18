@@ -44,12 +44,14 @@ function takeToken(): string {
 
 export function VerifyEmailForm() {
   const [token, setToken] = useState("");
-  if (typeof window !== "undefined" && token === "") {
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
     const next = takeToken();
     if (next) {
       setToken(next);
     }
-  }
+    setChecked(true);
+  }, []);
   const [status, setStatus] = useState<"working" | "done" | "error">("working");
   const [message, setMessage] = useState("Confirming your email.");
   const [email, setEmail] = useState("");
@@ -100,7 +102,7 @@ export function VerifyEmailForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p role="status">
-            {typeof window !== "undefined" && token === ""
+            {checked && token === ""
               ? "This page needs the confirmation link from your email."
               : status === "working"
                 ? "Confirming your email…"
@@ -113,7 +115,7 @@ export function VerifyEmailForm() {
           ) : null}
         </CardContent>
       </Card>
-      {status === "error" || (typeof window !== "undefined" && token === "") ? (
+      {status === "error" || (checked && token === "") ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">Send another link</CardTitle>
@@ -144,12 +146,14 @@ export function VerifyEmailForm() {
 
 export function AcceptInviteForm() {
   const [token, setToken] = useState("");
-  if (typeof window !== "undefined" && token === "") {
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
     const next = takeToken();
     if (next) {
       setToken(next);
     }
-  }
+    setChecked(true);
+  }, []);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -228,7 +232,7 @@ export function AcceptInviteForm() {
                 value={confirmPassword}
                 onChange={setConfirmPassword}
               />
-              {error || (typeof window !== "undefined" && token === "") ? (
+              {error || (checked && token === "") ? (
                 <p className="text-sm text-destructive" role="alert">
                   {error || "This page needs the invitation link from your email."}
                 </p>

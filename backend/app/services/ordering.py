@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, case, func, or_, select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -739,6 +739,25 @@ def _normalize_lines(lines: list[tuple[UUID, int]]) -> list[tuple[UUID, int]]:
     return normalized
 
 
+def _payload_after_commit(db: Session, order: Order) -> dict:
+    """Return the order that was just committed.
+
+    Supabase's session pooler can close the connection as COMMIT completes.
+    The insert is already durable. Reloading on a fresh checkout keeps that
+    success from being reported as HTTP 500.
+    """
+
+    try:
+        db.refresh(order)
+        return _order_payload(db, order, include_student=False)
+    except DBAPIError:
+        db.rollback()
+        saved = db.get(Order, order.id)
+        if saved is None:
+            raise
+        return _order_payload(db, saved, include_student=False)
+
+
 def _order_payload(db: Session, order: Order, *, include_student: bool) -> dict:
     items = list(
         db.scalars(
@@ -957,8 +976,7 @@ def place_order(
             message="This checkout could not be saved.",
             status_code=409,
         ) from exc
-    db.refresh(order)
-    return _order_payload(db, order, include_student=False)
+    return _payload_after_commit(db, order)
 
 
 def cancel_order(db: Session, *, student: User, order_id: UUID) -> dict:
