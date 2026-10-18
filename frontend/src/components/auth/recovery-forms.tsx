@@ -87,7 +87,9 @@ export function ResetPasswordForm() {
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
-    const fromHash = new URLSearchParams(hash).get("token") ?? "";
+    const params = new URLSearchParams(hash);
+    const recovery = params.get("type") === "recovery" ? (params.get("access_token") ?? "") : "";
+    const fromHash = params.get("token") || recovery;
     if (fromHash) {
       setToken(fromHash);
       window.history.replaceState(null, "", window.location.pathname);

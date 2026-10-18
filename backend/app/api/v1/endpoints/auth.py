@@ -1,3 +1,5 @@
+import secrets
+
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,8 @@ from app.db.session import get_db
 from app.schemas.auth import (
     AcceptInvitationRequest,
     CsrfResponse,
+    EmailOtpRequest,
+    EmailOtpVerifyRequest,
     ForgotPasswordRequest,
     LoginRequest,
     MessageResponse,
@@ -26,8 +30,11 @@ from app.services.identity import (
     accept_invitation,
     active_canteen_id,
     authenticate,
+    login_with_email_otp,
+    refresh_auth_session,
     register_student,
     registration_policy,
+    request_email_otp,
     resend_verification,
     revoke_session,
     rotate_csrf,
@@ -39,6 +46,7 @@ from app.services.password_recovery import (
     request_password_reset,
     reset_password,
 )
+from app.services.supabase_auth import SupabaseAuthClient, SupabaseAuthError, supabase_auth_enabled
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -122,13 +130,63 @@ def login(
     response: Response,
     db: Session = Depends(get_db),
 ) -> UserEnvelope:
-    user, raw_session, raw_csrf = authenticate(
+    user, raw_session, raw_csrf, refresh = authenticate(
         db,
         email=str(body.email),
         password=body.password,
         client_key=client_key(request),
     )
-    apply_auth_cookies(response, raw_session, raw_csrf)
+    apply_auth_cookies(response, raw_session, raw_csrf, refresh)
+    return UserEnvelope(
+        user=UserResponse.model_validate(user_view(user, active_canteen_id(db, user)))
+    )
+
+
+@router.post("/email-otp", response_model=MessageResponse, status_code=202)
+def post_email_otp(
+    body: EmailOtpRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    request_email_otp(db, str(body.email), client_key(request))
+    return MessageResponse(message="If an eligible account exists, a sign-in code has been sent.")
+
+
+@router.post("/email-otp/verify", response_model=UserEnvelope)
+def post_email_otp_verify(
+    body: EmailOtpVerifyRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> UserEnvelope:
+    user, raw_session, raw_csrf, refresh = login_with_email_otp(
+        db,
+        email=str(body.email),
+        code=body.code,
+        client_key=client_key(request),
+    )
+    apply_auth_cookies(response, raw_session, raw_csrf, refresh)
+    return UserEnvelope(
+        user=UserResponse.model_validate(user_view(user, active_canteen_id(db, user)))
+    )
+
+
+@router.post("/refresh", response_model=UserEnvelope)
+def post_refresh(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> UserEnvelope:
+    settings = get_settings()
+    header = request.headers.get("x-csrf-token")
+    cookie = request.cookies.get(settings.csrf_cookie_name)
+    if not header or not cookie or len(header) != len(cookie) or not secrets.compare_digest(
+        header, cookie
+    ):
+        raise ApiError(code="CSRF_REJECTED", message="Request was rejected.", status_code=403)
+    refresh = request.cookies.get(settings.refresh_cookie_name) or ""
+    user, raw_session, raw_csrf, new_refresh = refresh_auth_session(db, refresh)
+    apply_auth_cookies(response, raw_session, raw_csrf, new_refresh)
     return UserEnvelope(
         user=UserResponse.model_validate(user_view(user, active_canteen_id(db, user)))
     )
@@ -136,10 +194,18 @@ def login(
 
 @router.post("/logout", response_model=MessageResponse)
 def logout(
+    request: Request,
     response: Response,
     principal: Principal = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
+    settings = get_settings()
+    access = request.cookies.get(settings.session_cookie_name) or ""
+    if supabase_auth_enabled(settings) and access:
+        try:
+            SupabaseAuthClient(settings).logout(access)
+        except SupabaseAuthError:
+            pass
     revoke_session(db, principal)
     clear_auth_cookies(response)
     return MessageResponse(message="Signed out.")

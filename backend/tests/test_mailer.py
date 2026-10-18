@@ -246,11 +246,21 @@ def test_password_reset_hides_missing_accounts_and_uses_a_fixed_path(
     assert "https://evil.example" not in sent[0]["body"]
 
 
-def test_email_otp_is_not_dispatched_by_the_local_mailer() -> None:
+def test_email_otp_is_not_dispatched_by_the_local_mailer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.api.v1.endpoints.auth import router
+    from app.services.identity import request_email_otp
 
+    sent: list[dict[str, str]] = []
+    monkeypatch.setenv("SUPABASE_CREDENTIALS_ROTATED", "")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.services.identity.send_email", lambda **kwargs: sent.append(kwargs))
+    request_email_otp(SimpleNamespace(), "student@example.edu", "203.0.113.8")
+    assert sent == []
     paths = {getattr(route, "path", "") for route in router.routes}
-    assert not any("otp" in path for path in paths)
+    assert "/auth/email-otp" in paths
+    assert "/auth/email-otp/verify" in paths
 
 
 def test_verification_and_recovery_requests_are_rate_limited(

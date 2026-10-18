@@ -35,6 +35,8 @@ Thumbs.db
 *.log
 tmp/
 scripts/.bowlbyte-dev.pids
+scripts/.bowlbyte-dev-logs/
+backend/celerybeat-schedule*
 ml/artifacts/
 ml/models/
 backend/var/

@@ -60,8 +60,17 @@ class ForgotPasswordRequest(APIModel):
     email: EmailStr
 
 
+class EmailOtpRequest(APIModel):
+    email: EmailStr
+
+
+class EmailOtpVerifyRequest(APIModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=12)
+
+
 class ResetPasswordRequest(APIModel):
-    token: str = Field(min_length=20, max_length=200)
+    token: str = Field(min_length=20, max_length=8192)
     password: str = Field(min_length=12, max_length=128)
     confirm_password: str = Field(min_length=12, max_length=128)
 

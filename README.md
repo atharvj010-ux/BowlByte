@@ -12,7 +12,15 @@ Payments are cash only. There is no online payment integration.
 
 ## Run the stack
 
-Docker Desktop is required. P011 has not moved BowlByte onto Supabase. The project URL and publishable key cannot import passwords or restore PostgreSQL. Docker Compose stays the runtime until that cutover is verified. See `docs/P011_SUPABASE_ARCHITECTURE.md`.
+Docker Compose is still the running runtime. Supabase holds the imported identities and a reconciled snapshot, but the native start script is not the active runtime while WSL Redis is unstable. See `docs/P014_1_STATUS.md`. Do not point the app at Supabase and the old Docker database at the same time.
+
+```powershell
+# Native start, only after Docker BowlByte app containers are stopped.
+powershell -File .\scripts\start-dev.ps1
+powershell -File .\scripts\stop-dev.ps1
+```
+
+Switching back to the Docker database after new cloud orders exist requires another reconciliation. The old PostgreSQL volume and the dumps under `%LOCALAPPDATA%\BowlByte\p011` stay in place.
 
 ```powershell
 docker compose up --build

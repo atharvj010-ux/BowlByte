@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     )
     supabase_secret_key: str = ""
     supabase_db_url: str = ""
+    supabase_credentials_rotated: str = ""
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     public_app_url: str = "http://127.0.0.1:3000"
@@ -203,6 +204,12 @@ class Settings(BaseSettings):
         if self.cookie_secure:
             return "__Host-bowlbyte_csrf"
         return "bowlbyte_csrf"
+
+    @property
+    def refresh_cookie_name(self) -> str:
+        if self.cookie_secure:
+            return "__Host-bowlbyte_refresh"
+        return "bowlbyte_refresh"
 
 
 @lru_cache

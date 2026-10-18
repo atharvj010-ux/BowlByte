@@ -21,6 +21,8 @@ export function LoginForm({ title, description }: { title: string; description: 
   const [formError, setFormError] = useState("");
   const [pending, setPending] = useState(false);
   const [sessionNote, setSessionNote] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpMessage, setOtpMessage] = useState("");
   if (
     typeof window !== "undefined" &&
     sessionNote === "" &&
@@ -110,6 +112,67 @@ export function LoginForm({ title, description }: { title: string; description: 
                 Forgot your password?
               </Link>
             </p>
+          </form>
+          <form
+            className="mt-6 space-y-4 border-t border-border pt-6"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setOtpMessage("");
+              setPending(true);
+              try {
+                if (!otpCode) {
+                  const response = await apiFetch("/api/v1/auth/email-otp", {
+                    method: "POST",
+                    body: JSON.stringify({ email }),
+                  });
+                  setOtpMessage(
+                    response.ok
+                      ? "If an eligible account exists, a sign-in code has been sent."
+                      : await readError(response),
+                  );
+                  return;
+                }
+                const response = await apiFetch("/api/v1/auth/email-otp/verify", {
+                  method: "POST",
+                  body: JSON.stringify({ email, code: otpCode }),
+                });
+                if (!response.ok) {
+                  setOtpMessage(await readError(response));
+                  return;
+                }
+                const body = z.object({ user: currentUserSchema }).parse(await response.json());
+                queryClient.clear();
+                clearPrivateBrowserState();
+                queryClient.setQueryData(["me"], body.user);
+                router.push(homeForRole(body.user.role));
+                router.refresh();
+              } finally {
+                setPending(false);
+              }
+            }}
+          >
+            <p className="text-sm leading-6 text-muted-foreground">
+              Existing accounts can request a one-time email code. This does not create an account.
+            </p>
+            <label className="block space-y-2 text-sm" htmlFor="otp-code">
+              <span className="font-medium">Email code</span>
+              <input
+                id="otp-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={otpCode}
+                onChange={(event) => setOtpCode(event.target.value)}
+                className={textInputClass}
+              />
+            </label>
+            {otpMessage ? (
+              <p className="text-sm" role="status">
+                {otpMessage}
+              </p>
+            ) : null}
+            <Button type="submit" disabled={pending || !email} variant="secondary" className="w-full">
+              {otpCode ? "Verify code" : "Email me a code"}
+            </Button>
           </form>
         </CardContent>
       </Card>

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -44,6 +44,15 @@ from app.models.identity import (
 from app.services.email_templates import branded_message
 from app.services.mailer import EmailDeliveryError, send_email
 from app.services.rate_limit import assert_allowance, record_attempt
+from app.services.supabase_auth import (
+    SupabaseAuthClient,
+    SupabaseAuthError,
+    TokenRejected,
+    fetch_jwks,
+    identity_subject,
+    supabase_auth_enabled,
+    verify_access_token,
+)
 
 INVALID_CREDENTIALS = "Email or password is incorrect."
 ELIGIBILITY_MESSAGE = "College eligibility could not be confirmed."
@@ -255,7 +264,7 @@ def _assert_eligible(
 def _deliver_or_503(callback) -> None:
     try:
         callback()
-    except EmailDeliveryError as exc:
+    except (EmailDeliveryError, SupabaseAuthError) as exc:
         raise ApiError(
             code="EMAIL_DELIVERY_FAILED",
             message="The message could not be sent. Try again shortly.",
@@ -332,6 +341,8 @@ def register_student(
         target_type="user",
         target_id=str(user.id),
     )
+    if supabase_auth_enabled(settings):
+        _link_new_auth_user(db, user, password, email_confirm=False)
     try:
         db.commit()
     except IntegrityError:
@@ -342,7 +353,7 @@ def register_student(
         _respond_to_existing_registration(db, raced)
         return
     db.refresh(user)
-    _deliver_or_503(lambda: _send_verification(user, raw_token))
+    _deliver_or_503(lambda: _send_account_confirmation(db, user, raw_token))
 
 
 def _respond_to_existing_registration(db: Session, user: User) -> None:
@@ -350,7 +361,7 @@ def _respond_to_existing_registration(db: Session, user: User) -> None:
         raw_token = _issue_verification(db, user)
         db.commit()
         db.refresh(user)
-        _deliver_or_503(lambda: _send_verification(user, raw_token))
+        _deliver_or_503(lambda: _send_account_confirmation(db, user, raw_token))
         return
     db.commit()
     _deliver_or_503(lambda: _send_existing_account_notice(user))
@@ -429,7 +440,7 @@ def resend_verification(db: Session, email: str, client_key: str) -> None:
     raw_token = _issue_verification(db, user)
     db.commit()
     db.refresh(user)
-    _deliver_or_503(lambda: _send_verification(user, raw_token))
+    _deliver_or_503(lambda: _send_account_confirmation(db, user, raw_token))
 
 
 def _record_login_failure(db: Session, email: str, client_key: str) -> None:
@@ -452,31 +463,94 @@ def _record_login_failure(db: Session, email: str, client_key: str) -> None:
     db.commit()
 
 
-def authenticate(
-    db: Session, *, email: str, password: str, client_key: str
-) -> tuple[User, str, str]:
+def _auth_link(db: Session, user_id: UUID) -> str | None:
+    value = db.execute(
+        text("SELECT supabase_auth_user_id::text FROM users WHERE id = :id"),
+        {"id": user_id},
+    ).scalar()
+    return str(value) if value else None
+
+
+def _set_auth_link(db: Session, user_id: UUID, auth_id: str) -> None:
+    db.execute(
+        text(
+            """
+            UPDATE users
+               SET supabase_auth_user_id = :auth_id
+             WHERE id = :id
+               AND (supabase_auth_user_id IS NULL OR supabase_auth_user_id = :auth_id)
+            """
+        ),
+        {"id": user_id, "auth_id": auth_id},
+    )
+
+
+def _link_new_auth_user(db: Session, user: User, password: str, *, email_confirm: bool) -> None:
+    try:
+        auth_id = SupabaseAuthClient(get_settings()).create_user(
+            user.email,
+            password,
+            email_confirm=email_confirm,
+        )
+    except SupabaseAuthError as exc:
+        db.rollback()
+        raise ApiError(
+            code="ACCOUNT_UNAVAILABLE",
+            message="The account could not be created. Try again shortly.",
+            status_code=503,
+        ) from exc
+    _set_auth_link(db, user.id, auth_id)
+
+
+def _send_supabase_confirmation(email: str) -> None:
     settings = get_settings()
-    normalized = normalize_email(email)
-    assert_allowance(bucket="login-ip", value=client_key, limit=settings.login_ip_rate_limit)
-    assert_allowance(bucket="login-email", value=normalized, limit=settings.login_email_rate_limit)
-    user = db.scalar(select(User).where(User.email == normalized))
+    SupabaseAuthClient(settings).send_signup_confirmation(
+        email,
+        settings.public_app_url.rstrip("/") + "/verify-email",
+    )
+
+
+def _send_account_confirmation(db: Session, user: User, raw_token: str) -> None:
+    settings = get_settings()
+    if supabase_auth_enabled(settings):
+        if _auth_link(db, user.id):
+            _send_supabase_confirmation(user.email)
+        return
+    _send_verification(user, raw_token)
+
+
+def _supabase_login_token(
+    db: Session, user: User | None, email: str, password: str
+) -> tuple[str, str] | None:
     if user is None:
         verify_password(password, dummy_password_hash())
-        password_ok = False
-    else:
-        password_ok = verify_password(password, user.password_hash)
-        if password_ok and password_needs_rehash(user.password_hash):
-            user.password_hash = hash_password(password)
-    if user is None or not password_ok or user.status != ACTIVE:
-        _record_login_failure(db, normalized, client_key)
-        raise ApiError(
-            code="INVALID_CREDENTIALS",
-            message=INVALID_CREDENTIALS,
-            status_code=401,
-        )
+        return None
+    link = _auth_link(db, user.id)
+    if not link or user.status != ACTIVE:
+        return None
+    try:
+        tokens = SupabaseAuthClient(get_settings()).password_grant(email, password)
+    except (TokenRejected, SupabaseAuthError):
+        return None
+    if tokens is None or tokens.subject != link:
+        return None
+    return tokens.access_token, tokens.refresh_token
+
+
+def _user_by_auth_subject(db: Session, subject: str) -> User | None:
+    user_id = db.execute(
+        text("SELECT id FROM users WHERE supabase_auth_user_id = :auth_id"),
+        {"auth_id": subject},
+    ).scalar()
+    if user_id is None:
+        return None
+    return db.get(User, user_id)
+
+
+def _start_session(db: Session, user: User, raw_session: str, action: str = "auth.login") -> str:
     now = utcnow()
+    settings = get_settings()
     db.execute(delete(SessionRow).where(SessionRow.user_id == user.id))
-    raw_session = new_secret()
     raw_csrf = new_secret()
     db.add(
         SessionRow(
@@ -488,17 +562,128 @@ def authenticate(
             expires_at=now + timedelta(seconds=settings.session_absolute_seconds),
         )
     )
-    _audit(
-        db, action="auth.login", actor_user_id=user.id, target_type="user", target_id=str(user.id)
-    )
+    _audit(db, action=action, actor_user_id=user.id, target_type="user", target_id=str(user.id))
     db.commit()
     db.refresh(user)
-    return user, raw_session, raw_csrf
+    return raw_csrf
+
+
+def authenticate(
+    db: Session, *, email: str, password: str, client_key: str
+) -> tuple[User, str, str, str | None]:
+    settings = get_settings()
+    normalized = normalize_email(email)
+    assert_allowance(bucket="login-ip", value=client_key, limit=settings.login_ip_rate_limit)
+    assert_allowance(bucket="login-email", value=normalized, limit=settings.login_email_rate_limit)
+    user = db.scalar(select(User).where(User.email == normalized))
+    refresh: str | None = None
+    if supabase_auth_enabled(settings):
+        raw_session = _supabase_login_token(db, user, normalized, password)
+        if raw_session is not None:
+            refresh = raw_session[1]
+            raw_session = raw_session[0]
+        password_ok = raw_session is not None
+    elif user is None:
+        verify_password(password, dummy_password_hash())
+        password_ok = False
+        raw_session = None
+    else:
+        password_ok = verify_password(password, user.password_hash)
+        if password_ok and password_needs_rehash(user.password_hash):
+            user.password_hash = hash_password(password)
+        raw_session = new_secret() if password_ok else None
+    if user is None or not password_ok or raw_session is None or user.status != ACTIVE:
+        _record_login_failure(db, normalized, client_key)
+        raise ApiError(
+            code="INVALID_CREDENTIALS",
+            message=INVALID_CREDENTIALS,
+            status_code=401,
+        )
+    raw_csrf = _start_session(db, user, raw_session)
+    return user, raw_session, raw_csrf, refresh
+
+
+def request_email_otp(db: Session, email: str, client_key: str) -> None:
+    settings = get_settings()
+    if not supabase_auth_enabled(settings):
+        return
+    normalized = normalize_email(email)
+    for bucket, limit, window in (
+        ("otp-ip", settings.resend_rate_limit, settings.resend_rate_window_seconds),
+        ("otp-email", settings.resend_rate_limit, settings.resend_rate_window_seconds),
+    ):
+        value = client_key if bucket.endswith("ip") else normalized
+        assert_allowance(bucket=bucket, value=value, limit=limit)
+        record_attempt(bucket=bucket, value=value, window_seconds=window)
+    user = db.scalar(select(User).where(User.email == normalized))
+    if user is None or user.status != ACTIVE or not _auth_link(db, user.id):
+        return
+    try:
+        SupabaseAuthClient(settings).request_email_otp(normalized)
+    except SupabaseAuthError as exc:
+        raise ApiError(
+            code="EMAIL_DELIVERY_FAILED",
+            message="The message could not be sent. Try again shortly.",
+            status_code=503,
+        ) from exc
+
+
+def login_with_email_otp(
+    db: Session, *, email: str, code: str, client_key: str
+) -> tuple[User, str, str, str]:
+    settings = get_settings()
+    normalized = normalize_email(email)
+    assert_allowance(bucket="login-ip", value=client_key, limit=settings.login_ip_rate_limit)
+    assert_allowance(bucket="login-email", value=normalized, limit=settings.login_email_rate_limit)
+    user = db.scalar(select(User).where(User.email == normalized))
+    link = _auth_link(db, user.id) if user is not None else None
+    tokens = None
+    if user is not None and user.status == ACTIVE and link and supabase_auth_enabled(settings):
+        try:
+            tokens = SupabaseAuthClient(settings).verify_email_otp(normalized, code)
+        except (TokenRejected, SupabaseAuthError):
+            tokens = None
+    if user is None or tokens is None or tokens.subject != link or user.status != ACTIVE:
+        _record_login_failure(db, normalized, client_key)
+        raise ApiError(
+            code="INVALID_CREDENTIALS",
+            message=INVALID_CREDENTIALS,
+            status_code=401,
+        )
+    raw_csrf = _start_session(db, user, tokens.access_token)
+    return user, tokens.access_token, raw_csrf, tokens.refresh_token
+
+
+def refresh_auth_session(db: Session, refresh_token: str) -> tuple[User, str, str, str]:
+    settings = get_settings()
+    tokens = None
+    if refresh_token and supabase_auth_enabled(settings):
+        try:
+            tokens = SupabaseAuthClient(settings).refresh_grant(refresh_token)
+        except (TokenRejected, SupabaseAuthError):
+            tokens = None
+    user = _user_by_auth_subject(db, tokens.subject) if tokens is not None else None
+    if tokens is None or user is None or user.status != ACTIVE:
+        raise ApiError(code="AUTH_REQUIRED", message="Sign in to continue.", status_code=401)
+    raw_csrf = _start_session(db, user, tokens.access_token, action="auth.session_refreshed")
+    return user, tokens.access_token, raw_csrf, tokens.refresh_token
 
 
 def load_principal(db: Session, raw_session: str | None) -> Principal | None:
     if not raw_session:
         return None
+    settings = get_settings()
+    auth_subject: str | None = None
+    if supabase_auth_enabled(settings):
+        try:
+            claims = verify_access_token(
+                raw_session,
+                jwks=fetch_jwks(settings),
+                issuer=settings.supabase_url.rstrip("/") + "/auth/v1",
+            )
+            auth_subject = identity_subject(claims)
+        except (TokenRejected, SupabaseAuthError):
+            return None
     row = db.scalar(select(SessionRow).where(SessionRow.token_hash == hash_secret(raw_session)))
     if row is None:
         return None
@@ -513,6 +698,8 @@ def load_principal(db: Session, raw_session: str | None) -> Principal | None:
     if user is None or user.status != ACTIVE:
         db.execute(delete(SessionRow).where(SessionRow.user_id == row.user_id))
         db.commit()
+        return None
+    if auth_subject is not None and _auth_link(db, user.id) != auth_subject:
         return None
     row.last_seen_at = now
     db.commit()
@@ -716,6 +903,8 @@ def accept_invitation(
         )
     )
     invitation.consumed_at = now
+    if supabase_auth_enabled(get_settings()):
+        _link_new_auth_user(db, user, password, email_confirm=True)
     _audit(
         db,
         action="staff.invitation_accepted",
