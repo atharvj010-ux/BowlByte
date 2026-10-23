@@ -2,6 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { backendUrl } from "@/lib/backend-origin";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const hopByHop = new Set([
   "connection",
   "keep-alive",
@@ -31,13 +34,32 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   }
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  const upstream = await fetch(target, {
-    method: request.method,
-    headers,
-    body: hasBody ? await request.arrayBuffer() : undefined,
-    redirect: "manual",
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body: hasBody ? await request.arrayBuffer() : undefined,
+      redirect: "manual",
+      cache: "no-store",
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.name : "UpstreamError";
+    return NextResponse.json(
+      {
+        error: {
+          code: "UPSTREAM_UNAVAILABLE",
+          message: "The API could not be reached. Try again in a moment.",
+          details: { reason: detail },
+        },
+      },
+      { status: 502, headers: { "cache-control": "private, no-store" } },
+    );
+  }
 
+  // Buffer the body. Streaming upstream.body through Next on Vercel can drop
+  // mid-response and surface as a browser "Failed to fetch" on the menu.
+  const payload = await upstream.arrayBuffer();
   const responseHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
@@ -47,7 +69,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     responseHeaders.set(key, value);
   });
   responseHeaders.set("cache-control", "private, no-store");
-  const response = new NextResponse(upstream.body, {
+  const response = new NextResponse(payload, {
     status: upstream.status,
     headers: responseHeaders,
   });

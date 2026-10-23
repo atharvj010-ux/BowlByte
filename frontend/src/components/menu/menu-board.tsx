@@ -30,17 +30,28 @@ async function loadMenu(query: string, categoryId: string, sort: MenuSort) {
   } else if (categoryId) {
     params.set("category_id", categoryId);
   }
-  const response = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
+  let response: Response;
+  try {
+    response = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
+  } catch {
+    throw new Error("Menu could not be loaded. Check your connection and try again.");
+  }
   if (!response.ok) {
     throw new Error(await readError(response));
   }
   const page = menuResponse.parse(await response.json());
   const items = [...page.items];
-  while (items.length < page.total && items.length < 600) {
+  // Cap follow-up pages so a large catalog cannot exhaust the Vercel proxy budget.
+  while (items.length < page.total && items.length < 200) {
     params.set("offset", String(items.length));
-    const next = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
+    let next: Response;
+    try {
+      next = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
+    } catch {
+      break;
+    }
     if (!next.ok) {
-      throw new Error(await readError(next));
+      break;
     }
     const more = menuResponse.parse(await next.json());
     if (more.items.length === 0) {
@@ -89,7 +100,12 @@ export function MenuBoard() {
   const categories = useQuery({
     queryKey: ["menu-categories"],
     queryFn: async () => {
-      const response = await apiFetch("/api/v1/menu/categories");
+      let response: Response;
+      try {
+        response = await apiFetch("/api/v1/menu/categories");
+      } catch {
+        throw new Error("Categories could not be loaded. Try again.");
+      }
       if (!response.ok) {
         throw new Error(await readError(response));
       }
