@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { backendUrl } from "@/lib/backend-origin";
 
-export const runtime = "nodejs";
+// Do not set `export const runtime` here — it conflicts with cacheComponents.
 export const maxDuration = 60;
 
 const hopByHop = new Set([
