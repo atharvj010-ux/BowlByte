@@ -130,9 +130,11 @@ def credentials_rotation_acknowledged(flag: str) -> bool:
 def missing_cutover_names(values: dict[str, str]) -> list[str]:
     missing: list[str] = []
     url = values.get("SUPABASE_URL") or values.get("NEXT_PUBLIC_SUPABASE_URL") or ""
-    publishable = values.get("SUPABASE_PUBLISHABLE_KEY") or values.get(
-        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
-    ) or ""
+    publishable = (
+        values.get("SUPABASE_PUBLISHABLE_KEY")
+        or values.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+        or ""
+    )
     secret = values.get("SUPABASE_SECRET_KEY", "")
     database = values.get("SUPABASE_DB_URL", "")
     if not url.strip():

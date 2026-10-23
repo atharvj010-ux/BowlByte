@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
 
 import { LoginForm } from "@/components/auth/login-form";
+import { redirectIfSignedIn } from "@/lib/server-session";
 
 export const metadata: Metadata = { title: "Student sign-in" };
 
-export default function StudentLoginPage() {
-  return (
-    <LoginForm
-      title="Student sign-in"
-      description="Use the email you confirmed. Unverified accounts cannot sign in."
-    />
-  );
+export default async function StudentLoginPage() {
+  await redirectIfSignedIn();
+  return <LoginForm initialRole="STUDENT" />;
 }

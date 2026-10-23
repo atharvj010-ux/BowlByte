@@ -4,7 +4,7 @@ from typing import Literal, Self
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-EligibilityMode = Literal["disabled", "institutional_domain", "roster"]
+EligibilityMode = Literal["disabled", "open", "institutional_domain", "roster"]
 
 
 class Settings(BaseSettings):
@@ -56,6 +56,37 @@ class Settings(BaseSettings):
     college_email_domain: str = ""
     canteen_name: str = "Pilot Canteen"
     canteen_slug: str = "pilot"
+    # P017 initial staff emails. Leave empty until the operator supplies them.
+    # Passwords are never stored here. Use BOWLBYTE_INITIAL_STAFF_PASSWORD only
+    # for a trusted one-shot Auth create, or create the Auth users in the dashboard.
+    initial_kitchen_email: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "BOWLBYTE_INITIAL_KITCHEN_EMAIL",
+            "INITIAL_KITCHEN_EMAIL",
+        ),
+    )
+    initial_manager_email: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "BOWLBYTE_INITIAL_MANAGER_EMAIL",
+            "INITIAL_MANAGER_EMAIL",
+        ),
+    )
+    initial_cashier_email: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "BOWLBYTE_INITIAL_CASHIER_EMAIL",
+            "INITIAL_CASHIER_EMAIL",
+        ),
+    )
+    initial_canteen_id: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "BOWLBYTE_INITIAL_CANTEEN_ID",
+            "INITIAL_CANTEEN_ID",
+        ),
+    )
 
     smtp_host: str = "127.0.0.1"
     smtp_port: int = 1025

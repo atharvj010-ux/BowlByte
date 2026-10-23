@@ -74,9 +74,10 @@ def main() -> None:
     source_url = source_url.replace("postgresql+psycopg", "postgresql", 1)
     target_url = target_url.replace("postgresql+psycopg", "postgresql", 1)
     try:
-        with psycopg.connect(source_url, connect_timeout=30) as source, psycopg.connect(
-            target_url, connect_timeout=30
-        ) as target:
+        with (
+            psycopg.connect(source_url, connect_timeout=30) as source,
+            psycopg.connect(target_url, connect_timeout=30) as target,
+        ):
             if report:
                 for table, only_source, only_target, changed in summarize_reconciliation(
                     source, target

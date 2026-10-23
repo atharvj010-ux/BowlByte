@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { EmptyState, Notice, PageHead, Panel, SkeletonLines } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
+import { textInputClass } from "@/components/auth/password-field";
 import { apiFetch, readError } from "@/lib/auth";
 import { newKey } from "@/lib/cash";
-import { batchListSchema, fieldClass } from "@/lib/intelligence";
+import { batchListSchema } from "@/lib/intelligence";
 import { menuItemSchema } from "@/lib/ordering";
 
 const menuListSchema = z.object({ items: z.array(menuItemSchema) });
@@ -24,6 +26,7 @@ export function ProductionDesk() {
   const [quantity, setQuantity] = useState("10");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const menu = useQuery({
     queryKey: ["admin-menu-production", query],
@@ -75,6 +78,7 @@ export function ProductionDesk() {
     event.preventDefault();
     setBusy(true);
     setMessage("");
+    setFailed(false);
     try {
       const response = await apiFetch("/api/v1/admin/production", {
         method: "POST",
@@ -89,6 +93,7 @@ export function ProductionDesk() {
         }),
       });
       if (!response.ok) {
+        setFailed(true);
         setMessage(await readError(response));
         return;
       }
@@ -101,75 +106,139 @@ export function ProductionDesk() {
   }
 
   const items = menu.data?.items.filter((item) => item.is_active) ?? [];
+  const list = batches.data?.batches ?? [];
+  const totalProduced = list.reduce((sum, batch) => sum + batch.produced_qty, 0);
   return (
-    <section className="space-y-6" data-testid="production-desk">
-      <div>
-        <h1 className="font-display text-4xl">Production</h1>
-        <p className="text-sm text-muted-foreground">
-          Portions the kitchen prepared. This ledger is separate from saleable stock and from online orders.
-        </p>
-      </div>
-      <form className="grid gap-3 sm:grid-cols-2" onSubmit={save} data-testid="production-form">
-        <label className="grid gap-1 text-sm">
-          Date
-          <input type="date" value={day} onChange={(event) => setDay(event.target.value)} className={fieldClass} data-testid="production-date" />
-        </label>
-        <label className="grid gap-1 text-sm">
-          Find item
-          <input value={query} onChange={(event) => setQuery(event.target.value)} className={fieldClass} data-testid="production-search" />
-        </label>
-        <label className="grid gap-1 text-sm">
-          Item
-          <select value={itemId} onChange={(event) => setItemId(event.target.value)} className={fieldClass} data-testid="production-item" required>
-            <option value="">Choose an item</option>
-            {items.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          Portions prepared
-          <input type="number" min={1} max={5000} value={quantity} onChange={(event) => setQuantity(event.target.value)} className={fieldClass} data-testid="production-qty" required />
-        </label>
-        <label className="grid gap-1 text-sm">
-          Notes
-          <input value={notes} onChange={(event) => setNotes(event.target.value)} className={fieldClass} maxLength={400} />
-        </label>
-        <Button type="submit" disabled={busy || !itemId} data-testid="production-save">
-          Record batch
-        </Button>
-      </form>
-      {message ? <p data-testid="production-notice">{message}</p> : null}
-      {batches.isLoading ? <p>Loading batches.</p> : null}
-      {batches.isError ? <p role="alert">{batches.error.message}</p> : null}
-      {batches.data && batches.data.batches.length === 0 ? <p>No batches on this date.</p> : null}
-      <ul className="space-y-3" data-testid="production-list">
-        {batches.data?.batches.map((batch) => (
-          <li key={batch.id} className="rounded-2xl border border-border p-4">
-            <p className="font-medium">
-              {batch.batch_code} · {batch.item_name}
+    <section className="grid gap-4" data-testid="production-desk">
+      <PageHead
+        kicker="Kitchen ledger"
+        title="Production"
+        description="Portions the kitchen prepared. This ledger is separate from saleable stock and from online orders."
+      />
+      <div className="mgr-split">
+        <Panel title="Record a batch" subtitle="Log what came off the line." tone="#f6d15a">
+          <form className="mgr-form" onSubmit={save} data-testid="production-form">
+            <label className="mgr-field">
+              <span>Date</span>
+              <input type="date" value={day} onChange={(event) => setDay(event.target.value)} className={textInputClass} data-testid="production-date" />
+            </label>
+            <label className="mgr-field">
+              <span>Find item</span>
+              <input value={query} onChange={(event) => setQuery(event.target.value)} className={textInputClass} placeholder="Type to narrow the list" data-testid="production-search" />
+            </label>
+            <label className="mgr-field">
+              <span>Item</span>
+              <select value={itemId} onChange={(event) => setItemId(event.target.value)} className={textInputClass} data-testid="production-item" required>
+                <option value="">Choose an item</option>
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="mgr-field">
+              <span>Portions prepared</span>
+              <input type="number" min={1} max={5000} value={quantity} onChange={(event) => setQuantity(event.target.value)} className={textInputClass} data-testid="production-qty" required />
+            </label>
+            <label className="mgr-field">
+              <span>Notes</span>
+              <input value={notes} onChange={(event) => setNotes(event.target.value)} className={textInputClass} maxLength={400} />
+            </label>
+            <Button type="submit" disabled={busy || !itemId} data-testid="production-save">
+              Record batch
+            </Button>
+          </form>
+          {message ? (
+            <p className={failed ? "mgr-notice is-error" : "mgr-notice is-success"} role="status" data-testid="production-notice">
+              {message}
             </p>
-            <p className="text-sm text-muted-foreground">
-              Produced {batch.produced_qty}, counter served {batch.served_counter_qty}, remaining {batch.remaining_qty}, discarded {batch.discarded_qty}. {batch.equation}
-            </p>
-          </li>
-        ))}
-      </ul>
-      <div data-testid="reconciliation">
-        <h2 className="font-display text-2xl">Reconciliation</h2>
-        <p className="text-sm text-muted-foreground">{reconciliation.data?.note}</p>
-        {reconciliation.data?.items.map((row) => (
-          <p key={row.item_name} className="mt-2 text-sm">
-            {row.item_name}: produced {row.produced}, counter {row.served_counter}, remaining {row.remaining}, discarded {row.discarded}, online pickups {row.online_picked_up}.
-            {row.warnings.map((warning) => (
-              <span key={warning} className="block text-muted-foreground">
-                {warning}
-              </span>
-            ))}
-          </p>
-        ))}
+          ) : null}
+        </Panel>
+
+        <div className="mgr-stack">
+          <Panel
+            title="Batches"
+            subtitle={batches.data ? `${list.length} batches · ${totalProduced} portions on ${day}` : `Loading ${day}`}
+          >
+            {batches.isLoading ? (
+              <>
+                <p className="sr-only">Loading batches.</p>
+                <SkeletonLines count={2} />
+              </>
+            ) : null}
+            {batches.isError ? <Notice tone="error">{batches.error.message}</Notice> : null}
+            {batches.data && list.length === 0 ? <EmptyState>No batches on this date.</EmptyState> : null}
+            <ul className="mgr-list" data-testid="production-list">
+              {list.map((batch) => (
+                <li key={batch.id} className="mgr-list-row items-start">
+                  <div className="grid min-w-0 gap-1">
+                    <p className="mgr-row-title">
+                      {batch.batch_code} · {batch.item_name}
+                    </p>
+                    <p className="mgr-row-meta">
+                      Produced {batch.produced_qty}, counter served {batch.served_counter_qty}, remaining{" "}
+                      {batch.remaining_qty}, discarded {batch.discarded_qty}. {batch.equation}
+                    </p>
+                  </div>
+                  <span className="mgr-badge is-warn">{batch.produced_qty} made</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel title="Reconciliation" subtitle={reconciliation.data?.note} testId="reconciliation">
+            {reconciliation.isError ? <Notice tone="error">{reconciliation.error.message}</Notice> : null}
+            {reconciliation.data && reconciliation.data.items.length === 0 ? (
+              <EmptyState>Nothing to reconcile on this date.</EmptyState>
+            ) : null}
+            {reconciliation.data && reconciliation.data.items.length > 0 ? (
+              <div className="mgr-table-wrap">
+                <table className="mgr-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Dish</th>
+                      <th scope="col" className="is-num">
+                        Produced
+                      </th>
+                      <th scope="col" className="is-num">
+                        Counter
+                      </th>
+                      <th scope="col" className="is-num">
+                        Online
+                      </th>
+                      <th scope="col" className="is-num">
+                        Remaining
+                      </th>
+                      <th scope="col" className="is-num">
+                        Discarded
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconciliation.data.items.map((row) => (
+                      <tr key={row.item_name}>
+                        <td>
+                          {row.item_name}
+                          {row.warnings.map((warning) => (
+                            <span key={warning} className="mgr-cell-sub">
+                              {warning}
+                            </span>
+                          ))}
+                        </td>
+                        <td className="is-num">{row.produced}</td>
+                        <td className="is-num">{row.served_counter}</td>
+                        <td className="is-num">{row.online_picked_up}</td>
+                        <td className="is-num">{row.remaining}</td>
+                        <td className="is-num">{row.discarded}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </Panel>
+        </div>
       </div>
     </section>
   );

@@ -55,13 +55,14 @@ test("capture pilot screens at three widths", async ({ browser }) => {
   await manager.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(manager.getByText("Category saved.")).toBeVisible();
   await manager.getByRole("link", { name: "Add menu item" }).click();
-  await manager.locator("#content").getByLabel("Name").first().fill(dish);
+  await expect(manager.getByRole("heading", { name: "New item" })).toBeVisible();
+  await manager.locator("#content").getByLabel("Name", { exact: true }).first().fill(dish);
   await manager.locator("#content").getByLabel("Description").first().fill("Synthetic demonstration item.");
   await manager.locator("#content").getByLabel("Price in rupees").first().fill("40");
   await manager.locator("#content").getByLabel("Preparation seconds").first().fill("120");
-  await manager.locator("#content").getByLabel("Category").first().selectOption({ label: `South ${suffix}` });
-  await manager.locator("#content").getByLabel("Station").first().selectOption({ label: `Dosa ${suffix}` });
-  await manager.locator("#content").getByLabel("Initial stock").first().fill("20");
+  await manager.locator("#content").getByRole("combobox", { name: "Category" }).first().selectOption({ label: `South ${suffix}` });
+  await manager.locator("#content").getByRole("combobox", { name: "Station" }).first().selectOption({ label: `Dosa ${suffix}` });
+  await manager.locator("#content").getByLabel("Initial stock").first().selectOption({ label: "In stock" });
   await manager.getByRole("button", { name: "Create item" }).click();
   await expect(manager.getByRole("heading", { name: "Edit item" })).toBeVisible();
 
@@ -141,16 +142,17 @@ test("capture pilot screens at three widths", async ({ browser }) => {
   await shoot(cashier, "cashier");
 
   const price = Number(sql(`SELECT total_paise FROM orders WHERE id = '${orderId}'`).trim());
+  const code = (await student.locator("#content").getByTestId("pickup-code").first().innerText()).trim();
   const paid = await api(cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, {
     amount_paise: price,
     idempotency_key: randomBytes(12).toString("hex"),
+    code,
   });
   expect(paid.status, JSON.stringify(paid.json)).toBe(200);
   const credential = sql(
     `SELECT token_hash IS NOT NULL FROM pickup_credentials WHERE order_id = '${orderId}' ORDER BY created_at DESC LIMIT 1`,
   ).trim();
   expect(credential).toBe("t");
-  const code = (await student.locator("#content").getByTestId("pickup-code").first().innerText()).trim();
   const handed = await api(cashier, "POST", `/api/v1/cashier/orders/${orderId}/complete-pickup`, {
     code,
     idempotency_key: randomBytes(12).toString("hex"),
@@ -252,10 +254,12 @@ async function registerStudent(page: Page, email: string, name: string) {
   await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
-  const token = await verificationToken(email);
-  await page.goto(`/student/verify-email#token=${token}`);
-  await expect(page.getByText("Your email is confirmed. Sign in to continue.")).toBeVisible();
+  await expect(page.getByText(/Enter the 6-digit code/i)).toBeVisible();
+  const code = await verificationCode(email);
+  await page.locator("#content").getByLabel("Email code").first().fill(code);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByText("Email confirmed.")).toBeVisible();
+  await page.context().clearCookies();
   await page.goto("/student/login");
   await signIn(page, email);
 }
@@ -286,6 +290,25 @@ function bootstrapManager(email: string, managerPassword: string) {
 
 function sql(query: string) {
   return psqlQuery(query);
+}
+
+async function verificationCode(email: string): Promise<string> {
+  const query = encodeURIComponent(`to:${email}`);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const search = await fetch(`${mailpit}/api/v1/search?query=${query}`);
+    const payload = (await search.json()) as { messages?: { ID: string }[] };
+    const message = payload.messages?.[0];
+    if (message) {
+      const detail = await fetch(`${mailpit}/api/v1/message/${message.ID}`);
+      const body = (await detail.json()) as { Text?: string };
+      const match = body.Text?.match(/registration page: (\d{6})/);
+      if (match) {
+        return match[1];
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`No verification code for ${email}`);
 }
 
 async function verificationToken(email: string): Promise<string> {

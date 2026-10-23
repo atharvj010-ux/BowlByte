@@ -8,6 +8,8 @@ import {
   menuItemFormSchema,
   rupeesToPaise,
   addToCart,
+  stockLevel,
+  stockStatusLabel,
   upsertLine,
 } from "@/lib/ordering";
 
@@ -39,6 +41,15 @@ describe("money and cart", () => {
     expect(canOrder({ is_active: true, is_available: true, available_qty: 0 })).toBe(false);
     expect(canOrder({ is_active: true, is_available: false, available_qty: 4 })).toBe(false);
     expect(canOrder({ is_active: true, is_available: true, available_qty: 1 })).toBe(true);
+  });
+
+  it("labels shelf status without exposing portion counts", () => {
+    expect(stockLevel({ available_qty: 40 })).toBe("IN_STOCK");
+    expect(stockLevel({ available_qty: 3 })).toBe("FEW_LEFT");
+    expect(stockLevel({ available_qty: 0 })).toBe("OUT_OF_STOCK");
+    expect(stockStatusLabel({ is_active: true, is_available: true, available_qty: 40 })).toBe("In stock");
+    expect(stockStatusLabel({ is_active: true, is_available: true, available_qty: 2 })).toBe("Few left");
+    expect(stockStatusLabel({ is_active: true, is_available: true, available_qty: 0 })).toBe("Sold out");
   });
 
   it("requires a category, station, and rupee price", () => {

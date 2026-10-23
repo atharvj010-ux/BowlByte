@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { cn } from "@/lib/utils";
 
 const links = [
   ["/admin/intelligence", "Overview"],
@@ -10,13 +15,17 @@ const links = [
 ] as const;
 
 export function IntelligenceNav() {
+  const pathname = usePathname();
   return (
-    <nav className="mb-8 flex flex-wrap gap-3 text-sm" aria-label="Food intelligence">
-      {links.map(([href, label]) => (
-        <Link key={href} href={href} className="rounded-full border border-border px-3 py-1 hover:bg-muted">
-          {label}
-        </Link>
-      ))}
+    <nav className="mgr-subnav" aria-label="Food intelligence">
+      {links.map(([href, label]) => {
+        const active = pathname === href;
+        return (
+          <Link key={href} href={href} className={cn(active && "is-active")} aria-current={active ? "page" : undefined}>
+            {label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

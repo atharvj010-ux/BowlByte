@@ -208,14 +208,15 @@ def test_verification_email_uses_the_app_origin_and_escapes_the_name(
     monkeypatch.setattr("app.services.identity.send_email", capture)
     _send_verification(
         SimpleNamespace(full_name="Asha <Rao>", email="asha@example.edu"),
-        "raw-token-value",
+        "123456",
     )
     assert sent["recipient"] == "asha@example.edu"
-    assert sent["subject"] == "Confirm your BowlByte account"
+    assert sent["subject"] == "Your BowlByte confirmation code"
     assert sent["body"].startswith("Confirm your email")
-    assert "https://bowlbyte.example/student/verify-email#token=raw-token-value" in sent["body"]
+    assert "registration page: 123456" in sent["body"]
+    assert "verify-email" not in sent["body"]
     assert "Asha &lt;Rao&gt;" in sent["html"]
-    assert "https://evil.example" not in sent["body"]
+    assert "https://" not in sent["body"]
 
 
 def test_password_reset_hides_missing_accounts_and_uses_a_fixed_path(

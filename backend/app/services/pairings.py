@@ -178,7 +178,9 @@ def _views(db: Session, items: list[MenuItem], *, public: bool) -> list[dict]:
 
 
 def _sellable(item: MenuItem, stock: DailyStock | None) -> bool:
-    available = stock.available_qty if stock is not None else 0
+    from app.services.ordering import IN_STOCK_QTY
+
+    available = stock.available_qty if stock is not None else IN_STOCK_QTY
     return item.is_active and item.is_available and available > 0
 
 
@@ -198,10 +200,14 @@ def list_pairings(db: Session, *, canteen_id: UUID, item_id: UUID, public: bool)
         )
     )
     suggested_ids = [link.suggested_item_id for link in links]
-    suggested = {
-        item.id: item
-        for item in db.scalars(select(MenuItem).where(MenuItem.id.in_(suggested_ids))).all()
-    } if suggested_ids else {}
+    suggested = (
+        {
+            item.id: item
+            for item in db.scalars(select(MenuItem).where(MenuItem.id.in_(suggested_ids))).all()
+        }
+        if suggested_ids
+        else {}
+    )
     stocks = {
         row.menu_item_id: row
         for row in db.scalars(

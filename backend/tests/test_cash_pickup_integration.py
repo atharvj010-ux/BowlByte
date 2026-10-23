@@ -149,16 +149,42 @@ def _ready_order(client: TestClient, world: SimpleNamespace, quantity: int = 1, 
     return str(saved["id"]), ready.json()["ticket_number"]
 
 
-def _confirm(client: TestClient, order_id: str, amount: int = PRICE, key: str | None = None):
+def _confirm(
+    client: TestClient,
+    order_id: str,
+    amount: int = PRICE,
+    key: str | None = None,
+    token: str | None = None,
+    code: str | None = None,
+):
+    body: dict = {"amount_paise": amount, "idempotency_key": key or uuid.uuid4().hex}
+    if token is not None:
+        body["token"] = token
+    if code is not None:
+        body["code"] = code
     return client.post(
         f"/api/v1/cashier/orders/{order_id}/confirm-cash",
-        json={"amount_paise": amount, "idempotency_key": key or uuid.uuid4().hex},
+        json=body,
         headers=_csrf(client),
     )
 
 
 def _issue(client: TestClient, order_id: str):
     return client.post(f"/api/v1/orders/{order_id}/pickup-credential", headers=_csrf(client))
+
+
+def _student_token(client: TestClient, world, order_id: str) -> str:
+    _login(client, world.student.email)
+    issued = _issue(client, order_id)
+    assert issued.status_code == 200, issued.text
+    return issued.json()["token"]
+
+
+def _pay(client: TestClient, world, order_id: str, amount: int = PRICE, key: str | None = None):
+    """Issue a pickup credential, then record cash with it (verify-before-cash)."""
+    token = _student_token(client, world, order_id)
+    _login(client, world.cashier.email)
+    return _confirm(client, order_id, amount=amount, key=key, token=token)
 
 
 def _verify(client: TestClient, **body):
@@ -255,20 +281,31 @@ def test_cash_requires_ready_order(client: TestClient) -> None:
     saved = _order(world.student, uuid.UUID(world.item["id"]), 1)
     _login(client, world.cashier.email)
     placed = _confirm(client, str(saved["id"]))
-    assert placed.status_code == 409
-    assert placed.json()["error"]["code"] == "ORDER_NOT_READY"
+    assert placed.status_code == 422
     _login(client, world.kitchen.email)
     client.post(f"/api/v1/staff/orders/{saved['id']}/accept", headers=_csrf(client))
     _login(client, world.cashier.email)
-    assert _confirm(client, str(saved["id"])).status_code == 409
+    assert _confirm(client, str(saved["id"])).status_code == 422
     assert _db_one(select(func.count()).select_from(CashReceipt)) == 0
+
+
+def test_confirm_cash_requires_pickup_credential(client: TestClient) -> None:
+    world = _world(client)
+    order_id, _ = _ready_order(client, world)
+    _login(client, world.cashier.email)
+    missing = _confirm(client, order_id)
+    assert missing.status_code == 422
+    garbage = _confirm(client, order_id, token="bbp1.not-a-real-token")
+    assert garbage.status_code == 404
+    token = _student_token(client, world, order_id)
+    _login(client, world.cashier.email)
+    assert _confirm(client, order_id, token=token).status_code == 200
 
 
 def test_confirm_cash_records_receipt_audit_and_keeps_order_ready(client: TestClient) -> None:
     world = _world(client)
     order_id, ticket = _ready_order(client, world, quantity=2)
-    _login(client, world.cashier.email)
-    response = _confirm(client, order_id, amount=2 * PRICE)
+    response = _pay(client, world, order_id, amount=2 * PRICE)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["replayed"] is False
@@ -301,8 +338,9 @@ def test_confirm_cash_records_receipt_audit_and_keeps_order_ready(client: TestCl
 def test_amount_must_match_stored_total_in_integer_paise(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
+    token = _student_token(client, world, order_id)
     _login(client, world.cashier.email)
-    wrong = _confirm(client, order_id, amount=PRICE - 1)
+    wrong = _confirm(client, order_id, amount=PRICE - 1, token=token)
     assert wrong.status_code == 409
     assert wrong.json()["error"]["code"] == "AMOUNT_MISMATCH"
     fractional = client.post(
@@ -317,13 +355,14 @@ def test_amount_must_match_stored_total_in_integer_paise(client: TestClient) -> 
 def test_cash_retry_is_idempotent_and_second_attempt_is_rejected(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
+    token = _student_token(client, world, order_id)
     _login(client, world.cashier.email)
-    first = _confirm(client, order_id, key="retry-key-0001")
-    again = _confirm(client, order_id, key="retry-key-0001")
+    first = _confirm(client, order_id, key="retry-key-0001", token=token)
+    again = _confirm(client, order_id, key="retry-key-0001", token=token)
     assert first.status_code == again.status_code == 200
     assert again.json()["replayed"] is True
     assert again.json()["receipt"]["id"] == first.json()["receipt"]["id"]
-    other = _confirm(client, order_id, key="another-key-0002")
+    other = _confirm(client, order_id, key="another-key-0002", token=token)
     assert other.status_code == 409
     assert other.json()["error"]["code"] == "ALREADY_PAID"
     assert _db_one(select(func.count()).select_from(CashReceipt)) == 1
@@ -332,13 +371,14 @@ def test_cash_retry_is_idempotent_and_second_attempt_is_rejected(client: TestCli
 def test_concurrent_cash_confirmations_create_one_receipt(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
+    token = _student_token(client, world, order_id)
     clients = [_new_client(client.app, cashier.email) for cashier in _extra_cashiers(world, 4)]
     barrier = threading.Barrier(len(clients))
     statuses: list[int] = []
 
     def attempt(local: TestClient) -> None:
         barrier.wait()
-        statuses.append(_confirm(local, order_id).status_code)
+        statuses.append(_confirm(local, order_id, token=token).status_code)
 
     threads = [threading.Thread(target=attempt, args=(local,)) for local in clients]
     [thread.start() for thread in threads]
@@ -350,9 +390,10 @@ def test_concurrent_cash_confirmations_create_one_receipt(client: TestClient) ->
 def test_cashier_is_limited_to_their_own_canteen(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
+    token = _student_token(client, world, order_id)
     outsider = _second_canteen_cashier(world)
     _login(client, outsider.email)
-    assert _confirm(client, order_id).status_code == 404
+    assert _confirm(client, order_id, token=token).status_code == 404
     assert client.get(f"/api/v1/cashier/orders/{order_id}").status_code == 404
     board = client.get("/api/v1/cashier/orders").json()
     assert board["awaiting_payment"] == []
@@ -380,8 +421,9 @@ def test_payment_cannot_be_set_through_order_or_student_endpoints(client: TestCl
 def test_only_manager_reverses_cash_and_receipt_is_preserved(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
+    token = _student_token(client, world, order_id)
     _login(client, world.cashier.email)
-    receipt_id = _confirm(client, order_id).json()["receipt"]["id"]
+    receipt_id = _confirm(client, order_id, token=token).json()["receipt"]["id"]
     assert _reverse(client, receipt_id).status_code == 403
     _login(client, world.student.email)
     assert _reverse(client, receipt_id).status_code == 403
@@ -402,7 +444,7 @@ def test_only_manager_reverses_cash_and_receipt_is_preserved(client: TestClient)
     assert db.scalar(select(func.count()).select_from(CashReversal)) == 1
     db.close()
     _login(client, world.cashier.email)
-    reconfirm = _confirm(client, order_id)
+    reconfirm = _confirm(client, order_id, token=token)
     assert reconfirm.status_code == 200
     assert reconfirm.json()["receipt"]["id"] != receipt_id
     assert _db_one(select(func.count()).select_from(CashReceipt)) == 2
@@ -411,11 +453,10 @@ def test_only_manager_reverses_cash_and_receipt_is_preserved(client: TestClient)
 def test_reversal_is_blocked_after_pickup(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
-    _login(client, world.cashier.email)
-    receipt_id = _confirm(client, order_id).json()["receipt"]["id"]
     _login(client, world.student.email)
     token = _issue(client, order_id).json()["token"]
     _login(client, world.cashier.email)
+    receipt_id = _confirm(client, order_id, token=token).json()["receipt"]["id"]
     assert _complete(client, order_id, token=token).status_code == 200
     _login(client, world.manager_email)
     blocked = _reverse(client, receipt_id)
@@ -426,8 +467,7 @@ def test_reversal_is_blocked_after_pickup(client: TestClient) -> None:
 def test_cash_ledgers_and_pickup_events_are_append_only(client: TestClient) -> None:
     world = _world(client)
     order_id, _ = _ready_order(client, world)
-    _login(client, world.cashier.email)
-    receipt_id = _confirm(client, order_id).json()["receipt"]["id"]
+    receipt_id = _pay(client, world, order_id).json()["receipt"]["id"]
     _login(client, world.student.email)
     _issue(client, order_id)
     for statement in (
@@ -555,7 +595,7 @@ def test_handover_requires_recorded_cash(client: TestClient) -> None:
     assert blocked.json()["error"]["code"] == "PAYMENT_PENDING"
     assert _db_one(select(Order.status).where(Order.id == uuid.UUID(order_id))) == "READY"
     assert _db_one(select(PickupCredential.redeemed_at)) is None
-    assert _confirm(client, order_id).status_code == 200
+    assert _confirm(client, order_id, token=token).status_code == 200
     done = _complete(client, order_id, token=token)
     assert done.status_code == 200, done.text
     assert done.json()["order"]["status"] == "PICKED_UP"
@@ -567,7 +607,7 @@ def test_full_pickup_records_cashier_events_and_completes_status(client: TestCli
     _login(client, world.student.email)
     token = _issue(client, order_id).json()["token"]
     _login(client, world.cashier.email)
-    assert _confirm(client, order_id).status_code == 200
+    assert _confirm(client, order_id, token=token).status_code == 200
     verified = _verify(client, token=token).json()
     assert verified["can_complete_pickup"] is True
     assert _complete(client, order_id, token=token).status_code == 200
@@ -600,7 +640,7 @@ def test_credential_can_never_be_redeemed_twice(client: TestClient) -> None:
     _login(client, world.student.email)
     token = _issue(client, order_id).json()["token"]
     _login(client, world.cashier.email)
-    _confirm(client, order_id)
+    _confirm(client, order_id, token=token)
     first = _complete(client, order_id, key="redeem-key-0001", token=token)
     assert first.status_code == 200 and first.json()["replayed"] is False
     replay = _complete(client, order_id, key="redeem-key-0001", token=token)
@@ -623,7 +663,7 @@ def test_concurrent_redemptions_allow_exactly_one(client: TestClient) -> None:
     _login(client, world.student.email)
     token = _issue(client, order_id).json()["token"]
     _login(client, world.cashier.email)
-    _confirm(client, order_id)
+    _confirm(client, order_id, token=token)
     clients = [_new_client(client.app, cashier.email) for cashier in _extra_cashiers(world, 4)]
     barrier = threading.Barrier(len(clients))
     results: list[tuple[int, bool | None]] = []
@@ -653,6 +693,8 @@ def test_expired_credential_is_rejected(client: TestClient) -> None:
     order_id, _ = _ready_order(client, world)
     _login(client, world.student.email)
     token = _issue(client, order_id).json()["token"]
+    _login(client, world.cashier.email)
+    assert _confirm(client, order_id, token=token).status_code == 200
     db = SessionLocal()
     db.execute(
         update(PickupCredential).values(
@@ -665,7 +707,6 @@ def test_expired_credential_is_rejected(client: TestClient) -> None:
     _login(client, world.student.email)
     assert client.get(f"/api/v1/orders/{order_id}/pickup-status").json()["state"] == "EXPIRED"
     _login(client, world.cashier.email)
-    _confirm(client, order_id)
     expired = _verify(client, token=token)
     assert expired.status_code == 410 and expired.json()["error"]["code"] == "PICKUP_EXPIRED"
     assert _complete(client, order_id, token=token).status_code == 410
@@ -688,7 +729,7 @@ def test_manual_code_works_with_ticket_and_is_normalised(client: TestClient) -> 
     assert _verify(client, ticket_number=ticket.lower(), code=code).status_code == 200
     assert _verify(client, code=code).status_code == 422
     assert _verify(client, token="x", code=code, ticket_number=ticket).status_code == 422
-    _confirm(client, order_id)
+    assert _confirm(client, order_id, code=code).status_code == 200
     done = _complete(client, order_id, code=code)
     assert done.status_code == 200, done.text
 
@@ -1053,7 +1094,7 @@ def test_stale_ready_event_is_skipped_after_pickup(client: TestClient) -> None:
     _login(client, world.student.email)
     token = _issue(client, order_id).json()["token"]
     _login(client, world.cashier.email)
-    _confirm(client, order_id)
+    _confirm(client, order_id, token=token)
     assert _complete(client, order_id, token=token).status_code == 200
     stats = _drain()
     assert stats["stale"] == 1 and stats["accepted"] == 0
@@ -1162,8 +1203,8 @@ def test_cashier_board_and_manager_summary_separate_value_cash_and_reversals(
     assert len(board["awaiting_payment"]) == 3 and board["awaiting_handover"] == []
     assert board["totals"]["awaiting_payment_paise"] == 4 * PRICE
     assert board["totals"]["recorded_today_paise"] == 0
-    first_receipt = _confirm(client, first).json()["receipt"]["id"]
-    _confirm(client, second, amount=2 * PRICE)
+    first_receipt = _pay(client, world, first).json()["receipt"]["id"]
+    _pay(client, world, second, amount=2 * PRICE)
     board = client.get("/api/v1/cashier/orders").json()
     assert len(board["awaiting_payment"]) == 1 and len(board["awaiting_handover"]) == 2
     assert board["totals"]["recorded_today_paise"] == 3 * PRICE

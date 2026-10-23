@@ -213,15 +213,28 @@ def test_order_rules_stock_snapshots_and_csrf(client: TestClient) -> None:
         headers=_csrf(client),
     )
     assert negative.status_code == 422
-    too_many = client.post(
+    # Shelf status is manager-owned: only Out of stock refuses checkout.
+    db = SessionLocal()
+    shelf = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == uuid.UUID(item["id"])))
+    assert shelf is not None
+    shelf.available_qty = 0
+    db.commit()
+    db.close()
+    sold_out = client.post(
         "/api/v1/orders",
         json={
-            "items": [{"menu_item_id": item["id"], "quantity": 3}],
+            "items": [{"menu_item_id": item["id"], "quantity": 1}],
             "idempotency_key": uuid.uuid4().hex,
         },
         headers=_csrf(client),
     )
-    assert too_many.status_code == 409
+    assert sold_out.status_code == 409
+    db = SessionLocal()
+    shelf = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == uuid.UUID(item["id"])))
+    assert shelf is not None
+    shelf.available_qty = 2
+    db.commit()
+    db.close()
     db = SessionLocal()
     from app.models.ordering import KitchenStation, MenuCategory
 
@@ -531,20 +544,57 @@ def test_oversell_and_duplicate_retries(client: TestClient) -> None:
         thread.start()
     for thread in threads:
         thread.join()
-    assert results.count("ok") == 1
+    # Shelf status is manager-owned: qty=1 (Few left) still allows both buyers.
+    assert results.count("ok") == 2
     db = SessionLocal()
     stock = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == item_id))
     assert stock is not None
-    assert stock.available_qty == 0
-    assert stock.reserved_qty == 1
-    assert stock.available_qty >= 0
+    assert stock.available_qty == 1
+    assert stock.reserved_qty == 2
     orders = db.scalars(select(Order)).all()
-    assert len(orders) == 1
+    assert len(orders) == 2
     payment = db.scalar(select(OrderPayment))
     assert payment is not None
     assert payment.status == "PENDING"
     assert payment.method == "CASH"
     db.close()
+
+    # Sold out blocks every buyer.
+    db = SessionLocal()
+    stock = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == item_id))
+    assert stock is not None
+    stock.available_qty = 0
+    db.commit()
+    db.close()
+    blocked: list[str] = []
+
+    def try_sold_out(student_id, key: str) -> None:
+        session = SessionLocal()
+        try:
+            buyer = session.get(User, student_id)
+            assert buyer is not None
+            place_order(
+                session,
+                student=buyer,
+                lines=[(item_id, 1)],
+                note=None,
+                idempotency_key=key,
+            )
+            blocked.append("ok")
+        except Exception as exc:  # noqa: BLE001
+            blocked.append(type(exc).__name__)
+        finally:
+            session.close()
+
+    sold_threads = [
+        threading.Thread(target=try_sold_out, args=(student_ids[0], uuid.uuid4().hex)),
+        threading.Thread(target=try_sold_out, args=(student_ids[1], uuid.uuid4().hex)),
+    ]
+    for thread in sold_threads:
+        thread.start()
+    for thread in sold_threads:
+        thread.join()
+    assert blocked.count("ok") == 0
 
     raced: list[str] = []
 
@@ -564,8 +614,7 @@ def test_oversell_and_duplicate_retries(client: TestClient) -> None:
         finally:
             session.close()
 
-    # The last portion is gone, so this pair shares a key and must not insert two orders.
-    # Restock one portion first so a successful save is possible, then race the same key.
+    # Restock, then race the same idempotency key — only one order may be inserted.
     db = SessionLocal()
     stock = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == item_id))
     assert stock is not None
@@ -628,7 +677,8 @@ def test_post_commit_disconnect_still_returns_the_saved_order(client: TestClient
     assert len(payments) == 1
     stock = db.scalar(select(DailyStock).where(DailyStock.menu_item_id == item["id"]))
     assert stock is not None
-    assert stock.available_qty == 1
+    assert stock.available_qty == 2
+    assert stock.reserved_qty == 1
     db.close()
 
 
@@ -830,4 +880,3 @@ def test_menu_order_search_and_student_cannot_rearrange(client: TestClient) -> N
     assert again.status_code == 200
     assert again.json()["total_paise"] == placed.json()["total_paise"]
     assert again.json()["items"][0]["unit_price_paise"] == 1500
-

@@ -112,9 +112,19 @@ def _login(client: TestClient, email: str):
     return logged_in
 
 
+def _code_from_mail(recipient: str) -> str:
+    body = _mail_text(recipient)
+    match = re.search(r"registration page: (\d{6})", body)
+    assert match, body
+    return match.group(1)
+
+
 def _verify_and_login(client: TestClient, email: str) -> None:
-    token = _token_from_mail(email)
-    verified = client.post("/api/v1/auth/verify-email", json={"token": token})
+    code = _code_from_mail(email)
+    verified = client.post(
+        "/api/v1/auth/verify-email-code",
+        json={"email": email, "code": code},
+    )
     assert verified.status_code == 200, verified.text
     _login(client, email)
 
@@ -180,7 +190,16 @@ def test_student_cannot_choose_a_role(client: TestClient) -> None:
 
 
 def test_registration_requires_the_college_domain(client: TestClient) -> None:
-    response = _register(client, "person@gmail.com", "CS101")
+    settings = get_settings()
+    previous_mode = settings.college_eligibility_mode
+    previous_domain = settings.college_email_domain
+    settings.college_eligibility_mode = "institutional_domain"
+    settings.college_email_domain = "student.bowlbyte.edu"
+    try:
+        response = _register(client, "person@gmail.com", "CS101")
+    finally:
+        settings.college_eligibility_mode = previous_mode
+        settings.college_email_domain = previous_domain
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "ELIGIBILITY_REJECTED"
@@ -195,24 +214,26 @@ def test_register_verify_and_reject_expired_or_reused_tokens(client: TestClient)
     email = _email("verify")
     created = _register(client, email, "CS102")
     assert created.status_code == 202, created.text
-    token = _token_from_mail(email)
-    assert token not in created.text
+    code = _code_from_mail(email)
+    assert code not in created.text
 
-    first = client.post("/api/v1/auth/verify-email", json={"token": token})
+    first = client.post("/api/v1/auth/verify-email-code", json={"email": email, "code": code})
     assert first.status_code == 200
     assert first.json()["user"]["role"] == "STUDENT"
     assert first.json()["user"]["status"] == "ACTIVE"
-    reused = client.post("/api/v1/auth/verify-email", json={"token": token})
+    reused = client.post("/api/v1/auth/verify-email-code", json={"email": email, "code": code})
     assert reused.status_code == 400
 
     pending = _email("expired")
     assert _register(client, pending, "CS103").status_code == 202
-    expired_token = _token_from_mail(pending)
+    expired_code = _code_from_mail(pending)
     db = SessionLocal()
     try:
+        user = db.scalar(select(User).where(User.email == pending))
+        assert user is not None
         row = db.scalar(
             select(EmailVerificationToken).where(
-                EmailVerificationToken.token_hash == hash_secret(expired_token)
+                EmailVerificationToken.token_hash == hash_secret(f"{user.id}:{expired_code}")
             )
         )
         assert row is not None
@@ -220,7 +241,10 @@ def test_register_verify_and_reject_expired_or_reused_tokens(client: TestClient)
         db.commit()
     finally:
         db.close()
-    rejected = client.post("/api/v1/auth/verify-email", json={"token": expired_token})
+    rejected = client.post(
+        "/api/v1/auth/verify-email-code",
+        json={"email": pending, "code": expired_code},
+    )
     assert rejected.status_code == 400
     db = SessionLocal()
     try:

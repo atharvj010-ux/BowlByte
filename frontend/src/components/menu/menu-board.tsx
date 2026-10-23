@@ -14,7 +14,8 @@ import { foodImage } from "@/lib/food-art";
 import { formatInrFromPaise } from "@/lib/money";
 import { nutritionLabel } from "@/lib/nutrition";
 import { groupInMenuOrder, type MenuSort } from "@/lib/menu-order";
-import { canOrder, menuItemSchema, type MenuItem } from "@/lib/ordering";
+import { isVegetarianDish } from "@/lib/menu-diet";
+import { canOrder, menuItemSchema, stockStatusLabel, type MenuItem } from "@/lib/ordering";
 
 const menuResponse = z.object({ items: z.array(menuItemSchema), total: z.number() });
 const categoriesResponse = z.array(z.object({ id: z.string(), name: z.string(), sort_order: z.number() }));
@@ -35,7 +36,7 @@ async function loadMenu(query: string, categoryId: string, sort: MenuSort) {
   }
   const page = menuResponse.parse(await response.json());
   const items = [...page.items];
-  while (items.length < page.total && items.length < 200) {
+  while (items.length < page.total && items.length < 600) {
     params.set("offset", String(items.length));
     const next = await apiFetch(`/api/v1/menu/items?${params.toString()}`);
     if (!next.ok) {
@@ -50,14 +51,37 @@ async function loadMenu(query: string, categoryId: string, sort: MenuSort) {
   return { items, total: page.total };
 }
 
+type StockFilter = "" | "in_stock" | "sold_out";
+type DietFilter = "" | "veg" | "non_veg";
+
+function matchesMenuFilters(item: MenuItem, stockFilter: StockFilter, dietFilter: DietFilter): boolean {
+  if (stockFilter === "in_stock" && !canOrder(item)) {
+    return false;
+  }
+  if (stockFilter === "sold_out" && canOrder(item)) {
+    return false;
+  }
+  const vegetarian = isVegetarianDish(item);
+  if (dietFilter === "veg" && !vegetarian) {
+    return false;
+  }
+  if (dietFilter === "non_veg" && vegetarian) {
+    return false;
+  }
+  return true;
+}
+
 export function MenuBoard() {
   const cart = useCart();
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [sort, setSort] = useState<MenuSort>("recommended");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("");
+  const [dietFilter, setDietFilter] = useState<DietFilter>("");
   const [notice, setNotice] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [suggestId, setSuggestId] = useState<string | null>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(draft.trim()), 250);
     return () => window.clearTimeout(timer);
@@ -80,14 +104,17 @@ export function MenuBoard() {
     queryKey: ["menu-specials"],
     queryFn: () => loadMenu("", "featured", "recommended"),
   });
-  const items = menu.data?.items ?? [];
+  const items = (menu.data?.items ?? []).filter((item) =>
+    matchesMenuFilters(item, stockFilter, dietFilter),
+  );
   const open = items.find((item) => item.id === openId) ?? null;
   const empty = !menu.isLoading && !menu.isError && items.length === 0;
-  const grouped = sort === "recommended" && categoryId === "" && !query;
+  const grouped = sort === "recommended" && categoryId === "" && !query && !stockFilter && !dietFilter;
   const sections = grouped ? groupInMenuOrder(items) : [{ id: "results", name: "", items }];
 
   function add(itemId: string, origin: HTMLElement | null, image: string | null, name: string) {
     cart.add(itemId, origin, image, name);
+    setSuggestId(itemId);
     setNotice("Added to cart. The server price is confirmed at checkout.");
   }
 
@@ -129,6 +156,57 @@ export function MenuBoard() {
           </label>
         </div>
       </div>
+      <div className="menu-filters" role="group" aria-label="Filters" data-testid="menu-filters">
+        <button
+          type="button"
+          className="chip-btn"
+          aria-pressed={stockFilter === "in_stock"}
+          data-testid="filter-in-stock"
+          onClick={() => setStockFilter((current) => (current === "in_stock" ? "" : "in_stock"))}
+        >
+          In stock
+        </button>
+        <button
+          type="button"
+          className="chip-btn"
+          aria-pressed={stockFilter === "sold_out"}
+          data-testid="filter-sold-out"
+          onClick={() => setStockFilter((current) => (current === "sold_out" ? "" : "sold_out"))}
+        >
+          Sold out
+        </button>
+        <button
+          type="button"
+          className="chip-btn"
+          aria-pressed={dietFilter === "veg"}
+          data-testid="filter-veg"
+          onClick={() => setDietFilter((current) => (current === "veg" ? "" : "veg"))}
+        >
+          Veg
+        </button>
+        <button
+          type="button"
+          className="chip-btn"
+          aria-pressed={dietFilter === "non_veg"}
+          data-testid="filter-non-veg"
+          onClick={() => setDietFilter((current) => (current === "non_veg" ? "" : "non_veg"))}
+        >
+          Non veg
+        </button>
+        {stockFilter || dietFilter ? (
+          <button
+            type="button"
+            className="chip-btn"
+            data-testid="filter-clear"
+            onClick={() => {
+              setStockFilter("");
+              setDietFilter("");
+            }}
+          >
+            Clear filters
+          </button>
+        ) : null}
+      </div>
       <div className="menu-cats" role="group" aria-label="Categories" data-testid="menu-categories">
         <button type="button" className="chip-btn" aria-pressed={categoryId === ""} onClick={() => setCategoryId("")}>
           All items
@@ -160,6 +238,7 @@ export function MenuBoard() {
           {notice}
         </p>
       ) : null}
+      {suggestId ? <FoodPairings itemId={suggestId} heading="Complete your meal" /> : null}
       {menu.isLoading ? (
         <div className="food-grid" aria-label="Loading the menu">
           {[0, 1, 2].map((key) => (
@@ -169,7 +248,11 @@ export function MenuBoard() {
       ) : null}
       {menu.isError ? <p className="text-sm text-destructive">{menu.error.message}</p> : null}
       {empty ? (
-        <p className="text-sm text-muted-foreground">Nothing matches that search. Clear it to see the menu again.</p>
+        <p className="text-sm text-muted-foreground">
+          {stockFilter || dietFilter || query
+            ? "Nothing matches those filters. Clear search or filters to see more items."
+            : "Nothing matches that search. Clear it to see the menu again."}
+        </p>
       ) : null}
       {!empty
         ? sections.map((section) => (
@@ -278,9 +361,10 @@ function FoodDetail({
           {item.description ? <p className="leading-7 text-ivory/80">{item.description}</p> : null}
           <div className="flex flex-wrap items-center gap-3">
             <p className="food-price text-2xl">{formatInrFromPaise(item.price_paise)}</p>
-            <p className="text-sm text-muted-foreground">
-              {canOrder(item) ? `${item.available_qty} available now` : "Sold out"}
+            <p className="food-flag" data-tone={isVegetarianDish(item) ? "veg" : "non-veg"}>
+              {isVegetarianDish(item) ? "Veg" : "Non veg"}
             </p>
+            <p className="text-sm text-muted-foreground">{stockStatusLabel(item)}</p>
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl bg-white/5 p-3">
@@ -308,7 +392,7 @@ function FoodDetail({
           >
             {canOrder(item) ? "Add to cart" : "Sold out"}
           </Button>
-          <FoodPairings itemId={item.id} />
+          <FoodPairings itemId={item.id} heading="Complete your meal" />
         </div>
       </div>
     </dialog>

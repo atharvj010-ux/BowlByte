@@ -39,8 +39,8 @@ export function FoodPairings({ itemId, heading = "Perfect together." }: { itemId
         <h3 className="font-display text-3xl leading-none font-extrabold tracking-tight uppercase">{heading}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {pairings.data?.basis === "MANAGER"
-            ? "Chosen by the canteen. Nothing is added unless you tap it."
-            : "From the same part of the menu, in stock now. Nothing is added unless you tap it."}
+            ? "Chosen to finish the meal. Nothing is added unless you tap it."
+            : "A drink with food, or food with a drink, from what is in stock. Nothing is added unless you tap it."}
           {items.some((item) => !item.image_url) ? " Pictures without a canteen photo are illustrative." : ""}
         </p>
       </div>

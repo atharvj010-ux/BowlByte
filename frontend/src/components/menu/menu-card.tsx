@@ -4,9 +4,10 @@ import type { PointerEvent, ReactNode } from "react";
 
 import { dishKind, DishMark } from "@/components/menu/food-mark";
 import { foodImage } from "@/lib/food-art";
+import { isVegetarianDish } from "@/lib/menu-diet";
 import { formatInrFromPaise } from "@/lib/money";
 import { nutritionLabel } from "@/lib/nutrition";
-import { canOrder, type MenuItem } from "@/lib/ordering";
+import { canOrder, stockStatusLabel, type MenuItem } from "@/lib/ordering";
 
 const tones = ["#f6d15a", "#3df28b", "#4aa8ff", "#ff5c8a", "#f15438", "#d5f25b"];
 
@@ -106,19 +107,31 @@ export function MenuCard({
           </h3>
           <p className="food-price shrink-0">{formatInrFromPaise(item.price_paise)}</p>
         </div>
-        <p className="line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">
-          {item.description || "\u00a0"}
-        </p>
-        {item.is_featured ? <p className="food-flag">{"Today's special"}</p> : null}
-        <div className="food-facts">
-          <p>{nutritionLabel(item)}</p>
-          {item.calories_kcal == null && item.serving_size_description ? (
-            <p>Serving: {item.serving_size_description}</p>
-          ) : null}
+        <p className="text-sm leading-6 text-muted-foreground">{item.description || "Canteen portion."}</p>
+        <div className="flex flex-wrap gap-2">
+          <p className="food-flag" data-tone={isVegetarianDish(item) ? "veg" : "non-veg"}>
+            {isVegetarianDish(item) ? "Veg" : "Non veg"}
+          </p>
+          {item.is_featured ? <p className="food-flag">{"Today's special"}</p> : null}
         </div>
+        <dl className="food-facts grid gap-1">
+          <div>
+            <dt className="sr-only">Calories</dt>
+            <dd>{nutritionLabel(item)}</dd>
+          </div>
+          <div>
+            <dt className="inline text-muted-foreground">Serving: </dt>
+            <dd className="inline">{item.serving_size_description?.trim() || "one portion"}</dd>
+          </div>
+          <div>
+            <dt className="inline text-muted-foreground">Prep: </dt>
+            <dd className="inline">about {Math.max(1, Math.round(item.prep_seconds / 60))} min</dd>
+          </div>
+        </dl>
         <p className="font-mono text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase">
           {item.category_name}
-          {orderable ? ` · ${item.available_qty} left` : " · Sold out"}
+          {" · "}
+          {stockStatusLabel(item)}
         </p>
         <div className="mt-auto pt-1">{action}</div>
       </div>

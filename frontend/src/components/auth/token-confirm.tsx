@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 
+import {
+  AuthStage,
+  AuthSuccessBurst,
+  OtpVerifyingMark,
+} from "@/components/auth/auth-motion";
 import { PasswordField, textInputClass } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +39,13 @@ function readToken(): string {
   const hash = window.location.hash.startsWith("#")
     ? window.location.hash.slice(1)
     : window.location.hash;
-  const fromHash = new URLSearchParams(hash).get("token") ?? "";
+  const params = new URLSearchParams(hash);
+  const kind = params.get("type");
+  const fromSupabase =
+    kind === "signup" || kind === "email" || kind === "magiclink"
+      ? (params.get("access_token") ?? "")
+      : "";
+  const fromHash = params.get("token") || fromSupabase;
   if (fromHash) {
     capturedToken = fromHash;
   }
@@ -98,49 +109,55 @@ export function VerifyEmailForm() {
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-12 sm:px-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Confirm email</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p role="status">
-            {checked && token === ""
-              ? "This page needs the confirmation link from your email."
-              : status === "working"
-                ? "Confirming your email…"
-                : message}
-          </p>
-          {status === "done" ? (
-            <Button asChild>
-              <Link href="/student/login">Go to student sign-in</Link>
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
-      {status === "error" || (checked && token === "") ? (
+      <AuthStage>
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Send another link</CardTitle>
+            <CardTitle>Confirm email</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={resend} aria-busy={pending}>
-              <label className="block space-y-2 text-sm" htmlFor="resend-email">
-                <span className="font-medium">Email</span>
-                <input
-                  id="resend-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className={textInputClass}
-                />
-              </label>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Sending…" : "Resend"}
-              </Button>
-              {resendMessage ? <p className="text-sm">{resendMessage}</p> : null}
-            </form>
+          <CardContent className="space-y-4">
+            {checked && token === "" ? (
+              <p role="status">This page needs the confirmation link from your email.</p>
+            ) : status === "working" ? (
+              <OtpVerifyingMark label="Confirming your email" />
+            ) : status === "done" ? (
+              <div className="space-y-4">
+                <AuthSuccessBurst title="Email confirmed" detail={message} />
+                <Button asChild className="w-full">
+                  <Link href="/student/login">Go to student sign-in</Link>
+                </Button>
+              </div>
+            ) : (
+              <p role="status">{message}</p>
+            )}
           </CardContent>
         </Card>
+      </AuthStage>
+      {status === "error" || (checked && token === "") ? (
+        <AuthStage>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Send another link</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={resend} aria-busy={pending}>
+                <label className="block space-y-2 text-sm" htmlFor="resend-email">
+                  <span className="font-medium">Email</span>
+                  <input
+                    id="resend-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className={textInputClass}
+                  />
+                </label>
+                <Button type="submit" disabled={pending}>
+                  {pending ? "Sending…" : "Resend"}
+                </Button>
+                {resendMessage ? <p className="text-sm">{resendMessage}</p> : null}
+              </form>
+            </CardContent>
+          </Card>
+        </AuthStage>
       ) : null}
     </main>
   );

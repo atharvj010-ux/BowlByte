@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { AccountHome } from "@/components/account-home";
 import { KitchenDesk } from "@/components/kitchen/kitchen-desk";
 import { ProtectedArea } from "@/components/protected-area";
 
@@ -10,11 +9,9 @@ export default function StaffPage() {
   return (
     <ProtectedArea role="KITCHEN_STAFF" loginHref="/staff/login">
       {(user) => (
-        <AccountHome
-          user={user}
-          note="Accept tickets, prepare them at the station, and mark the order ready after packing. The cashier records cash after the order is ready."
-          extra={<KitchenDesk />}
-        />
+        <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+          <KitchenDesk user={user} />
+        </main>
       )}
     </ProtectedArea>
   );

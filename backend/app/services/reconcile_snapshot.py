@@ -72,7 +72,7 @@ def _primary_key(connection: psycopg.Connection, table: str) -> list[str]:
 
 
 def _pk_text(columns: list[str]) -> str:
-    parts = ", ".join(f'COALESCE("{name}"::text, \'\')' for name in columns)
+    parts = ", ".join(f"COALESCE(\"{name}\"::text, '')" for name in columns)
     if len(columns) == 1:
         return parts
     return f"concat_ws('|', {parts})"
@@ -88,7 +88,7 @@ def _hashes(
     columns = [
         name for name in _columns(connection, table) if name not in ignored and name not in key
     ]
-    payload = ", ".join(f'COALESCE("{name}"::text, \'\')' for name in columns)
+    payload = ", ".join(f"COALESCE(\"{name}\"::text, '')" for name in columns)
     expression = f"md5(concat_ws('|', {payload}))" if columns else "md5('')"
     rows = connection.execute(
         f'SELECT {_pk_text(key)}, {expression} FROM public."{table}"'
@@ -129,9 +129,7 @@ def summarize_reconciliation(
     return summary
 
 
-def plan_reconciliation(
-    source: psycopg.Connection, target: psycopg.Connection
-) -> dict[str, Any]:
+def plan_reconciliation(source: psycopg.Connection, target: psycopg.Connection) -> dict[str, Any]:
     tables = _require_same_shape(source, target)
     inserts: dict[str, list[str]] = {}
     unexpected: list[str] = []
@@ -178,9 +176,7 @@ def _changed_stock(source: psycopg.Connection, target: psycopg.Connection) -> li
     return sorted(key for key in set(left) & set(right) if left[key] != right[key])
 
 
-def apply_reconciliation(
-    source: psycopg.Connection, target: psycopg.Connection
-) -> Counter:
+def apply_reconciliation(source: psycopg.Connection, target: psycopg.Connection) -> Counter:
     planned = plan_reconciliation(source, target)
     counts: Counter = Counter()
     for table in INSERT_ORDER:
@@ -217,12 +213,10 @@ def _insert_missing(
     return len(rows)
 
 
-def _update_stock(
-    source: psycopg.Connection, target: psycopg.Connection, ids: list[str]
-) -> int:
+def _update_stock(source: psycopg.Connection, target: psycopg.Connection, ids: list[str]) -> int:
     columns = ", ".join(f'"{name}"' for name in STOCK_COLUMNS)
     rows = source.execute(
-        f'SELECT id::text, {columns} FROM public.daily_stock WHERE id = ANY(%s::uuid[])',
+        f"SELECT id::text, {columns} FROM public.daily_stock WHERE id = ANY(%s::uuid[])",
         (ids,),
     ).fetchall()
     if len(rows) != len(ids):

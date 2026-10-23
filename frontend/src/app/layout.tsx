@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Bricolage_Grotesque, Figtree, JetBrains_Mono } from "next/font/google";
 
 import { Providers } from "@/components/providers";
@@ -60,7 +61,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             Skip to content
           </a>
           <PwaRuntime />
-          <SiteHeader />
+          <Suspense
+            fallback={
+              <header className="sticky top-0 z-40 border-b border-white/5 bg-background/75 backdrop-blur-md">
+                <div className="mx-auto flex w-full max-w-6xl items-center px-4 py-3 sm:px-6">
+                  <span className="inline-flex min-h-11 items-center gap-2 font-display text-xl font-extrabold tracking-tight uppercase">
+                    BowlByte
+                  </span>
+                </div>
+              </header>
+            }
+          >
+            <SiteHeader />
+          </Suspense>
           <div id="content" className="flex-1">
             {children}
           </div>

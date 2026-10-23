@@ -209,7 +209,7 @@ export function CartDesk() {
             </AnimatePresence>
           </ul>
           {anyIllustrative ? <p className="fine">Pictures without a canteen photo are illustrative.</p> : null}
-          {lines[0] ? <FoodPairings itemId={lines[0].menuItemId} /> : null}
+          {lines[0] ? <FoodPairings itemId={lines[0].menuItemId} heading="Complete your meal" /> : null}
         </div>
 
         <aside className="summary lg:sticky lg:top-24" aria-label="Order summary">

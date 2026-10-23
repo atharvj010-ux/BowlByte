@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { EmptyState, Notice, PageHead, Panel, SkeletonLines } from "@/components/admin/admin-ui";
+import { textInputClass } from "@/components/auth/password-field";
 import { apiFetch, readError } from "@/lib/auth";
-import { emptyHistoryCopy, fieldClass, sourceBadge } from "@/lib/intelligence";
+import { emptyHistoryCopy, sourceBadge } from "@/lib/intelligence";
+import { cn } from "@/lib/utils";
 
 const rowSchema = z.object({
   service_date: z.string(),
@@ -17,6 +20,8 @@ const rowSchema = z.object({
   discarded_qty: z.number().int(),
   source: z.string(),
 });
+
+const SHOWN = 40;
 
 export function HistoryDesk() {
   const [source, setSource] = useState<"REAL" | "DEMO">("REAL");
@@ -37,47 +42,100 @@ export function HistoryDesk() {
       }
       return z.object({ rows: z.array(rowSchema), source: z.string() }).parse(await response.json());
     },
+    placeholderData: keepPreviousData,
   });
   const badge = sourceBadge(source);
+  const rows = history.data?.rows ?? [];
   return (
-    <section className="space-y-6" data-testid="history-desk">
-      <div>
-        <h1 className="font-display text-4xl">Demand history</h1>
-        <p className="text-sm text-muted-foreground">{badge.note}</p>
-      </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1 text-sm">
-          Source
-          <select value={source} onChange={(event) => setSource(event.target.value as "REAL" | "DEMO")} className={fieldClass} data-testid="history-source">
+    <section className="grid gap-4" data-testid="history-desk">
+      <PageHead
+        kicker="Insight · per dish per day"
+        title="Demand history"
+        description={badge.note}
+        actions={
+          <a
+            className="mgr-cta"
+            href={`/api/v1/admin/intelligence/demand-history?date_from=${from}&date_to=${to}&source=${source}&export=csv`}
+          >
+            Download CSV
+          </a>
+        }
+      />
+      <div className="mgr-toolbar">
+        <label className="mgr-field">
+          <span>Source</span>
+          <select value={source} onChange={(event) => setSource(event.target.value as "REAL" | "DEMO")} className={textInputClass} data-testid="history-source">
             <option value="REAL">Recorded</option>
             <option value="DEMO">Demo</option>
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
-          From
-          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={fieldClass} />
+        <label className="mgr-field">
+          <span>From</span>
+          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={textInputClass} />
         </label>
-        <label className="grid gap-1 text-sm">
-          To
-          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className={fieldClass} />
+        <label className="mgr-field">
+          <span>To</span>
+          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className={textInputClass} />
         </label>
-        <a
-          className="underline"
-          href={`/api/v1/admin/intelligence/demand-history?date_from=${from}&date_to=${to}&source=${source}&export=csv`}
-        >
-          Download CSV
-        </a>
       </div>
-      {history.isLoading ? <p>Loading history.</p> : null}
-      {history.isError ? <p role="alert">{history.error.message}</p> : null}
-      {history.data && history.data.rows.length === 0 ? <p>{emptyHistoryCopy(source)}</p> : null}
-      <ul className="space-y-2 text-sm" data-testid="history-rows">
-        {history.data?.rows.slice(0, 40).map((row) => (
-          <li key={`${row.menu_item_id}-${row.service_date}`}>
-            {row.service_date} · {row.item_name} · {row.quality} · observed {row.observed_demand_qty} · prepared {row.produced_qty} · discarded {row.discarded_qty}
-          </li>
-        ))}
-      </ul>
+      <Panel
+        title="Rows"
+        subtitle={
+          history.data
+            ? rows.length > SHOWN
+              ? `Showing the first ${SHOWN} of ${rows.length}. Download the CSV for everything.`
+              : `${rows.length} rows`
+            : "Loading history"
+        }
+        action={<span className={cn("mgr-badge", source === "DEMO" ? "is-info" : "is-good")}>{badge.label}</span>}
+      >
+        {history.isLoading ? (
+          <>
+            <p className="sr-only">Loading history.</p>
+            <SkeletonLines count={4} />
+          </>
+        ) : null}
+        {history.isError ? <Notice tone="error">{history.error.message}</Notice> : null}
+        {history.data && rows.length === 0 ? <EmptyState>{emptyHistoryCopy(source)}</EmptyState> : null}
+        {rows.length > 0 ? (
+          <div className={cn("mgr-table-wrap", history.isPlaceholderData && "is-stale")}>
+            <table className="mgr-table" data-testid="history-rows">
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Dish</th>
+                  <th scope="col">Quality</th>
+                  <th scope="col" className="is-num">
+                    Observed
+                  </th>
+                  <th scope="col" className="is-num">
+                    Prepared
+                  </th>
+                  <th scope="col" className="is-num">
+                    Discarded
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(0, SHOWN).map((row) => (
+                  <tr key={`${row.menu_item_id}-${row.service_date}`}>
+                    <td className="whitespace-nowrap">{row.service_date}</td>
+                    <td>{row.item_name}</td>
+                    <td>
+                      <span className={cn("mgr-badge", row.quality === "OBSERVED" ? "is-good" : "is-warn")}>
+                        {row.quality.replaceAll("_", " ").toLowerCase()}
+                      </span>
+                    </td>
+                    <td className="is-num">{row.observed_demand_qty}</td>
+                    <td className="is-num">{row.produced_qty}</td>
+                    <td className="is-num">{row.discarded_qty}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </Panel>
     </section>
   );
 }

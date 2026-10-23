@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { EmptyState, Notice, Panel } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
 import { textInputClass } from "@/components/auth/password-field";
 import { apiFetch, readError } from "@/lib/auth";
+import { formatInrFromPaise } from "@/lib/money";
 
 const holdOrderSchema = z.object({
   id: z.string(),
@@ -46,39 +48,77 @@ export function UnclaimedDesk() {
     onSuccess: async () => {
       setMessage("Decision recorded. Payment and stock were not changed.");
       await queryClient.invalidateQueries({ queryKey: ["unclaimed-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["mgr", "unclaimed"] });
     },
     onError: (error: Error) => setMessage(error.message),
   });
+  const list = orders.data?.orders ?? [];
   return (
-    <section className="space-y-3" aria-labelledby="unclaimed-review-heading">
-      <h2 id="unclaimed-review-heading" className="font-display text-3xl">Unclaimed orders</h2>
-      <p className="text-sm text-muted-foreground">
-        Extending pickup does not revive an old QR code and does not refund cash. Reviewing an order does not record waste. Food safety stays a counter decision.
-      </p>
-      <label className="block space-y-2 text-sm">
-        <span className="font-medium">Decision note</span>
-        <input value={note} onChange={(event) => setNote(event.target.value)} className={textInputClass} />
-      </label>
-      {orders.isError ? <p role="alert" className="text-sm text-destructive">{orders.error.message}</p> : null}
-      {message ? <p role="status" className="text-sm">{message}</p> : null}
-      <ul className="grid gap-3">
-        {(orders.data?.orders ?? []).map((order) => (
-          <li key={order.id} className="rounded-2xl border border-border bg-card p-4" data-testid="unclaimed-review">
-            <p className="font-medium">{order.ticket_number} · {order.status}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" onClick={() => act.mutate({ id: order.id, path: "extend" })}>
-                Extend pickup 30 minutes
-              </Button>
-              <Button type="button" variant="outline" onClick={() => act.mutate({ id: order.id, path: "review" })}>
-                Record review
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {orders.data && orders.data.orders.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No orders are waiting for a hold decision.</p>
-      ) : null}
+    <section aria-labelledby="unclaimed-review-heading">
+      <Panel
+        title="Unclaimed orders"
+        titleId="unclaimed-review-heading"
+        tone={list.length > 0 ? "#ff8d7a" : undefined}
+        subtitle="Extending pickup does not revive an old QR code and does not refund cash. Reviewing an order does not record waste. Food safety stays a counter decision."
+        action={
+          orders.data ? (
+            <span className={list.length > 0 ? "mgr-badge is-bad" : "mgr-badge is-good"}>
+              {list.length > 0 ? `${list.length} waiting` : "None waiting"}
+            </span>
+          ) : null
+        }
+      >
+        {orders.isError ? <Notice tone="error">{orders.error.message}</Notice> : null}
+        {message ? <Notice tone={act.isError ? "error" : "success"}>{message}</Notice> : null}
+        {list.length > 0 ? (
+          <>
+            <label className="mgr-field">
+              <span>Decision note</span>
+              <input value={note} onChange={(event) => setNote(event.target.value)} className={textInputClass} />
+            </label>
+            <ul className="mgr-list">
+              {list.map((order) => {
+                const last = order.events[order.events.length - 1];
+                return (
+                  <li key={order.id} className="mgr-list-row" data-testid="unclaimed-review">
+                    <div className="min-w-0">
+                      <p className="mgr-row-title">
+                        {order.ticket_number} · {order.status}
+                      </p>
+                      <p className="mgr-row-meta">
+                        {formatInrFromPaise(order.total_paise)}
+                        {last?.note ? ` · Last note: ${last.note}` : ""}
+                      </p>
+                    </div>
+                    <div className="mgr-actions">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={act.isPending}
+                        onClick={() => act.mutate({ id: order.id, path: "extend" })}
+                      >
+                        Extend pickup 30 minutes
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={act.isPending}
+                        onClick={() => act.mutate({ id: order.id, path: "review" })}
+                      >
+                        Record review
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : null}
+        {orders.data && list.length === 0 ? (
+          <EmptyState>No orders are waiting for a hold decision.</EmptyState>
+        ) : null}
+      </Panel>
     </section>
   );
 }

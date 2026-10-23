@@ -46,6 +46,7 @@ from app.services.ordering import (
     service_today,
     set_available_stock,
     set_item_image,
+    set_stock_level,
     update_category,
     update_menu_item,
     update_station,
@@ -86,9 +87,7 @@ def admin_categories(
 ) -> list[CategoryResponse]:
     _manager(principal)
     canteen_id = manager_canteen_id(db, principal.user)
-    return [
-        _category_out(row) for row in list_categories(db, canteen_id=canteen_id, public=False)
-    ]
+    return [_category_out(row) for row in list_categories(db, canteen_id=canteen_id, public=False)]
 
 
 @router.post("/categories", response_model=CategoryResponse, status_code=201)
@@ -296,9 +295,7 @@ def reorder_menu_item(
     db: Session = Depends(get_db),
 ) -> MenuItemResponse:
     _manager(principal)
-    item = move_menu_item(
-        db, manager=principal.user, item_id=item_id, direction=body.direction
-    )
+    item = move_menu_item(db, manager=principal.user, item_id=item_id, direction=body.direction)
     return MenuItemResponse.model_validate(
         get_menu_item(db, canteen_id=item.canteen_id, item_id=item.id, public=False)
     )
@@ -396,13 +393,22 @@ def edit_stock(
     db: Session = Depends(get_db),
 ) -> StockRowResponse:
     _manager(principal)
-    set_available_stock(
-        db,
-        manager=principal.user,
-        item_id=item_id,
-        available_qty=body.available_qty,
-        reason=body.reason,
-    )
+    if body.stock_level is not None:
+        set_stock_level(
+            db,
+            manager=principal.user,
+            item_id=item_id,
+            stock_level=body.stock_level,
+            reason=body.reason,
+        )
+    else:
+        set_available_stock(
+            db,
+            manager=principal.user,
+            item_id=item_id,
+            available_qty=body.available_qty or 0,
+            reason=body.reason,
+        )
     rows = list_stock(
         db,
         canteen_id=manager_canteen_id(db, principal.user),

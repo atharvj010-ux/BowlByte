@@ -16,7 +16,7 @@ export const currentUserSchema = z.object({
 export type CurrentUser = z.infer<typeof currentUserSchema>;
 
 export const registrationPolicySchema = z.object({
-  mode: z.enum(["disabled", "institutional_domain", "roster"]),
+  mode: z.enum(["disabled", "open", "institutional_domain", "roster"]),
   open: z.boolean(),
   college_name: z.string(),
   email_domain: z.string().nullable(),

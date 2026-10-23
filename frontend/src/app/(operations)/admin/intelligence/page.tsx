@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AdminPage } from "@/components/admin/admin-ui";
 import { IntelligenceDashboard } from "@/components/admin/intelligence-dashboard";
 import { IntelligenceNav } from "@/components/admin/intelligence-nav";
 import { ProtectedArea } from "@/components/protected-area";
@@ -10,10 +11,10 @@ export default function IntelligencePage() {
   return (
     <ProtectedArea role="CANTEEN_MANAGER" loginHref="/admin/login">
       {() => (
-        <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+        <AdminPage>
           <IntelligenceNav />
           <IntelligenceDashboard />
-        </main>
+        </AdminPage>
       )}
     </ProtectedArea>
   );

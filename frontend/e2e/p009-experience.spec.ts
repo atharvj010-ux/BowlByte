@@ -98,7 +98,7 @@ test("premium landing page loads", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: /Zero queue drama/i })).toBeVisible();
   await expect(shown(page, "food-hero")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Explore menu" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Get started now" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "How it works" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Not in this release" })).toBeVisible();
 });
@@ -115,8 +115,8 @@ test("entrance can be skipped and settles all four stations", async ({ page }) =
 test("entrance replays on refresh but not on client navigation", async ({ page }) => {
   await page.goto("/");
   await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled", { timeout: 10_000 });
-  await page.getByRole("link", { name: "Status" }).first().click();
-  await expect(page).toHaveURL(/\/status$/);
+  await page.getByRole("link", { name: "Get started now" }).first().click();
+  await expect(page).toHaveURL(/\/login$/);
   await page.getByRole("link", { name: "BowlByte" }).first().click();
   await expect(page).toHaveURL(/\/$/);
   await expect(shown(page, "food-hero")).toHaveAttribute("data-stage", "settled");
@@ -176,6 +176,7 @@ test("menu, cart flight, pairing, and confirmed order success", async ({ page })
   await expect(page.getByText("Category saved.")).toBeVisible();
 
   await page.getByRole("link", { name: "Add menu item" }).click();
+  await expect(page.getByRole("heading", { name: "New item" })).toBeVisible();
   await fillItem(page, `Salted Fries ${suffix}`, `Snacks ${suffix}`, "4");
   const friesId = page.url().split("/").at(-2) ?? "";
   const nutrition = await page.evaluate(async (id) => {
@@ -260,7 +261,7 @@ test("menu, cart flight, pairing, and confirmed order success", async ({ page })
   await expect(page.getByRole("link", { name: "Cart 2" })).toBeVisible();
 
   await fries.getByRole("heading", { name: `Salted Fries ${suffix}` }).getByRole("button").click();
-  await expect(page.getByTestId("pairings")).toContainText(`Coke ${suffix}`);
+  await expect(page.getByRole("dialog").getByTestId("pairings")).toContainText(`Coke ${suffix}`);
   await shot(page, "detail-pairing-1280");
   await page.getByRole("dialog").getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("link", { name: "Cart 3" })).toBeVisible();
@@ -268,7 +269,7 @@ test("menu, cart flight, pairing, and confirmed order success", async ({ page })
 
   await page.goto("/student/cart");
   await expect(page.getByText("Pay cash at the canteen counter.")).toBeVisible();
-  await expect(page.getByTestId("pairings").getByRole("heading", { name: "Perfect together." })).toBeVisible();
+  await expect(page.getByTestId("pairings").getByRole("heading", { name: "Complete your meal" })).toBeVisible();
   await expect(page.locator(".cart-line").filter({ hasText: `Salted Fries ${suffix}` }).first()).toBeVisible();
   await shot(page, "cart-1280", true);
   await page.getByRole("button", { name: "Place order" }).click();
@@ -304,13 +305,15 @@ function horizontalOverflow(page: Page) {
 }
 
 async function fillItem(page: Page, name: string, category: string, stock: string) {
-  await page.locator("#content").getByLabel("Name").first().fill(name);
+  await page.locator("#content").getByLabel("Name", { exact: true }).first().fill(name);
   await page.locator("#content").getByLabel("Description").first().fill("Development sample for the pilot.");
   await page.locator("#content").getByLabel("Price in rupees").first().fill("40");
   await page.locator("#content").getByLabel("Preparation seconds").first().fill("300");
-  await page.locator("#content").getByLabel("Category").first().selectOption({ label: category });
-  await page.locator("#content").getByLabel("Station").first().selectOption({ label: `Grill ${suffix}` });
-  await page.locator("#content").getByLabel("Initial stock").first().fill(stock);
+  await page.locator("#content").getByRole("combobox", { name: "Category" }).first().selectOption({ label: category });
+  await page.locator("#content").getByRole("combobox", { name: "Station" }).first().selectOption({ label: `Grill ${suffix}` });
+  await page.locator("#content").getByLabel("Initial stock").first().selectOption({
+    label: Number(stock) <= 0 ? "Out of stock" : Number(stock) <= 5 ? "Few left" : "In stock",
+  });
   await page.getByRole("button", { name: "Create item" }).click();
   await expect(page.getByRole("heading", { name: "Edit item" })).toBeVisible();
 }
@@ -323,10 +326,12 @@ async function registerStudent(page: Page, email: string, name: string) {
   await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
-  const token = await verificationToken(email);
-  await page.goto(`/student/verify-email#token=${token}`);
-  await expect(page.getByText("Your email is confirmed. Sign in to continue.")).toBeVisible();
+  await expect(page.getByText(/Enter the 6-digit code/i)).toBeVisible();
+  const code = await verificationCode(email);
+  await page.locator("#content").getByLabel("Email code").first().fill(code);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByText("Email confirmed.")).toBeVisible();
+  await page.context().clearCookies();
   await page.goto("/student/login");
   await signIn(page, email);
   await expect(page.getByRole("heading", { name: `Hello, ${name}` })).toBeVisible();
@@ -353,7 +358,7 @@ function bootstrapManager(email: string, managerPassword: string) {
   bootstrapIsolatedManager(email, managerPassword);
 }
 
-async function verificationToken(email: string): Promise<string> {
+async function verificationCode(email: string): Promise<string> {
   const query = encodeURIComponent(`to:${email}`);
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const search = await fetch(`${mailpit}/api/v1/search?query=${query}`);
@@ -362,12 +367,12 @@ async function verificationToken(email: string): Promise<string> {
     if (message) {
       const detail = await fetch(`${mailpit}/api/v1/message/${message.ID}`);
       const body = (await detail.json()) as { Text?: string };
-      const match = body.Text?.match(/#token=([A-Za-z0-9_-]+)/);
+      const match = body.Text?.match(/registration page: (\d{6})/);
       if (match) {
         return match[1];
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`No Mailpit token for ${email}`);
+  throw new Error(`No verification code for ${email}`);
 }

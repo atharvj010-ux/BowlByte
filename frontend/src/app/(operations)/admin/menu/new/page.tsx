@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
+import { AdminPage, PageHead } from "@/components/admin/admin-ui";
 import { MenuManager } from "@/components/admin/catalog-desk";
 import { ProtectedArea } from "@/components/protected-area";
 
@@ -9,10 +11,19 @@ export default function NewMenuItemPage() {
   return (
     <ProtectedArea role="CANTEEN_MANAGER" loginHref="/admin/login">
       {() => (
-        <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-10 sm:px-6">
-          <h1 className="font-display text-4xl">New item</h1>
+        <AdminPage narrow>
+          <PageHead
+            kicker="Catalog · new dish"
+            title="New item"
+            description="Fill in the basics, choose where it is cooked, and set its shelf status. You can add a photo and pairings after saving."
+            actions={
+              <Link href="/admin/menu" className="mgr-link">
+                ← Back to menu
+              </Link>
+            }
+          />
           <MenuManager mode="create" />
-        </main>
+        </AdminPage>
       )}
     </ProtectedArea>
   );

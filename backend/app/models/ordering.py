@@ -140,6 +140,7 @@ class MenuItem(Base):
     image_content_type: Mapped[str | None] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_vegetarian: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     prep_seconds: Mapped[int] = mapped_column(Integer, nullable=False)

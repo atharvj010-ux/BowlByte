@@ -4,7 +4,9 @@ import Link from "next/link";
 import { motion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 
+import { FreshRegistrationLink } from "@/components/auth/register-form";
 import { EntranceScene } from "@/components/home/entrance-scene";
+import { GetStartedLink } from "@/components/home/get-started-link";
 import { KineticSwap, KineticText } from "@/components/motion/kinetic";
 import { showcase, type FoodArt } from "@/lib/food-art";
 
@@ -25,9 +27,7 @@ export function LandingExperience() {
         <KineticText id="hero-title" as="h1" mode="load" lines={["Good food.", "Zero queue drama."]} className="hero-title" />
         <p className="hero-copy">Order before the rush. Follow your food from kitchen to counter.</p>
         <div className="hero-actions">
-          <Link href="/student/menu" className="pill pill-solid">
-            Explore menu
-          </Link>
+          <GetStartedLink className="pill pill-solid" />
           <Link href="#how-it-works" className="pill pill-ghost">
             How it works
           </Link>
@@ -109,12 +109,10 @@ export function LandingExperience() {
       <section className="final-cta" aria-label="Skip the queue. Keep the food.">
         <KineticText id="final-title" lines={["Skip the queue.", "Keep the food."]} className="mega-title" />
         <div className="hero-actions">
-          <Link href="/student/menu" className="pill pill-solid">
-            Open the menu
-          </Link>
-          <Link href="/student/register" className="pill pill-ghost">
+          <GetStartedLink className="pill pill-solid" />
+          <FreshRegistrationLink className="pill pill-ghost">
             Create a student account
-          </Link>
+          </FreshRegistrationLink>
         </div>
       </section>
     </main>

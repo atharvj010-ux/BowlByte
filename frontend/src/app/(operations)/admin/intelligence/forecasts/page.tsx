@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AdminPage } from "@/components/admin/admin-ui";
 import { ForecastDesk } from "@/components/admin/forecast-desk";
 import { IntelligenceNav } from "@/components/admin/intelligence-nav";
 import { ProtectedArea } from "@/components/protected-area";
@@ -10,10 +11,10 @@ export default function ForecastsPage() {
   return (
     <ProtectedArea role="CANTEEN_MANAGER" loginHref="/admin/login">
       {() => (
-        <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+        <AdminPage>
           <IntelligenceNav />
           <ForecastDesk />
-        </main>
+        </AdminPage>
       )}
     </ProtectedArea>
   );

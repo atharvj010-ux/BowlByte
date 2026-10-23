@@ -118,9 +118,16 @@ def confirm_cash(
     order_id: UUID,
     acknowledged_amount_paise: int,
     idempotency_key: str,
+    token: str | None = None,
+    code: str | None = None,
     clock: Clock = utcnow,
 ) -> tuple[dict, bool]:
-    """Record physical cash for a READY order. Returns (receipt, replayed)."""
+    """Record physical cash for a READY order after a valid pickup code.
+
+    Returns (receipt, replayed).
+    """
+
+    from app.services.pickup import require_valid_credential_for_order
 
     canteen_id = cashier_canteen_id(db, cashier)
     order = lock_order(db, order_id, canteen_id)
@@ -187,6 +194,11 @@ def confirm_cash(
             status_code=409,
             details={"amount_paise": order.total_paise},
         )
+
+    # Cash is only recorded after the student's pickup code has been presented.
+    require_valid_credential_for_order(
+        db, cashier=cashier, order=order, token=token, code=code, clock=clock
+    )
 
     now = clock()
     attempt_no = (

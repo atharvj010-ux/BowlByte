@@ -72,10 +72,9 @@ The same command works from `backend/` with the virtualenv Python. It writes the
 
 `COLLEGE_ELIGIBILITY_MODE` defaults to `disabled`, so public registration stays closed until the operator chooses one mode:
 
+- `open` accepts any email address together with a name and college roll number. This is the local testing mode.
 - `institutional_domain` requires the email domain in `COLLEGE_EMAIL_DOMAIN`. The verification message proves control of that mailbox.
 - `roster` requires a preloaded roll number and a long enrollment code. The roll number alone is not enough. Import with `python -m app.cli.import_roster roster.csv` using columns `roll_number,enrollment_code`.
-
-Do not open registration until that data is real. A personal email address is not evidence of enrollment.
 
 The web app listens on `127.0.0.1:3010` and the API on `127.0.0.1:8010`.
 

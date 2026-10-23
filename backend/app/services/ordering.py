@@ -43,7 +43,37 @@ from app.models.ordering import (
 from app.services.images import decode_image
 
 LOW_STOCK_AT = 5
+# Shelf status is manager-controlled. Quantities map the three desk labels;
+# placing an order never changes available_qty (so items stay In stock until
+# a manager marks Few left or Out of stock).
+IN_STOCK_QTY = 100
+FEW_LEFT_QTY = LOW_STOCK_AT
+STOCK_LEVEL_QTY = {
+    "IN_STOCK": IN_STOCK_QTY,
+    "FEW_LEFT": FEW_LEFT_QTY,
+    "OUT_OF_STOCK": 0,
+}
 UNAVAILABLE = "That item is not available."
+SOLD_OUT = "That item is sold out."
+
+
+def classify_stock_level(available_qty: int) -> str:
+    if available_qty <= 0:
+        return "OUT_OF_STOCK"
+    if available_qty <= LOW_STOCK_AT:
+        return "FEW_LEFT"
+    return "IN_STOCK"
+
+
+def qty_for_stock_level(level: str) -> int:
+    try:
+        return STOCK_LEVEL_QTY[level]
+    except KeyError as exc:
+        raise ApiError(
+            code="VALIDATION_ERROR",
+            message="Choose In stock, Few left, or Out of stock.",
+            status_code=422,
+        ) from exc
 
 
 def service_today() -> date:
@@ -219,9 +249,7 @@ def list_categories(db: Session, *, canteen_id: UUID, public: bool) -> list[Menu
 def move_category(db: Session, *, manager: User, category_id: UUID, direction: str) -> MenuCategory:
     canteen_id = manager_canteen_id(db, manager)
     rows = [
-        row
-        for row in list_categories(db, canteen_id=canteen_id, public=False)
-        if row.is_active
+        row for row in list_categories(db, canteen_id=canteen_id, public=False) if row.is_active
     ]
     index = next((position for position, row in enumerate(rows) if row.id == category_id), None)
     if index is None:
@@ -341,15 +369,24 @@ def create_menu_item(db: Session, *, manager: User, fields: dict) -> MenuItem:
             )
         )
         sort_order = int(current or 0) + 10
+    from app.services.menu_diet import infer_is_vegetarian
+
+    name = fields["name"].strip()
+    description = fields["description"].strip()
+    if "is_vegetarian" in fields and fields["is_vegetarian"] is not None:
+        is_vegetarian = bool(fields["is_vegetarian"])
+    else:
+        is_vegetarian = infer_is_vegetarian(name, description)
     item = MenuItem(
         canteen_id=canteen_id,
         category_id=fields["category_id"],
-        name=fields["name"].strip(),
-        description=fields["description"].strip(),
+        name=name,
+        description=description,
         price_paise=fields["price_paise"],
         prep_seconds=fields["prep_seconds"],
         is_active=fields["is_active"],
         is_available=fields["is_available"],
+        is_vegetarian=is_vegetarian,
         sort_order=sort_order,
         is_featured=bool(fields.get("is_featured", False)),
     )
@@ -360,24 +397,25 @@ def create_menu_item(db: Session, *, manager: User, fields: dict) -> MenuItem:
     db.flush()
     _assign_station(db, item, fields["station_id"])
     initial = fields.get("initial_available_qty")
-    if initial is not None:
-        stock = DailyStock(
+    if initial is None:
+        initial = IN_STOCK_QTY
+    stock = DailyStock(
+        menu_item_id=item.id,
+        service_date=service_today(),
+        available_qty=initial,
+    )
+    db.add(stock)
+    db.flush()
+    db.add(
+        InventoryAdjustment(
+            daily_stock_id=stock.id,
             menu_item_id=item.id,
-            service_date=service_today(),
-            available_qty=initial,
+            actor_user_id=manager.id,
+            delta_available=initial,
+            delta_reserved=0,
+            reason="manager_set",
         )
-        db.add(stock)
-        db.flush()
-        db.add(
-            InventoryAdjustment(
-                daily_stock_id=stock.id,
-                menu_item_id=item.id,
-                actor_user_id=manager.id,
-                delta_available=initial,
-                delta_reserved=0,
-                reason="manager_set",
-            )
-        )
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -402,14 +440,19 @@ def update_menu_item(db: Session, *, manager: User, item_id: UUID, fields: dict)
         "prep_seconds",
         "is_active",
         "is_available",
+        "is_vegetarian",
         "sort_order",
         "is_featured",
     ):
-        if key in fields:
+        if key in fields and fields[key] is not None:
             setattr(item, key, fields[key])
     from app.services.pairings import apply_nutrition
 
     apply_nutrition(item, fields)
+    if "is_vegetarian" not in fields and ("name" in fields or "description" in fields):
+        from app.services.menu_diet import infer_is_vegetarian
+
+        item.is_vegetarian = infer_is_vegetarian(item.name, item.description)
     _touch(item)
     db.commit()
     db.refresh(item)
@@ -481,7 +524,14 @@ def item_view(
     include_reserved: bool,
     category_sort_order: int = 0,
 ) -> dict:
-    available = stock.available_qty if stock is not None else 0
+    from app.services.menu_diet import infer_is_vegetarian
+
+    # Missing today's row means the manager has not marked it sold out — treat as In stock.
+    available = stock.available_qty if stock is not None else IN_STOCK_QTY
+    # A stored veg flag must not override an obvious non-veg name/description.
+    is_vegetarian = bool(item.is_vegetarian) and infer_is_vegetarian(
+        item.name, item.description or ""
+    )
     return {
         "id": item.id,
         "category_id": item.category_id,
@@ -497,6 +547,7 @@ def item_view(
         "prep_seconds": item.prep_seconds,
         "is_active": item.is_active,
         "is_available": item.is_available,
+        "is_vegetarian": is_vegetarian,
         "is_demo": item.is_demo,
         "calories_kcal": item.calories_kcal,
         "serving_size_description": item.serving_size_description,
@@ -504,6 +555,7 @@ def item_view(
         "nutrition_reference": item.nutrition_reference,
         "image_url": f"/api/v1/menu/items/{item.id}/image" if item.image_content_type else None,
         "available_qty": available,
+        "stock_level": classify_stock_level(available),
         "reserved_qty": stock.reserved_qty if include_reserved and stock is not None else None,
     }
 
@@ -547,7 +599,7 @@ def list_menu_items(
         )
         .correlate(MenuItem)
         .scalar_subquery(),
-        0,
+        IN_STOCK_QTY,
     )
     sold_later = case(
         (and_(MenuItem.is_available.is_(True), stock_qty > 0), 0),
@@ -694,6 +746,23 @@ def set_available_stock(
     return stock
 
 
+def set_stock_level(
+    db: Session,
+    *,
+    manager: User,
+    item_id: UUID,
+    stock_level: str,
+    reason: str,
+) -> DailyStock:
+    return set_available_stock(
+        db,
+        manager=manager,
+        item_id=item_id,
+        available_qty=qty_for_stock_level(stock_level),
+        reason=reason,
+    )
+
+
 def list_stock(db: Session, *, canteen_id: UUID, day: date) -> list[dict]:
     items = list(
         db.scalars(
@@ -704,9 +773,10 @@ def list_stock(db: Session, *, canteen_id: UUID, day: date) -> list[dict]:
     rows = []
     for item in items:
         stock = stocks.get(item.id)
-        available = stock.available_qty if stock else 0
+        available = stock.available_qty if stock else IN_STOCK_QTY
         reserved = stock.reserved_qty if stock else 0
         consumed = stock.consumed_qty if stock else 0
+        level = classify_stock_level(available)
         rows.append(
             {
                 "menu_item_id": item.id,
@@ -717,8 +787,9 @@ def list_stock(db: Session, *, canteen_id: UUID, day: date) -> list[dict]:
                 "consumed_qty": consumed,
                 "is_active": item.is_active,
                 "is_available": item.is_available,
-                "low_stock": available <= LOW_STOCK_AT,
-                "out_of_stock": available == 0,
+                "stock_level": level,
+                "low_stock": level == "FEW_LEFT",
+                "out_of_stock": level == "OUT_OF_STOCK",
             }
         )
     return rows
@@ -865,18 +936,32 @@ def place_order(
         if not item.is_active or not item.is_available:
             raise ApiError(code="INVALID_ORDER", message=UNAVAILABLE, status_code=400)
 
-    stocks = _lock_stock(db, sorted(item_ids, key=str), day)
+    ordered_ids = sorted(item_ids, key=str)
+    stocks = _lock_stock(db, ordered_ids, day)
+    missing = [item_id for item_id in ordered_ids if item_id not in stocks]
+    for item_id in missing:
+        # Default shelf status is In stock until a manager changes it.
+        db.add(
+            DailyStock(
+                menu_item_id=item_id,
+                service_date=day,
+                available_qty=IN_STOCK_QTY,
+            )
+        )
+    if missing:
+        db.flush()
+        stocks = _lock_stock(db, ordered_ids, day)
     stations = _station_map(db, item_ids)
     total = 0
     snapshots: list[dict] = []
     for item_id, quantity in normalized:
         item = items[item_id]
-        stock = stocks.get(item_id)
-        available = stock.available_qty if stock is not None else 0
-        if available < quantity:
+        stock = stocks[item_id]
+        # Only Out of stock blocks checkout. In stock / Few left stay until the manager desk.
+        if stock.available_qty <= 0:
             raise ApiError(
                 code="INSUFFICIENT_STOCK",
-                message="Not enough portions are left.",
+                message=SOLD_OUT,
                 status_code=409,
             )
         line_total = item.price_paise * quantity
@@ -909,7 +994,7 @@ def place_order(
         stock = snapshot["stock"]
         assert stock is not None
         quantity = snapshot["quantity"]
-        stock.available_qty -= quantity
+        # Reserve kitchen work only — do not change the manager shelf label.
         stock.reserved_qty += quantity
         _touch(stock)
         station = snapshot["station"]
@@ -933,7 +1018,7 @@ def place_order(
                 menu_item_id=item.id,
                 actor_user_id=student.id,
                 order_id=order.id,
-                delta_available=-quantity,
+                delta_available=0,
                 delta_reserved=quantity,
                 reason="order_reserve",
             )
@@ -1007,7 +1092,6 @@ def cancel_order(db: Session, *, student: User, order_id: UUID) -> dict:
                 status_code=409,
             )
         stock.reserved_qty -= line.quantity
-        stock.available_qty += line.quantity
         _touch(stock)
         db.add(
             InventoryAdjustment(
@@ -1015,7 +1099,7 @@ def cancel_order(db: Session, *, student: User, order_id: UUID) -> dict:
                 menu_item_id=line.menu_item_id,
                 actor_user_id=student.id,
                 order_id=order.id,
-                delta_available=line.quantity,
+                delta_available=0,
                 delta_reserved=-line.quantity,
                 reason="order_release",
             )

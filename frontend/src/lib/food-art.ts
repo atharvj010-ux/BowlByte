@@ -1,19 +1,200 @@
 export type FoodArt = { src: string; small: string; dish: string };
 
+// Exact dish names from the canteen catalog. Prefer these over loose matching
+// so Paneer Paratha never shows a sandwich photo.
+const exact: Record<string, string> = {
+  poha: "poha",
+  "vegetable upma": "upma",
+  "vermicelli upma": "upma",
+  "medu vada": "medu-vada",
+  "rava dosa": "dosa",
+  "onion uttapam": "uttapam",
+  "set dosa": "dosa",
+  "idli sambar": "idli",
+  "mini idli": "idli",
+  "rava idli": "idli",
+  "thatte idli": "idli",
+  "aloo paratha": "paratha",
+  "paneer paratha": "paratha",
+  "gobi paratha": "paratha",
+  "methi paratha": "paratha",
+  "plain paratha": "paratha",
+  "egg bhurji": "omelette",
+  "paneer bhurji": "omelette",
+  "masala omelette": "omelette",
+  "bread omelette": "omelette",
+  "cheese omelette": "omelette",
+  "mushroom omelette": "omelette",
+  "boiled eggs": "omelette",
+  "puri bhaji": "chole-bhature",
+  "chole bhature": "chole-bhature",
+  "misal pav": "pav-bhaji",
+  "sabudana khichdi": "poha",
+  paniyaram: "idli",
+  "neer dosa": "dosa",
+  "french toast": "sandwich",
+  "banana pancake": "dosa",
+  "veg cutlet": "samosa",
+  "aloo tikki": "samosa",
+  "sprouts bowl": "salad",
+  "fruit bowl": "salad",
+  "cornflakes milk": "chai",
+  "oats porridge": "upma",
+  "moong chilla": "uttapam",
+  "besan chilla": "uttapam",
+  "akki roti": "naan",
+  "bisi bele bath": "fried-rice",
+  "lemon rice": "fried-rice",
+  "tomato rice": "fried-rice",
+  "grilled cheese toast": "sandwich",
+  "peanut butter toast": "sandwich",
+  "banana toast": "sandwich",
+  "egg toast": "sandwich",
+  "veg breakfast burrito": "burger",
+  "yogurt parfait": "salad",
+  "masala oats": "upma",
+  "veg thali": "thali",
+  "chicken thali": "thali",
+  "paneer butter masala": "paneer-curry",
+  "dal tadka": "paneer-curry",
+  "dal fry": "paneer-curry",
+  "jeera rice": "fried-rice",
+  "veg biryani": "biryani",
+  "chicken biryani": "biryani",
+  "egg biryani": "biryani",
+  "rajma chawal": "biryani",
+  "chole rice": "biryani",
+  "palak paneer": "paneer-curry",
+  "kadai paneer": "paneer-curry",
+  "matar paneer": "paneer-curry",
+  "mix vegetable": "paneer-curry",
+  "aloo gobi": "paneer-curry",
+  "bhindi masala": "paneer-curry",
+  "curd rice": "fried-rice",
+  "veg pulao": "fried-rice",
+  "peas pulao": "fried-rice",
+  "veg fried rice": "fried-rice",
+  "schezwan rice": "fried-rice",
+  "hakka noodles": "maggi",
+  "veg manchurian": "fried-rice",
+  "chilli paneer": "paneer-curry",
+  "paneer tikka": "paneer-curry",
+  "chicken curry rice": "biryani",
+  "butter chicken rice": "biryani",
+  "egg curry rice": "biryani",
+  "fish curry rice": "biryani",
+  "roti basket": "naan",
+  "butter naan": "naan",
+  "garlic naan": "naan",
+  "tandoori roti": "naan",
+  "pav bhaji": "pav-bhaji",
+  "vada pav": "burger",
+  "paneer roll": "roll",
+  "chicken roll": "roll",
+  "egg roll": "roll",
+  "veg burger": "burger",
+  "cheese burger": "burger",
+  "red sauce pasta": "maggi",
+  "white sauce pasta": "maggi",
+  "mac and cheese": "maggi",
+  "veg thai curry": "paneer-curry",
+  "grilled chicken": "grilled-chicken",
+  "garden salad": "salad",
+  "paneer salad": "salad",
+  "veg wrap": "wrap",
+  "chicken wrap": "wrap",
+  "filter coffee": "chai",
+  "black coffee": "chai",
+  cappuccino: "chai",
+  "cafe latte": "chai",
+  mocha: "chai",
+  "iced americano": "cold-coffee",
+  "hot chocolate": "chai",
+  "badam milk": "chai",
+  "turmeric milk": "chai",
+  "rose milk": "lassi",
+  buttermilk: "lassi",
+  "masala buttermilk": "lassi",
+  "sweet lassi": "lassi",
+  "salt lassi": "lassi",
+  "mango lassi": "lassi",
+  "banana shake": "shake",
+  "chocolate shake": "shake",
+  "strawberry shake": "shake",
+  "vanilla shake": "shake",
+  "mango shake": "shake",
+  "date shake": "shake",
+  "protein shake": "shake",
+  "cold cocoa": "cold-coffee",
+  lemonade: "juice",
+  "mint lime": "juice",
+  "orange juice": "juice",
+  "apple juice": "juice",
+  "watermelon juice": "juice",
+  "pineapple juice": "juice",
+  "mixed fruit juice": "juice",
+  "sugarcane juice": "juice",
+  "coconut water": "juice",
+  "masala soda": "cola",
+  cola: "cola",
+  "lemon soda": "cola",
+  "jeera soda": "cola",
+  "green tea": "chai",
+  "lemon tea": "chai",
+  "ginger tea": "chai",
+  "black tea": "chai",
+  "iced tea": "cold-coffee",
+  "peach iced tea": "cold-coffee",
+  "virgin mojito": "juice",
+  "kokum cooler": "juice",
+  jaljeera: "juice",
+  "aam panna": "juice",
+  thandai: "lassi",
+  "electrolyte drink": "cola",
+  "sparkling water": "cola",
+  "iced latte": "cold-coffee",
+  "masala dosa": "dosa",
+  "veg sandwich": "sandwich",
+  "cheese sandwich": "sandwich",
+  maggi: "maggi",
+  samosa: "samosa",
+  "cold coffee": "cold-coffee",
+  "masala chai": "chai",
+};
+
 // Generated studio images. They illustrate a kind of dish, never a specific
 // canteen item, so every surface that shows one must say "Illustrative".
 const library: [RegExp, string][] = [
-  [/dosa/, "dosa"],
-  [/idli/, "idli"],
-  [/burger/, "burger"],
+  [/cold coffee|iced coffee|frappe|iced latte|iced americano|iced tea/, "cold-coffee"],
+  [/paratha/, "paratha"],
+  [/uttapam/, "uttapam"],
+  [/poha|khichdi/, "poha"],
+  [/upma|porridge|oats/, "upma"],
+  [/medu vada|\bvada\b(?!\s*pav)/, "medu-vada"],
+  [/dosa|pancake/, "dosa"],
+  [/idli|paniyaram/, "idli"],
+  [/omelette|bhurji|\beggs?\b/, "omelette"],
+  [/thali/, "thali"],
+  [/biryani/, "biryani"],
+  [/paneer butter|palak paneer|kadai paneer|matar paneer|chilli paneer|paneer tikka|butter chicken|dal tadka|dal fry|curry/, "paneer-curry"],
+  [/chole bhature|puri bhaji|bhature/, "chole-bhature"],
+  [/pav bhaji|misal pav/, "pav-bhaji"],
+  [/naan|\broti\b/, "naan"],
+  [/wrap/, "wrap"],
+  [/\broll\b/, "roll"],
+  [/grilled chicken/, "grilled-chicken"],
+  [/burger|burrito|\bpav\b/, "burger"],
   [/sandwich|toast/, "sandwich"],
   [/fries/, "fries"],
-  [/samosa/, "samosa"],
-  [/maggi|noodle/, "maggi"],
-  [/rice|biryani|pulao/, "fried-rice"],
-  [/cold coffee|iced coffee|frappe/, "cold-coffee"],
-  [/chai|tea|filter coffee|coffee/, "chai"],
-  [/coke|cola|soda|pepsi|drink|lime/, "cola"],
+  [/samosa|cutlet|tikki|pakora/, "samosa"],
+  [/maggi|noodle|pasta|macaroni|mac and cheese/, "maggi"],
+  [/salad|parfait|fruit bowl|sprouts/, "salad"],
+  [/shake/, "shake"],
+  [/lassi|buttermilk|thandai|rose milk/, "lassi"],
+  [/juice|lemonade|lime|mojito|cooler|jaljeera|panna|coconut water/, "juice"],
+  [/chai|tea|filter coffee|coffee|cappuccino|latte|mocha|americano|chocolate|cocoa|badam|milk/, "chai"],
+  [/coke|cola|soda|pepsi|water|drink/, "cola"],
+  [/rice|pulao|bath|manchurian/, "fried-rice"],
 ];
 
 export const showcase = {
@@ -28,19 +209,26 @@ export const showcase = {
   cola: art("cola"),
   idli: art("idli"),
   rice: art("fried-rice"),
+  paratha: art("paratha"),
 };
 
 function art(dish: string): FoodArt {
   return { src: `/food/${dish}.webp`, small: `/food/${dish}-sm.webp`, dish };
 }
 
-export function foodArt(name: string): FoodArt | null {
-  const value = name.toLowerCase();
-  const match = library.find(([pattern]) => pattern.test(value));
-  return match ? art(match[1]) : null;
+export function foodArt(name: string): FoodArt {
+  const lowered = name.toLowerCase().trim();
+  // Demo seed suffixes look like "Masala Dosa 4f65a9".
+  const withoutSeed = lowered.replace(/\s+[0-9a-f]{6}$/i, "").trim();
+  const keyed = exact[lowered] ?? exact[withoutSeed];
+  if (keyed) {
+    return art(keyed);
+  }
+  const match = library.find(([pattern]) => pattern.test(withoutSeed));
+  return art(match?.[1] ?? "fried-rice");
 }
 
-/** The canteen's own photo wins. Otherwise an illustrative image, if one fits the name. */
+/** The canteen's own photo wins. Otherwise an illustrative image that fits the dish. */
 export function foodImage(item: { name: string; image_url: string | null }): {
   src: string;
   illustrative: boolean;
@@ -48,6 +236,5 @@ export function foodImage(item: { name: string; image_url: string | null }): {
   if (item.image_url) {
     return { src: item.image_url, illustrative: false };
   }
-  const fallback = foodArt(item.name);
-  return fallback ? { src: fallback.small, illustrative: true } : null;
+  return { src: foodArt(item.name).small, illustrative: true };
 }

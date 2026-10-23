@@ -58,14 +58,15 @@ test.beforeAll(async ({ browser }) => {
   await pages.manager.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(pages.manager.getByText("Category saved.")).toBeVisible({ timeout: 15_000 });
   await pages.manager.getByRole("link", { name: "Add menu item" }).click();
-  await pages.manager.locator("#content").getByLabel("Name").first().fill(dish);
+  await expect(pages.manager.getByRole("heading", { name: "New item" })).toBeVisible();
+  await pages.manager.locator("#content").getByLabel("Name", { exact: true }).first().fill(dish);
   await pages.manager.locator("#content").getByLabel("Description").first().fill("Development sample for the pilot.");
   await pages.manager.locator("#content").getByLabel("Price in rupees").first().fill("40");
   await pages.manager.locator("#content").getByLabel("Preparation seconds").first().fill("120");
   await expect(pages.manager.getByRole("option", { name: `South ${suffix}` })).toHaveCount(1);
-  await pages.manager.locator("#content").getByLabel("Category").first().selectOption({ label: `South ${suffix}` });
-  await pages.manager.locator("#content").getByLabel("Station").first().selectOption({ label: `Dosa ${suffix}` });
-  await pages.manager.locator("#content").getByLabel("Initial stock").first().fill("60");
+  await pages.manager.locator("#content").getByRole("combobox", { name: "Category" }).first().selectOption({ label: `South ${suffix}` });
+  await pages.manager.locator("#content").getByRole("combobox", { name: "Station" }).first().selectOption({ label: `Dosa ${suffix}` });
+  await pages.manager.locator("#content").getByLabel("Initial stock").first().selectOption({ label: "In stock" });
   await pages.manager.getByRole("button", { name: "Create item" }).click();
   await expect(pages.manager.getByRole("heading", { name: "Edit item" })).toBeVisible();
 
@@ -87,7 +88,7 @@ test.afterAll(async () => {
   }
 });
 
-test("scenario 1: kitchen marks READY, cashier sees the amount, confirms cash, student sees PAID", async () => {
+test("scenario 1: kitchen marks READY, cashier verifies code then confirms cash, student sees PAID", async () => {
   test.setTimeout(150_000);
   const orderId = await placeOrder(pages.student);
   const ticket = await ticketOf(pages.student, orderId);
@@ -98,13 +99,42 @@ test("scenario 1: kitchen marks READY, cashier sees the amount, confirms cash, s
   const row = waiting.getByTestId("counter-order").filter({ hasText: ticket });
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText(/₹\s?40(\.00)?/);
+  // Board lists the amount but must not offer Record cash until the code is verified.
+  await expect(row.getByTestId("record-cash")).toHaveCount(0);
+  await expect(row).toContainText(/pickup code first/i);
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe(
     "PENDING",
   );
 
-  await row.getByTestId("record-cash").first().click();
-  await expect(row.getByTestId("confirm-panel").first()).toContainText(/₹\s?40(\.00)?/);
-  await row.getByTestId("confirm-cash").first().click();
+  await pages.student.goto(`/student/orders/${orderId}`);
+  const issued = pages.student.waitForResponse(
+    (response) =>
+      response.url().includes("/pickup-credential") &&
+      response.request().method() === "POST" &&
+      response.ok(),
+  );
+  await pages.student.getByTestId("show-pickup").first().click();
+  const credential = (await (await issued).json()) as { code: string };
+  const code = ((await pages.student.getByTestId("pickup-code").first().textContent()) ?? "").replace(
+    /\s/g,
+    "",
+  );
+  expect(code.length).toBeGreaterThan(0);
+
+  await pages.cashier.goto("/cashier");
+  await pages.cashier.getByTestId("manual-ticket").first().fill(ticket);
+  await pages.cashier.getByTestId("manual-code").first().fill(code || credential.code);
+  await pages.cashier.getByTestId("manual-verify").first().click();
+  const checked = pages.cashier.getByTestId("checked-order").first();
+  await expect(checked).toBeVisible();
+  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText(/verified|Collect cash/i);
+  expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe(
+    "PENDING",
+  );
+
+  await checked.getByTestId("record-cash").first().click();
+  await expect(checked.getByTestId("confirm-panel").first()).toContainText(/₹\s?40(\.00)?/);
+  await checked.getByTestId("confirm-cash").first().click();
   await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText("Cash recorded");
 
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe("PAID");
@@ -151,7 +181,7 @@ test("scenario 2: student shows a pickup code, cashier verifies, confirms paymen
   await pages.cashier.getByTestId("manual-verify").first().click();
   const checked = pages.cashier.getByTestId("checked-order").first();
   await expect(checked).toBeVisible();
-  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText("Nothing has been paid");
+  await expect(pages.cashier.getByTestId("cashier-notice").first()).toContainText(/verified|Collect cash/i);
   // Scanning or entering a code is never a payment.
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe(
     "PENDING",
@@ -201,12 +231,12 @@ test("scenario 3: the backend refuses a handover while payment is pending", asyn
   ).toBe("0");
 });
 
-test("only the cashier role can record cash, and only for READY orders", async () => {
+test("only the cashier role can record cash, and only after a valid pickup code", async () => {
   test.setTimeout(120_000);
   const orderId = await placeOrder(pages.student);
   const body = { amount_paise: PRICE_PAISE, idempotency_key: key() };
 
-  // Not READY yet: refused even for a cashier.
+  // Not READY yet / no credential: refused even for a cashier.
   const early = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, body);
   expect(early.status).toBeGreaterThanOrEqual(400);
   expect(early.status).toBeLessThan(500);
@@ -221,18 +251,31 @@ test("only the cashier role can record cash, and only for READY orders", async (
   }
   expect(sql(`SELECT count(*) FROM cash_receipts WHERE order_id = '${orderId}'`).trim()).toBe("0");
 
+  // Ready, but still no pickup code on the request.
+  const missingCode = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, {
+    amount_paise: PRICE_PAISE,
+    idempotency_key: key(),
+  });
+  expect(missingCode.status).toBe(422);
+
+  const credential = await api(pages.student, "POST", `/api/v1/orders/${orderId}/pickup-credential`);
+  expect(credential.status).toBe(200);
+  const token = (credential.json as { token: string }).token;
+  const paidBody = { ...body, token };
+
   const wrongAmount = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, {
     amount_paise: PRICE_PAISE - 100,
     idempotency_key: key(),
+    token,
   });
   expect(wrongAmount.status).toBeGreaterThanOrEqual(400);
   expect(sql(`SELECT status FROM order_payments WHERE order_id = '${orderId}'`).trim()).toBe(
     "PENDING",
   );
 
-  const first = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, body);
+  const first = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, paidBody);
   expect(first.status).toBe(200);
-  const replay = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, body);
+  const replay = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, paidBody);
   expect(replay.status).toBe(200);
   expect(sql(`SELECT count(*) FROM cash_receipts WHERE order_id = '${orderId}'`).trim()).toBe("1");
 });
@@ -248,6 +291,7 @@ test("scenario 4: a redeemed pickup code can never be used again", async () => {
   const paid = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, {
     amount_paise: PRICE_PAISE,
     idempotency_key: key(),
+    token,
   });
   expect(paid.status).toBe(200);
 
@@ -438,9 +482,13 @@ test("scenario 9: the manager reviews receipts and makes an audited correction b
   const orderId = await placeOrder(pages.student);
   const ticket = await ticketOf(pages.student, orderId);
   await kitchenToReady(pages.kitchen, orderId);
+  const credential = await api(pages.student, "POST", `/api/v1/orders/${orderId}/pickup-credential`);
+  expect(credential.status).toBe(200);
+  const token = (credential.json as { token: string }).token;
   const paid = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, {
     amount_paise: PRICE_PAISE,
     idempotency_key: key(),
+    token,
   });
   expect(paid.status).toBe(200);
 
@@ -477,10 +525,11 @@ test("scenario 9: the manager reviews receipts and makes an audited correction b
     ).trim(),
   ).toBe(managerEmail);
 
-  // The order can be paid again, as a new numbered receipt.
+  // The order can be paid again, as a new numbered receipt (same unredeemed code still works).
   const again = await api(pages.cashier, "POST", `/api/v1/cashier/orders/${orderId}/confirm-cash`, {
     amount_paise: PRICE_PAISE,
     idempotency_key: key(),
+    token,
   });
   expect(again.status).toBe(200);
   expect(sql(`SELECT count(*) FROM cash_receipts WHERE order_id = '${orderId}'`).trim()).toBe("2");
@@ -652,10 +701,12 @@ async function registerStudent(page: Page, email: string, name: string) {
   await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
-  const token = await verificationToken(email);
-  await page.goto(`/student/verify-email#token=${token}`);
-  await expect(page.getByText("Your email is confirmed. Sign in to continue.")).toBeVisible();
+  await expect(page.getByText(/Enter the 6-digit code/i)).toBeVisible();
+  const code = await verificationCode(email);
+  await page.locator("#content").getByLabel("Email code").first().fill(code);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByText("Email confirmed.")).toBeVisible();
+  await page.context().clearCookies();
   await page.goto("/student/login");
   await signIn(page, email);
   await expect(page.getByRole("heading", { name: `Hello, ${name}` })).toBeVisible();
@@ -688,6 +739,25 @@ function bootstrapManager(email: string, managerPassword: string) {
 
 function sql(query: string) {
   return psqlQuery(query);
+}
+
+async function verificationCode(email: string): Promise<string> {
+  const query = encodeURIComponent(`to:${email}`);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const search = await fetch(`${mailpit}/api/v1/search?query=${query}`);
+    const payload = (await search.json()) as { messages?: { ID: string }[] };
+    const message = payload.messages?.[0];
+    if (message) {
+      const detail = await fetch(`${mailpit}/api/v1/message/${message.ID}`);
+      const body = (await detail.json()) as { Text?: string };
+      const match = body.Text?.match(/registration page: (\d{6})/);
+      if (match) {
+        return match[1];
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`No verification code for ${email}`);
 }
 
 async function verificationToken(email: string): Promise<string> {

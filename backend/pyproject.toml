@@ -58,6 +58,8 @@ select = ["E", "F", "I", "UP", "B"]
 # Frozen applied migration. E501 remains if this ignore is removed.
 # `ruff format --check alembic/versions/0006_food_intelligence.py` still fails.
 "alembic/versions/0006_food_intelligence.py" = ["E501"]
+# Applied migration. The vegetarian regex must stay one SQL line, aligned with app.services.menu_diet.
+"alembic/versions/0011_menu_vegetarian.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

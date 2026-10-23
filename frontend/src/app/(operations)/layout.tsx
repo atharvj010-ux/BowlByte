@@ -1,7 +1,3 @@
-import type { ReactNode } from "react";
-import { connection } from "next/server";
-
-export default async function OperationsLayout({ children }: { children: ReactNode }) {
-  await connection();
+export default function OperationsLayout({ children }: { children: React.ReactNode }) {
   return children;
 }

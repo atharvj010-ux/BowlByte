@@ -455,6 +455,61 @@ def _credential_problem(
     return None
 
 
+def require_valid_credential_for_order(
+    db: Session,
+    *,
+    cashier: User,
+    order: Order,
+    token: str | None,
+    code: str | None,
+    clock: Clock = utcnow,
+) -> PickupCredential:
+    """Assert a live pickup credential for this order. Does not redeem it."""
+
+    canteen_id = order.canteen_id
+    ticket = order.ticket_number if code and not token else None
+    _throttle(cashier, ticket if code else None)
+    credential, matched = _find_credential(
+        db,
+        canteen_id=canteen_id,
+        token=token,
+        ticket_number=ticket,
+        code=code,
+        order_id=order.id,
+        lock=True,
+    )
+    if credential is None or matched is None:
+        _record_failure(cashier, ticket if code else None)
+        raise _reject(
+            db,
+            event_type="VERIFY_REJECTED",
+            actor_id=cashier.id,
+            canteen_id=canteen_id,
+            outcome="unknown",
+            status_code=404,
+            code="PICKUP_INVALID",
+            message=INVALID,
+            order=order,
+        )
+    problem = _credential_problem(credential, order, clock())
+    if problem is not None:
+        outcome, status_code, message = problem
+        _record_failure(cashier, ticket if code else None)
+        raise _reject(
+            db,
+            event_type="VERIFY_REJECTED",
+            actor_id=cashier.id,
+            canteen_id=canteen_id,
+            outcome=outcome,
+            status_code=status_code,
+            code=f"PICKUP_{outcome.upper()}",
+            message=message,
+            order=order,
+            credential=credential,
+        )
+    return credential
+
+
 def complete_pickup(
     db: Session,
     *,

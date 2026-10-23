@@ -52,6 +52,18 @@ class VerifyEmailRequest(APIModel):
     token: str = Field(min_length=20, max_length=200)
 
 
+class VerifyEmailCodeRequest(APIModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
+
+    @field_validator("code")
+    @classmethod
+    def digits_only(cls, value: str) -> str:
+        if not value.isdigit():
+            raise ValueError("Enter the 6-digit code from the email.")
+        return value
+
+
 class ResendVerificationRequest(APIModel):
     email: EmailStr
 

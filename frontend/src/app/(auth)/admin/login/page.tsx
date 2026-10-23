@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
 
 import { LoginForm } from "@/components/auth/login-form";
+import { redirectIfSignedIn } from "@/lib/server-session";
 
 export const metadata: Metadata = { title: "Manager sign-in" };
 
-export default function AdminLoginPage() {
-  return (
-    <LoginForm
-      title="Manager sign-in"
-      description="The first manager is created with the bootstrap command. There is no public manager registration."
-    />
-  );
+export default async function AdminLoginPage() {
+  await redirectIfSignedIn();
+  return <LoginForm initialRole="CANTEEN_MANAGER" />;
 }

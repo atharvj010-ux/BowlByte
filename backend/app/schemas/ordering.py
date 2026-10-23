@@ -2,9 +2,10 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ImageType = Literal["image/jpeg", "image/png", "image/webp"]
+StockLevel = Literal["IN_STOCK", "FEW_LEFT", "OUT_OF_STOCK"]
 
 
 class _Strict(BaseModel):
@@ -62,6 +63,7 @@ class MenuItemWrite(_Strict):
     prep_seconds: int = Field(ge=30, le=7200)
     is_active: bool = True
     is_available: bool = True
+    is_vegetarian: bool | None = None
     sort_order: int | None = Field(default=None, ge=0, le=100_000)
     is_featured: bool = False
     initial_available_qty: int | None = Field(default=None, ge=0, le=10_000)
@@ -80,6 +82,7 @@ class MenuItemUpdateRequest(_Strict):
     prep_seconds: int | None = Field(default=None, ge=30, le=7200)
     is_active: bool | None = None
     is_available: bool | None = None
+    is_vegetarian: bool | None = None
     sort_order: int | None = Field(default=None, ge=0, le=100_000)
     is_featured: bool | None = None
     calories_kcal: int | None = Field(default=None, ge=0, le=5000)
@@ -105,6 +108,7 @@ class MenuItemResponse(_Strict):
     prep_seconds: int
     is_active: bool
     is_available: bool
+    is_vegetarian: bool = True
     is_demo: bool
     sort_order: int = 0
     is_featured: bool = False
@@ -115,6 +119,7 @@ class MenuItemResponse(_Strict):
     nutrition_reference: str | None = None
     image_url: str | None
     available_qty: int
+    stock_level: StockLevel = "OUT_OF_STOCK"
     reserved_qty: int | None = None
 
 
@@ -152,6 +157,7 @@ class StockRowResponse(_Strict):
     consumed_qty: int
     is_active: bool
     is_available: bool
+    stock_level: StockLevel
     low_stock: bool
     out_of_stock: bool
 
@@ -162,8 +168,15 @@ class StockListResponse(_Strict):
 
 
 class StockUpdateRequest(_Strict):
-    available_qty: int = Field(ge=0, le=10_000)
-    reason: str = Field(min_length=1, max_length=80)
+    stock_level: StockLevel | None = None
+    available_qty: int | None = Field(default=None, ge=0, le=10_000)
+    reason: str = Field(default="Shelf status", min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def require_stock_target(self) -> "StockUpdateRequest":
+        if self.stock_level is None and self.available_qty is None:
+            raise ValueError("Choose In stock, Few left, or Out of stock.")
+        return self
 
 
 class OrderLineRequest(_Strict):

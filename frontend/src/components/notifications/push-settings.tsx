@@ -2,29 +2,40 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { disablePush, enablePush, readPushDiagnostics, sendTestPush, type PushDiagnostics, type PushStatus } from "@/lib/push";
+import { disablePush, enablePush, readPushDiagnostics, type PushDiagnostics, type PushStatus } from "@/lib/push";
 
 const labels: Record<PushStatus["state"], string> = {
-  checking: "Checking this device…",
+  checking: "Checking…",
   unsupported: "UNSUPPORTED",
-  "needs-install": "NEEDS HOME SCREEN INSTALLATION",
-  blocked: "BLOCKED BY BROWSER",
+  "needs-install": "NEEDS HOME SCREEN",
+  blocked: "BLOCKED",
   permission: "PERMISSION REQUIRED",
   off: "NOT ENABLED",
-  error: "SUBSCRIPTION ERROR",
+  error: "ERROR",
   on: "ENABLED",
 };
 
-function yesNo(value: boolean) {
-  return value ? "Yes" : "No";
+function hintFor(status: PushStatus): string | null {
+  switch (status.state) {
+    case "unsupported":
+      return "This browser cannot show push alerts.";
+    case "needs-install":
+      return "On iPhone, add BowlByte to your Home Screen, then open it and turn notifications on.";
+    case "blocked":
+      return "Notifications are blocked in browser settings. Allow them for BowlByte, then try again.";
+    case "error":
+      return "message" in status ? status.message : "Something went wrong. Try again.";
+    case "permission":
+      return "BowlByte will ask for permission when you turn this on.";
+    default:
+      return null;
+  }
 }
 
 export function PushSettings({ userId }: { userId: string }) {
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [lastTest, setLastTest] = useState<"Success" | "Failed" | "Unknown">("Unknown");
-  const [acceptance, setAcceptance] = useState<"Accepted" | "Rejected" | "Unknown">("Unknown");
 
   const load = useCallback(async () => {
     try {
@@ -50,14 +61,17 @@ export function PushSettings({ userId }: { userId: string }) {
   }, [load]);
 
   const status = diagnostics?.status ?? { state: "checking" as const };
+  const enabled = status.state === "on";
   const canEnable = status.state === "off" || status.state === "permission" || status.state === "error";
+  const canDisable = status.state === "on" || status.state === "error";
+  const hint = hintFor(status);
 
   async function enable() {
     setBusy(true);
     setMessage("");
     try {
       await enablePush(userId);
-      setMessage("This device is registered. BowlByte saved the subscription.");
+      setMessage("Notifications are on for this device.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "That did not work.");
     } finally {
@@ -72,7 +86,6 @@ export function PushSettings({ userId }: { userId: string }) {
     try {
       await disablePush(userId);
       setMessage("Notifications are off for this device.");
-      setAcceptance("Unknown");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "That did not work.");
     } finally {
@@ -81,121 +94,78 @@ export function PushSettings({ userId }: { userId: string }) {
     }
   }
 
-  async function test() {
-    setBusy(true);
-    setMessage("");
-    try {
-      const result = await sendTestPush();
-      setLastTest("Success");
-      setAcceptance(result.acceptance === "accepted" ? "Accepted" : result.acceptance === "rejected" ? "Rejected" : "Unknown");
-      setMessage(
-        result.acceptance === "accepted"
-          ? "The push service accepted the test. That does not prove this phone displayed it."
-          : result.acceptance === "rejected"
-            ? "The push service rejected the test. This device did not get a system notification from that attempt."
-            : "The test was queued. The push service has not answered yet, so display is unknown.",
-      );
-    } catch (error) {
-      setLastTest("Failed");
-      setAcceptance("Unknown");
-      setMessage(error instanceof Error ? error.message : "The test could not be sent.");
-    } finally {
-      setBusy(false);
-      await load();
-    }
-  }
-
   return (
-    <section className="space-y-4 rounded-[1.6rem] border border-border bg-card p-5" aria-labelledby="push-heading" data-testid="push-settings">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <section
+      className="push-card"
+      aria-labelledby="push-heading"
+      data-testid="push-settings"
+      data-enabled={enabled ? "true" : "false"}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 space-y-1">
           <p className="eyebrow">This device</p>
-          <h2 id="push-heading" className="font-display text-3xl font-extrabold tracking-tight uppercase">
+          <h2 id="push-heading" className="font-display text-xl font-extrabold tracking-tight uppercase sm:text-2xl">
             Phone notifications
           </h2>
+          <p className="text-sm leading-5 text-muted-foreground">
+            Alert when your order is ready. Cash still at the counter.
+          </p>
         </div>
-        <span className="grid h-12 w-12 place-items-center rounded-full bg-lime text-ink" aria-hidden="true">
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <span
+          className={`push-icon ${enabled ? "push-icon-on" : ""}`}
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z" strokeLinejoin="round" />
             <path d="M10 19a2 2 0 0 0 4 0" strokeLinecap="round" />
           </svg>
         </span>
       </div>
-      <p className="max-w-xl text-sm text-muted-foreground">
-        A message on this phone when your order is ready. It only reminds you. The order page shows the real status, and you still pay cash at the counter.
-      </p>
-      <p className="font-mono text-xs tracking-[0.16em]" data-testid="push-state">
-        {labels[status.state]}
-      </p>
-      {"message" in status ? (
-        <p className="text-sm" data-testid="push-message">
-          {status.message}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        {canEnable ? (
-          <button type="button" className="pill pill-solid min-h-13! px-5!" disabled={busy} onClick={() => void enable()}>
-            Enable Phone Notifications
-          </button>
-        ) : null}
-        {status.state === "on" || status.state === "error" ? (
-          <button type="button" className="pill min-h-13! px-5!" disabled={busy} onClick={() => void disable()}>
-            Disable Notifications
-          </button>
-        ) : null}
-        {status.state === "on" ? (
-          <button type="button" className="pill min-h-13! px-5!" disabled={busy} onClick={() => void test()}>
-            Send Test Notification
-          </button>
-        ) : null}
+
+      <div className="push-row">
+        <div className="min-w-0 space-y-0.5">
+          <p className="font-mono text-[0.68rem] tracking-[0.14em]" data-testid="push-state">
+            {labels[status.state]}
+          </p>
+          {hint ? (
+            <p className="text-xs leading-5 text-muted-foreground" data-testid="push-message">
+              {hint}
+            </p>
+          ) : (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {enabled ? "You will get a ping when food is ready." : "Turn on to get a ready alert on this phone."}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          {canEnable ? (
+            <button
+              type="button"
+              className="pill pill-solid min-h-10! px-4! text-sm!"
+              disabled={busy}
+              onClick={() => void enable()}
+            >
+              Enable Phone Notifications
+            </button>
+          ) : null}
+          {canDisable ? (
+            <button
+              type="button"
+              className="pill min-h-10! px-4! text-sm!"
+              disabled={busy}
+              onClick={() => void disable()}
+            >
+              Disable Notifications
+            </button>
+          ) : null}
+        </div>
       </div>
+
       {message ? (
-        <p role="status" className="text-sm" data-testid="push-feedback">
+        <p role="status" className="text-xs text-muted-foreground" data-testid="push-feedback">
           {message}
         </p>
       ) : null}
-      <dl className="grid gap-2 text-sm sm:grid-cols-2" data-testid="push-diagnostics">
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Browser supports notifications</dt>
-          <dd>{diagnostics ? yesNo(diagnostics.browserNotifications) : "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Secure context</dt>
-          <dd>{diagnostics ? yesNo(diagnostics.secureContext) : "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Service worker active</dt>
-          <dd>{diagnostics ? yesNo(diagnostics.serviceWorker === "active") : "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Push API available</dt>
-          <dd>{diagnostics ? yesNo(diagnostics.pushApi) : "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Notification permission</dt>
-          <dd className="capitalize">{diagnostics?.permission ?? "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Browser subscription</dt>
-          <dd className="capitalize">{diagnostics?.browserSubscription ?? "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Backend subscription</dt>
-          <dd className="capitalize">{diagnostics?.backendSubscription ?? "…"}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1">
-          <dt className="text-muted-foreground">Last test request</dt>
-          <dd>{lastTest}</dd>
-        </div>
-        <div className="flex justify-between gap-3 border-b border-border py-1 sm:col-span-2">
-          <dt className="text-muted-foreground">Push service acceptance</dt>
-          <dd>{acceptance}. A backend response cannot prove the phone displayed it.</dd>
-        </div>
-      </dl>
-      <div className="space-y-2 text-sm text-muted-foreground">
-        <p>Android: open BowlByte in Chrome over HTTPS, sign in, and tap Enable Phone Notifications. Installing the app is optional when Chrome already offers push.</p>
-        <p>To receive BowlByte alerts on iPhone, add BowlByte to your Home Screen, open the installed app, and enable notifications.</p>
-      </div>
     </section>
   );
 }

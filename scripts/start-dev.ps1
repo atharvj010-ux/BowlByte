@@ -105,6 +105,10 @@ $frontend = Join-Path $Root "frontend"
 $env:PORT = "3010"
 $env:HOSTNAME = "127.0.0.1"
 $env:PYTHONUNBUFFERED = "1"
+# Never inherit disposable e2e overrides from the parent shell.
+$env:API_INTERNAL_URL = "http://127.0.0.1:8010"
+Remove-Item Env:NEXT_DIST_DIR -ErrorAction SilentlyContinue
+Remove-Item Env:E2E_DATABASE -ErrorAction SilentlyContinue
 
 $redis = Start-Process -FilePath $redisExe -WorkingDirectory $redisHome -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $logDir "redis.log") `

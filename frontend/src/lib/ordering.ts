@@ -12,6 +12,7 @@ export const menuItemSchema = z.object({
   prep_seconds: z.number().int(),
   is_active: z.boolean(),
   is_available: z.boolean(),
+  is_vegetarian: z.boolean().default(true),
   is_demo: z.boolean(),
   calories_kcal: z.number().int().nullable(),
   serving_size_description: z.string().nullable(),
@@ -19,6 +20,7 @@ export const menuItemSchema = z.object({
   nutrition_reference: z.string().nullable(),
   image_url: z.string().nullable(),
   available_qty: z.number().int(),
+  stock_level: z.enum(["IN_STOCK", "FEW_LEFT", "OUT_OF_STOCK"]).optional(),
   reserved_qty: z.number().int().nullable().optional(),
   sort_order: z.number().int().default(0),
   is_featured: z.boolean().default(false),
@@ -26,6 +28,43 @@ export const menuItemSchema = z.object({
 });
 
 export type MenuItem = z.infer<typeof menuItemSchema>;
+
+export type StockLevel = "IN_STOCK" | "FEW_LEFT" | "OUT_OF_STOCK";
+
+/** Matches backend LOW_STOCK_AT — keep student labels honest without exposing counts. */
+export const FEW_LEFT_AT = 5;
+
+export const STOCK_LEVEL_QTY: Record<StockLevel, number> = {
+  IN_STOCK: 100,
+  FEW_LEFT: FEW_LEFT_AT,
+  OUT_OF_STOCK: 0,
+};
+
+export function stockLevel(
+  item: Pick<MenuItem, "available_qty"> & { stock_level?: StockLevel | null },
+): StockLevel {
+  if (item.stock_level) {
+    return item.stock_level;
+  }
+  if (item.available_qty <= 0) {
+    return "OUT_OF_STOCK";
+  }
+  if (item.available_qty <= FEW_LEFT_AT) {
+    return "FEW_LEFT";
+  }
+  return "IN_STOCK";
+}
+
+export function stockLevelLabel(level: StockLevel): string {
+  switch (level) {
+    case "IN_STOCK":
+      return "In stock";
+    case "FEW_LEFT":
+      return "Few left";
+    case "OUT_OF_STOCK":
+      return "Out of stock";
+  }
+}
 
 export const orderItemSchema = z.object({
   menu_item_id: z.string(),
@@ -131,4 +170,13 @@ export const menuItemFormSchema = z.object({
 
 export function canOrder(item: Pick<MenuItem, "is_active" | "is_available" | "available_qty">): boolean {
   return item.is_active && item.is_available && item.available_qty > 0;
+}
+
+export function stockStatusLabel(
+  item: Pick<MenuItem, "is_active" | "is_available" | "available_qty" | "stock_level">,
+): string {
+  if (!item.is_active || !item.is_available || item.available_qty <= 0) {
+    return "Sold out";
+  }
+  return stockLevelLabel(stockLevel(item));
 }

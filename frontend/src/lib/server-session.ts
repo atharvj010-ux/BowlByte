@@ -1,9 +1,10 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { currentUserSchema, type CurrentUser } from "@/lib/auth";
+import { currentUserSchema, homeForRole, type CurrentUser } from "@/lib/auth";
 import { sessionCookieName } from "@/lib/cookies";
 
 export type Access =
@@ -11,7 +12,8 @@ export type Access =
   | { kind: "forbidden"; user: CurrentUser }
   | { kind: "ok"; user: CurrentUser };
 
-export async function fetchServerUser(): Promise<CurrentUser | null> {
+/** One /me lookup per request, shared by layouts and pages. */
+export const fetchServerUser = cache(async function fetchServerUser(): Promise<CurrentUser | null> {
   await connection();
   const jar = await cookies();
   const session = jar.get(sessionCookieName())?.value;
@@ -28,7 +30,7 @@ export async function fetchServerUser(): Promise<CurrentUser | null> {
   }
   const parsed = z.object({ user: currentUserSchema }).safeParse(await response.json());
   return parsed.success ? parsed.data.user : null;
-}
+});
 
 export async function requireRole(role: CurrentUser["role"]): Promise<Access> {
   await connection();
@@ -47,4 +49,12 @@ export async function requireRole(role: CurrentUser["role"]): Promise<Access> {
 export function redirectToLogin(loginHref: string, expired = false): never {
   const target = expired ? `${loginHref}?reason=expired` : loginHref;
   redirect(target);
+}
+
+/** Send an already-signed-in visitor straight to their desk — no login flash. */
+export async function redirectIfSignedIn(): Promise<void> {
+  const user = await fetchServerUser();
+  if (user) {
+    redirect(homeForRole(user.role));
+  }
 }

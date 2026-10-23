@@ -16,6 +16,7 @@ function item(id: string, categoryId: string, category: string): MenuItem {
     prep_seconds: 60,
     is_active: true,
     is_available: true,
+    is_vegetarian: true,
     is_demo: false,
     calories_kcal: null,
     serving_size_description: null,

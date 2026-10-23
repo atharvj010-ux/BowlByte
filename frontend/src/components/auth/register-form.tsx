@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PasswordField, textInputClass } from "@/components/auth/password-field";
@@ -17,7 +18,34 @@ async function loadPolicy() {
   return registrationPolicySchema.parse(await response.json());
 }
 
+export function FreshRegistrationLink({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  return (
+    <Link
+      href="/student/register"
+      className={className}
+      onClick={(event) => {
+        event.preventDefault();
+        router.push(`/student/register?attempt=${Date.now()}`);
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export function RegisterForm() {
+  const attempt = useSearchParams().get("attempt") ?? "start";
+  return <RegisterFields key={attempt} />;
+}
+
+function RegisterFields() {
   const policy = useQuery({ queryKey: ["registration-policy"], queryFn: loadPolicy });
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,7 +56,10 @@ export function RegisterForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [pending, setPending] = useState(false);
-  const [done, setDone] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [codeMessage, setCodeMessage] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,8 +101,8 @@ export function RegisterForm() {
         setFormError(await readError(response));
         return;
       }
-      const body = (await response.json()) as { message?: string };
-      setDone(body.message ?? "Check your email for the confirmation link.");
+      setRegisteredEmail(parsed.data.email.trim().toLowerCase());
+      setCodeMessage("Enter the 6-digit code from your email.");
     } finally {
       setPending(false);
     }
@@ -84,7 +115,9 @@ export function RegisterForm() {
           <CardTitle>Create a student account</CardTitle>
           <p className="text-sm leading-6 text-muted-foreground">
             {policy.data
-              ? `${policy.data.college_name} students can register when eligibility is open.`
+              ? policy.data.mode === "open"
+                ? "Use your name, email, and college roll number."
+                : `${policy.data.college_name} students can register when eligibility is open.`
               : "Loading the college rules."}
           </p>
         </CardHeader>
@@ -94,22 +127,99 @@ export function RegisterForm() {
               Registration is closed until the college finishes eligibility setup.
             </p>
           ) : null}
-          {done ? (
-            <div className="space-y-4" role="status">
-              <p className="text-sm leading-6">{done}</p>
-              <p className="text-sm">
-                Open the link from the email, then{" "}
-                <Link href="/student/login" className="underline-offset-4 hover:underline">
-                  sign in
-                </Link>
-                .
-              </p>
-            </div>
+          {registeredEmail ? (
+            <form
+              className="space-y-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                setFormError("");
+                setCodeMessage("");
+                if (!/^\d{6}$/.test(code)) {
+                  setFormError("Enter the 6-digit code from the email.");
+                  return;
+                }
+                setPending(true);
+                try {
+                  const response = await apiFetch("/api/v1/auth/verify-email-code", {
+                    method: "POST",
+                    body: JSON.stringify({ email: registeredEmail, code }),
+                  });
+                  if (!response.ok) {
+                    setFormError(await readError(response));
+                    return;
+                  }
+                  setConfirmed(true);
+                } finally {
+                  setPending(false);
+                }
+              }}
+            >
+              {confirmed ? (
+                <p className="text-sm leading-6" role="status">
+                  Email confirmed.{" "}
+                  <Link href="/login" className="underline-offset-4 hover:underline">
+                    Sign in
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm leading-6" role="status">
+                    {codeMessage || "Enter the 6-digit code from your email."} Codes are sent to {registeredEmail}.
+                  </p>
+                  <Field
+                    id="verification-code"
+                    label="Email code"
+                    value={code}
+                    onChange={setCode}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                  />
+                  {formError ? (
+                    <p className="text-sm text-destructive" role="alert">
+                      {formError}
+                    </p>
+                  ) : null}
+                  <Button type="submit" disabled={pending} className="w-full">
+                    {pending ? "Checking code…" : "Confirm email"}
+                  </Button>
+                  <p className="text-center text-sm">
+                    <FreshRegistrationLink className="underline-offset-4 hover:underline">
+                      Create a new account
+                    </FreshRegistrationLink>
+                  </p>
+                  <button
+                    type="button"
+                    className="w-full text-sm underline-offset-4 hover:underline"
+                    disabled={pending}
+                    onClick={async () => {
+                      setFormError("");
+                      setPending(true);
+                      try {
+                        const response = await apiFetch("/api/v1/auth/resend-verification", {
+                          method: "POST",
+                          body: JSON.stringify({ email: registeredEmail }),
+                        });
+                        setCodeMessage(
+                          response.ok
+                            ? "If the account is still unverified, a new code has been sent."
+                            : await readError(response),
+                        );
+                      } finally {
+                        setPending(false);
+                      }
+                    }}
+                  >
+                    Send a new code
+                  </button>
+                </>
+              )}
+            </form>
           ) : (
             <form className="space-y-4" onSubmit={onSubmit} aria-busy={pending}>
               <Field id="full-name" label="Full name" value={fullName} onChange={setFullName} error={errors.full_name} autoComplete="name" />
               <Field id="email" label="Email" type="email" value={email} onChange={setEmail} error={errors.email} autoComplete="email" />
-              {policy.data?.email_domain ? (
+              {policy.data?.mode === "institutional_domain" && policy.data.email_domain ? (
                 <p className="text-sm text-muted-foreground">
                   Institutional mode accepts @{policy.data.email_domain}.
                 </p>
@@ -151,6 +261,7 @@ function Field({
   error,
   type = "text",
   autoComplete,
+  inputMode,
 }: {
   id: string;
   label: string;
@@ -159,6 +270,7 @@ function Field({
   error?: string;
   type?: string;
   autoComplete: string;
+  inputMode?: "numeric" | "text";
 }) {
   return (
     <label className="block space-y-2 text-sm" htmlFor={id}>
@@ -166,6 +278,7 @@ function Field({
       <input
         id={id}
         type={type}
+        inputMode={inputMode}
         autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}

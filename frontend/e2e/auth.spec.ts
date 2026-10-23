@@ -18,7 +18,8 @@ test("registration layout stays usable on a phone", async ({ page }) => {
   await page.goto("/student/register");
 
   await expect(page.getByRole("heading", { name: "Create a student account" })).toBeVisible();
-  await expect(page.getByText("Menu", { exact: true })).toBeVisible();
+  // Auth screens keep the header to the brand link; there is no signed-out menu.
+  await expect(page.getByRole("link", { name: "BowlByte" })).toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 });
 
@@ -30,12 +31,14 @@ test("student can verify, stay signed in, and lose access after logout", async (
   await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
+  await expect(page.getByText(/Enter the 6-digit code/i)).toBeVisible();
 
-  const token = await verificationToken(studentEmail);
-  await page.goto(`/student/verify-email#token=${token}`);
-  await expect(page.getByText("Your email is confirmed. Sign in to continue.")).toBeVisible();
-  await page.getByRole("link", { name: "Go to student sign-in" }).click();
+  const code = await verificationCode(studentEmail);
+  await page.locator("#content").getByLabel("Email code").first().fill(code);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByText("Email confirmed.")).toBeVisible();
+  await page.context().clearCookies();
+  await page.goto("/student/login");
   await signIn(page, studentEmail);
   await expect(page.getByRole("heading", { name: "Hello, Asha Rao" })).toBeVisible();
   await page.reload();
@@ -79,7 +82,8 @@ test("manager invitation, kitchen login, and deactivation", async ({ browser, pa
   await expect(kitchenPage.getByText("Your staff account is active")).toBeVisible();
   await kitchenPage.goto("/staff/login");
   await signIn(kitchenPage, kitchenEmail);
-  await expect(kitchenPage.getByRole("heading", { name: "Hello, Kitchen Lead" })).toBeVisible();
+  await expect(kitchenPage.getByRole("heading", { name: "Station board" })).toBeVisible();
+  await expect(kitchenPage.getByText("Signed in as Kitchen Lead.")).toBeVisible();
   await kitchenPage.goto("/cashier");
   await expect(kitchenPage.locator("#content").getByTestId("access-denied").first()).toBeVisible();
 
@@ -114,6 +118,25 @@ function clearExistingManagers() {
 
 function bootstrapManager(email: string, managerPassword: string) {
   bootstrapIsolatedManager(email, managerPassword);
+}
+
+async function verificationCode(email: string): Promise<string> {
+  const query = encodeURIComponent(`to:${email}`);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const search = await fetch(`${mailpit}/api/v1/search?query=${query}`);
+    const payload = (await search.json()) as { messages?: { ID: string }[] };
+    const message = payload.messages?.[0];
+    if (message) {
+      const detail = await fetch(`${mailpit}/api/v1/message/${message.ID}`);
+      const body = (await detail.json()) as { Text?: string };
+      const match = body.Text?.match(/registration page: (\d{6})/);
+      if (match) {
+        return match[1];
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`No verification code for ${email}`);
 }
 
 async function verificationToken(email: string): Promise<string> {

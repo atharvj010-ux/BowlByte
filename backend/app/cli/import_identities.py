@@ -86,9 +86,10 @@ def _link(connection: psycopg.Connection, user_id: str, auth_id: str) -> None:
 
 def import_identities(source_url: str, target_url: str, admin: SupabaseAuthAdmin) -> Counter:
     counts: Counter = Counter()
-    with psycopg.connect(source_url, connect_timeout=20) as source, psycopg.connect(
-        target_url, connect_timeout=20
-    ) as target:
+    with (
+        psycopg.connect(source_url, connect_timeout=20) as source,
+        psycopg.connect(target_url, connect_timeout=20) as target,
+    ):
         local = _rows(source)
         remote = _rows(target)
         if set(local) != set(remote):

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AdminPage, PageHead } from "@/components/admin/admin-ui";
 import { StockDesk } from "@/components/admin/catalog-desk";
 import { ProtectedArea } from "@/components/protected-area";
 
@@ -9,10 +10,14 @@ export default function StockPage() {
   return (
     <ProtectedArea role="CANTEEN_MANAGER" loginHref="/admin/login">
       {() => (
-        <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-10 sm:px-6">
-          <h1 className="font-display text-4xl">Stock</h1>
+        <AdminPage>
+          <PageHead
+            kicker="Floor control"
+            title="Stock"
+            description="Tap In stock, Few left, or Out of stock for each dish. Orders never change this — only you do. Students see the same status on the menu immediately."
+          />
           <StockDesk />
-        </main>
+        </AdminPage>
       )}
     </ProtectedArea>
   );

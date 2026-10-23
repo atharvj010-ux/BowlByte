@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 
@@ -9,10 +9,28 @@ import { useCart } from "@/components/cart/cart-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { SESSION_EPOCH_KEY } from "@/components/session-privacy";
-import { clearPrivateBrowserState } from "@/lib/session-privacy";
-import { apiFetch, fetchCurrentUser, roleLabel } from "@/lib/auth";
-import { roles } from "@/lib/content";
+import { clearPrivateBrowserState, isAuthScreen } from "@/lib/session-privacy";
+import { apiFetch, fetchCurrentUser, roleLabel, type CurrentUser } from "@/lib/auth";
 import { releaseDeviceForLogout } from "@/lib/push";
+
+const sectionsByRole: Record<CurrentUser["role"], { href: string; label: string }[]> = {
+  STUDENT: [
+    { href: "/student", label: "Home" },
+    { href: "/student/menu", label: "Menu" },
+    { href: "/student/orders", label: "Orders" },
+    { href: "/student/profile", label: "Profile" },
+  ],
+  KITCHEN_STAFF: [
+    { href: "/staff", label: "Kitchen" },
+    { href: "/staff/queue", label: "Queue" },
+  ],
+  CASHIER: [
+    { href: "/cashier", label: "Desk" },
+    { href: "/cashier/history", label: "History" },
+  ],
+  // Every manager section is in the manager sidebar and section bar, which stay on screen across /admin.
+  CANTEEN_MANAGER: [{ href: "/admin", label: "Home" }],
+};
 
 function BowlMark() {
   return (
@@ -29,12 +47,14 @@ const navLinkClass =
 
 export function SiteHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: fetchCurrentUser });
   const cart = useCart();
+  const account = isAuthScreen(pathname) ? null : me.data;
 
   async function logout() {
-    if (me.data?.role === "STUDENT") {
+    if (account?.role === "STUDENT") {
       // Stop pushes to this device before the session ends, so the next person gets nothing.
       await releaseDeviceForLogout();
     }
@@ -46,21 +66,12 @@ export function SiteHeader() {
     router.refresh();
   }
 
-  const links = (
-    <>
-      <Link href="/status" className={navLinkClass}>
-        Status
-      </Link>
-      {roles.map((role) => (
-        <Link key={role.href} href={role.href} className={navLinkClass}>
-          {role.navLabel}
-        </Link>
-      ))}
-      <Link href="/student/register" className={navLinkClass}>
-        Register
-      </Link>
-    </>
-  );
+  const sections = account ? sectionsByRole[account.role] : [];
+  const links = sections.map((section) => (
+    <Link key={section.href} href={section.href} className={navLinkClass}>
+      {section.label}
+    </Link>
+  ));
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-background/75 backdrop-blur-md">
@@ -69,10 +80,12 @@ export function SiteHeader() {
           <BowlMark />
           BowlByte
         </Link>
-        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
-          {links}
-        </nav>
-        {me.data?.role === "STUDENT" ? (
+        {account ? (
+          <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
+            {links}
+          </nav>
+        ) : null}
+        {account?.role === "STUDENT" ? (
           <>
             <Link
               id="bowlbyte-cart-target"
@@ -95,26 +108,34 @@ export function SiteHeader() {
                 {cart.count}
               </motion.span>
             </Link>
-            <NotificationBell />
+            <motion.span
+              className="inline-flex"
+              initial={{ opacity: 0, y: -14, scale: 0.7 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 480, damping: 16, delay: 0.12 }}
+            >
+              <NotificationBell />
+            </motion.span>
           </>
         ) : null}
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
-          {me.data ? (
+          {account ? (
             <>
               <span className="max-w-48 truncate text-sm">
-                {me.data.full_name}
-                <span className="text-muted-foreground"> · {roleLabel(me.data.role)}</span>
+                {account.full_name}
+                <span className="text-muted-foreground"> · {roleLabel(account.role)}</span>
               </span>
               <Button type="button" variant="outline" onClick={logout}>
                 Log out
               </Button>
             </>
-          ) : (
-            <Link href="/student/login" className={navLinkClass}>
-              Sign in
+          ) : isAuthScreen(pathname) ? null : (
+            <Link href="/login" className="pill pill-solid">
+              Get started now
             </Link>
           )}
         </div>
+        {account ? (
         <details className="relative lg:hidden">
           <summary className="inline-flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-full border border-border bg-card text-sm sm:px-4">
             <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 sm:hidden">
@@ -127,17 +148,16 @@ export function SiteHeader() {
             className="absolute right-0 mt-2 flex w-56 flex-col rounded-2xl border border-border bg-card p-2 shadow-lg"
           >
             {links}
-            {me.data ? (
-              <button type="button" className={navLinkClass} onClick={logout}>
-                Log out
-              </button>
-            ) : (
-              <Link href="/student/login" className={navLinkClass}>
-                Sign in
-              </Link>
-            )}
+            <button type="button" className={navLinkClass} onClick={logout}>
+              Log out
+            </button>
           </nav>
         </details>
+        ) : isAuthScreen(pathname) ? null : (
+          <Link href="/login" className="pill pill-solid lg:hidden">
+            Get started now
+          </Link>
+        )}
       </div>
     </header>
   );

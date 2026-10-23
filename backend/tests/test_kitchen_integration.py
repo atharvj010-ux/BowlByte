@@ -115,7 +115,7 @@ def test_kitchen_flow_stock_eta_and_permissions(client: TestClient) -> None:
     assert stock is not None
     assert stock.reserved_qty == 1
     assert stock.consumed_qty == 1
-    assert stock.available_qty == 2
+    assert stock.available_qty == 4
     db.close()
     paid = client.post("/api/v1/orders", json={"payment_status": "PAID"})
     assert paid.status_code in {401, 403, 422}
@@ -211,7 +211,7 @@ def test_reject_releases_once_and_started_work_cannot_be_rejected(client: TestCl
     assert stock is not None
     assert stock.reserved_qty == 0
     assert stock.consumed_qty == 1
-    assert stock.available_qty == 2
+    assert stock.available_qty == 3
     db.close()
 
 

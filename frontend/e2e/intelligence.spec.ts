@@ -35,13 +35,14 @@ test.beforeAll(async ({ browser }) => {
   await pages.manager.locator("#content").getByRole("button", { name: "Add category" }).first().click();
   await expect(pages.manager.getByText("Category saved.")).toBeVisible({ timeout: 15_000 });
   await pages.manager.getByRole("link", { name: "Add menu item" }).click();
-  await pages.manager.locator("#content").getByLabel("Name").first().fill(dish);
+  await expect(pages.manager.getByRole("heading", { name: "New item" })).toBeVisible();
+  await pages.manager.locator("#content").getByLabel("Name", { exact: true }).first().fill(dish);
   await pages.manager.locator("#content").getByLabel("Description").first().fill("Steamed cakes for the pilot.");
   await pages.manager.locator("#content").getByLabel("Price in rupees").first().fill("30");
   await pages.manager.locator("#content").getByLabel("Preparation seconds").first().fill("120");
-  await pages.manager.locator("#content").getByLabel("Category").first().selectOption({ label: `Breakfast ${suffix}` });
-  await pages.manager.locator("#content").getByLabel("Station").first().selectOption({ label: `Idli ${suffix}` });
-  await pages.manager.locator("#content").getByLabel("Initial stock").first().fill("40");
+  await pages.manager.locator("#content").getByRole("combobox", { name: "Category" }).first().selectOption({ label: `Breakfast ${suffix}` });
+  await pages.manager.locator("#content").getByRole("combobox", { name: "Station" }).first().selectOption({ label: `Idli ${suffix}` });
+  await pages.manager.locator("#content").getByLabel("Initial stock").first().selectOption({ label: "In stock" });
   await pages.manager.getByRole("button", { name: "Create item" }).click();
   await expect(pages.manager.getByRole("heading", { name: "Edit item" })).toBeVisible();
   await invite(pages.manager, pages.cashier, cashierEmail);
@@ -185,10 +186,12 @@ async function registerStudent(page: Page, email: string) {
   await page.locator("#content").getByLabel("Password", { exact: true }).first().fill(password);
   await page.locator("#content").getByLabel("Confirm password").first().fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText(/verification message has been sent/i)).toBeVisible();
-  const token = await verificationToken(email);
-  await page.goto(`/student/verify-email#token=${token}`);
-  await expect(page.getByText("Your email is confirmed. Sign in to continue.")).toBeVisible();
+  await expect(page.getByText(/Enter the 6-digit code/i)).toBeVisible();
+  const code = await verificationCode(email);
+  await page.locator("#content").getByLabel("Email code").first().fill(code);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByText("Email confirmed.")).toBeVisible();
+  await page.context().clearCookies();
   await page.goto("/student/login");
   await signIn(page, email);
 }
@@ -201,6 +204,25 @@ async function api(page: Page, method: string, url: string) {
     },
     { method, url },
   );
+}
+
+async function verificationCode(email: string): Promise<string> {
+  const query = encodeURIComponent(`to:${email}`);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const search = await fetch(`${mailpit}/api/v1/search?query=${query}`);
+    const payload = (await search.json()) as { messages?: { ID: string }[] };
+    const message = payload.messages?.[0];
+    if (message) {
+      const detail = await fetch(`${mailpit}/api/v1/message/${message.ID}`);
+      const body = (await detail.json()) as { Text?: string };
+      const match = body.Text?.match(/registration page: (\d{6})/);
+      if (match) {
+        return match[1];
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`No verification code for ${email}`);
 }
 
 async function verificationToken(email: string): Promise<string> {

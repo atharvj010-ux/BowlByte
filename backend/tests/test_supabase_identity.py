@@ -14,10 +14,7 @@ from app.services.supabase_identity import (
     secret_key_usable,
 )
 
-_HASH = (
-    "$argon2id$v=19$m=65536,t=3,p=4$"
-    "c29tZXNhbHRzb21lc2FsdA$c29tZWhhc2hzb21laGFzaHNvbWVoYXNo"
-)
+_HASH = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$c29tZWhhc2hzb21laGFzaHNvbWVoYXNo"
 
 
 def test_argon2id_parameters_used_by_bowlbyte_are_importable() -> None:
@@ -40,9 +37,7 @@ def test_verified_active_users_keep_verified_status() -> None:
 
 
 def test_unverified_and_disabled_users_are_not_confirmed() -> None:
-    pending = plan_identity(
-        IdentitySource("a@college.edu", "PENDING_VERIFICATION", None, _HASH)
-    )
+    pending = plan_identity(IdentitySource("a@college.edu", "PENDING_VERIFICATION", None, _HASH))
     disabled = plan_identity(IdentitySource("b@college.edu", "DISABLED", None, _HASH))
     assert pending.action == "import"
     assert pending.email_confirm is False
@@ -68,9 +63,7 @@ def test_apply_links_an_existing_auth_user_without_creating_another() -> None:
 def test_cutover_settings_reject_the_publishable_key_and_transaction_pooler() -> None:
     assert not secret_key_usable("sb_publishable_example")
     assert database_url_usable("postgresql://user:secret@localhost:5432/postgres")
-    assert database_url_usable(
-        "postgresql://user:secret@aws-0.pooler.supabase.com:6543/postgres"
-    )
+    assert database_url_usable("postgresql://user:secret@aws-0.pooler.supabase.com:6543/postgres")
     missing = missing_cutover_names(
         {
             "NEXT_PUBLIC_SUPABASE_URL": "https://example.supabase.co",

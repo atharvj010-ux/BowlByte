@@ -16,6 +16,7 @@ const item: MenuItem = {
   prep_seconds: 300,
   is_active: true,
   is_available: true,
+  is_vegetarian: true,
   is_demo: true,
   image_url: null,
   calories_kcal: null,

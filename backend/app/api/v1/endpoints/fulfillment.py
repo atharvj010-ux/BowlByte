@@ -149,6 +149,8 @@ def confirm_cash(
         order_id=order_id,
         acknowledged_amount_paise=payload.amount_paise,
         idempotency_key=payload.idempotency_key,
+        token=payload.token,
+        code=payload.code,
     )
     return ConfirmCashResponse(
         receipt=ReceiptResponse.model_validate(receipt),

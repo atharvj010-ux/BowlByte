@@ -56,7 +56,7 @@ from app.services.supabase_auth import (
 
 INVALID_CREDENTIALS = "Email or password is incorrect."
 ELIGIBILITY_MESSAGE = "College eligibility could not be confirmed."
-VERIFICATION_MESSAGE = "This verification link is invalid or has expired."
+VERIFICATION_MESSAGE = "This verification code is invalid or has expired."
 INVITATION_MESSAGE = "This invitation is invalid or has expired."
 REGISTRATION_ACCEPTED = (
     "If those details meet the college rules, a verification message has been sent."
@@ -146,21 +146,20 @@ def _verification_minutes() -> int:
     return max(1, get_settings().verification_ttl_seconds // 60)
 
 
-def _send_verification(user: User, raw_token: str) -> None:
-    link = _public_url(f"/student/verify-email#token={raw_token}")
+def _send_verification(user: User, code: str) -> None:
     text, html = branded_message(
         heading="Confirm your email",
-        intro=f"Hello {user.full_name}. Confirm your BowlByte student account.",
-        action_label="Confirm email",
-        action_url=link,
+        intro=(
+            f"Hello {user.full_name}. Enter this code on the BowlByte registration page: {code}"
+        ),
         note=(
-            f"The link expires in {_verification_minutes()} minutes and works once. "
+            f"The code expires in {_verification_minutes()} minutes and works once. "
             "If you did not register, you can ignore this message."
         ),
     )
     send_email(
         recipient=user.email,
-        subject="Confirm your BowlByte account",
+        subject="Your BowlByte confirmation code",
         body=text,
         html=html,
     )
@@ -195,11 +194,11 @@ def _issue_verification(db: Session, user: User) -> str:
         )
         .values(consumed_at=now)
     )
-    raw = new_secret()
+    raw = f"{secrets.randbelow(1_000_000):06d}"
     db.add(
         EmailVerificationToken(
             user_id=user.id,
-            token_hash=hash_secret(raw),
+            token_hash=hash_secret(f"{user.id}:{raw}"),
             expires_at=now + timedelta(seconds=get_settings().verification_ttl_seconds),
         )
     )
@@ -236,6 +235,8 @@ def _assert_eligible(
             ),
             status_code=403,
         )
+    if mode == "open":
+        return None
     if mode == "institutional_domain":
         expected = settings.college_email_domain.strip().lower()
         if not expected or _email_domain(email) != expected:
@@ -368,6 +369,8 @@ def _respond_to_existing_registration(db: Session, user: User) -> None:
 
 
 def verify_email(db: Session, raw_token: str) -> User:
+    if raw_token.count(".") == 2 and supabase_auth_enabled(get_settings()):
+        return _verify_supabase_signup(db, raw_token)
     now = utcnow()
     row = db.scalar(
         select(EmailVerificationToken)
@@ -411,6 +414,44 @@ def verify_email(db: Session, raw_token: str) -> User:
     return user
 
 
+def _verify_supabase_signup(db: Session, access_token: str) -> User:
+    settings = get_settings()
+    try:
+        claims = verify_access_token(
+            access_token,
+            jwks=fetch_jwks(settings),
+            issuer=settings.supabase_url.rstrip("/") + "/auth/v1",
+        )
+        subject = identity_subject(claims)
+    except (TokenRejected, SupabaseAuthError) as exc:
+        raise ApiError(
+            code="VERIFICATION_REJECTED",
+            message=VERIFICATION_MESSAGE,
+            status_code=400,
+        ) from exc
+    user = _user_by_auth_subject(db, subject)
+    if user is None or user.status == DISABLED or user.role != STUDENT:
+        raise ApiError(
+            code="VERIFICATION_REJECTED",
+            message=VERIFICATION_MESSAGE,
+            status_code=400,
+        )
+    now = utcnow()
+    if user.status == PENDING_VERIFICATION:
+        user.status = ACTIVE
+    user.email_verified_at = user.email_verified_at or now
+    _audit(
+        db,
+        action="email.verified",
+        actor_user_id=user.id,
+        target_type="user",
+        target_id=str(user.id),
+    )
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def resend_verification(db: Session, email: str, client_key: str) -> None:
     settings = get_settings()
     normalized = normalize_email(email)
@@ -429,7 +470,7 @@ def resend_verification(db: Session, email: str, client_key: str) -> None:
                 subject="BowlByte verification",
                 body=(
                     "If an unverified BowlByte student account exists for this address, "
-                    "a new confirmation link has been sent.\n"
+                    "a new confirmation code has been sent.\n"
                 ),
             )
         )
@@ -502,20 +543,75 @@ def _link_new_auth_user(db: Session, user: User, password: str, *, email_confirm
     _set_auth_link(db, user.id, auth_id)
 
 
-def _send_supabase_confirmation(email: str) -> None:
+def verify_signup_code(db: Session, *, email: str, code: str, client_key: str) -> User:
     settings = get_settings()
-    SupabaseAuthClient(settings).send_signup_confirmation(
-        email,
-        settings.public_app_url.rstrip("/") + "/verify-email",
+    normalized = normalize_email(email)
+    for bucket, limit in (
+        ("verify-code-ip", settings.login_ip_rate_limit),
+        ("verify-code-email", settings.login_email_rate_limit),
+    ):
+        value = client_key if bucket.endswith("ip") else normalized
+        assert_allowance(bucket=bucket, value=value, limit=limit)
+        record_attempt(
+            bucket=bucket,
+            value=value,
+            window_seconds=settings.login_rate_window_seconds,
+        )
+    user = db.scalar(select(User).where(User.email == normalized))
+    now = utcnow()
+    row = None
+    if (
+        user is not None
+        and user.role == STUDENT
+        and user.status == PENDING_VERIFICATION
+        and len(code) == 6
+        and code.isdigit()
+    ):
+        row = db.scalar(
+            select(EmailVerificationToken)
+            .where(
+                EmailVerificationToken.user_id == user.id,
+                EmailVerificationToken.token_hash == hash_secret(f"{user.id}:{code}"),
+                EmailVerificationToken.consumed_at.is_(None),
+                EmailVerificationToken.expires_at > now,
+            )
+            .with_for_update()
+        )
+    if user is None or row is None:
+        raise ApiError(
+            code="VERIFICATION_REJECTED",
+            message=VERIFICATION_MESSAGE,
+            status_code=400,
+        )
+    row.consumed_at = now
+    user.status = ACTIVE
+    user.email_verified_at = user.email_verified_at or now
+    if supabase_auth_enabled(settings):
+        link = _auth_link(db, user.id)
+        if link:
+            try:
+                SupabaseAuthClient(settings).confirm_email(link)
+            except SupabaseAuthError as exc:
+                db.rollback()
+                raise ApiError(
+                    code="ACCOUNT_UNAVAILABLE",
+                    message="The account could not be confirmed. Try again shortly.",
+                    status_code=503,
+                ) from exc
+    _audit(
+        db,
+        action="email.verified",
+        actor_user_id=user.id,
+        target_type="user",
+        target_id=str(user.id),
     )
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def _send_account_confirmation(db: Session, user: User, raw_token: str) -> None:
-    settings = get_settings()
-    if supabase_auth_enabled(settings):
-        if _auth_link(db, user.id):
-            _send_supabase_confirmation(user.email)
-        return
+    del db
     _send_verification(user, raw_token)
 
 
@@ -758,7 +854,9 @@ def registration_policy() -> dict[str, object]:
         "mode": mode,
         "open": mode != "disabled",
         "college_name": settings.college_name,
-        "email_domain": settings.college_email_domain or None,
+        "email_domain": settings.college_email_domain or None
+        if mode == "institutional_domain"
+        else None,
         "enrollment_code_required": mode == "roster",
     }
 

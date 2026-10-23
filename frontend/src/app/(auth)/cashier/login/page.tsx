@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
 
 import { LoginForm } from "@/components/auth/login-form";
+import { redirectIfSignedIn } from "@/lib/server-session";
 
 export const metadata: Metadata = { title: "Cashier sign-in" };
 
-export default function CashierLoginPage() {
-  return (
-    <LoginForm
-      title="Cashier sign-in"
-      description="Cashier accounts are created from a manager invitation."
-    />
-  );
+export default async function CashierLoginPage() {
+  await redirectIfSignedIn();
+  return <LoginForm initialRole="CASHIER" />;
 }

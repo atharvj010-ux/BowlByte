@@ -22,6 +22,7 @@ from app.schemas.auth import (
     StudentRegisterRequest,
     UserEnvelope,
     UserResponse,
+    VerifyEmailCodeRequest,
     VerifyEmailRequest,
 )
 from app.services.identity import (
@@ -40,6 +41,7 @@ from app.services.identity import (
     rotate_csrf,
     user_view,
     verify_email,
+    verify_signup_code,
 )
 from app.services.password_recovery import (
     RESET_ACCEPTED,
@@ -78,6 +80,23 @@ def student_register(
         client_key=client_key(request),
     )
     return MessageResponse(message=REGISTRATION_ACCEPTED)
+
+
+@router.post("/verify-email-code", response_model=UserEnvelope)
+def post_verify_email_code(
+    body: VerifyEmailCodeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> UserEnvelope:
+    user = verify_signup_code(
+        db,
+        email=str(body.email),
+        code=body.code,
+        client_key=client_key(request),
+    )
+    return UserEnvelope(
+        user=UserResponse.model_validate(user_view(user, active_canteen_id(db, user)))
+    )
 
 
 @router.post("/verify-email", response_model=UserEnvelope)
@@ -180,8 +199,11 @@ def post_refresh(
     settings = get_settings()
     header = request.headers.get("x-csrf-token")
     cookie = request.cookies.get(settings.csrf_cookie_name)
-    if not header or not cookie or len(header) != len(cookie) or not secrets.compare_digest(
-        header, cookie
+    if (
+        not header
+        or not cookie
+        or len(header) != len(cookie)
+        or not secrets.compare_digest(header, cookie)
     ):
         raise ApiError(code="CSRF_REJECTED", message="Request was rejected.", status_code=403)
     refresh = request.cookies.get(settings.refresh_cookie_name) or ""

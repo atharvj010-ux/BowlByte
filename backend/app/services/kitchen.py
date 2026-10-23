@@ -565,9 +565,7 @@ def station_workload(db: Session, canteen_id: UUID) -> list[dict]:
         waiting = counts.get((station.id, "QUEUED"), 0)
         queued = queued_seconds.get(station.id, 0)
         backlog = (
-            int(queued / station.parallel_capacity)
-            if station.parallel_capacity and queued
-            else 0
+            int(queued / station.parallel_capacity) if station.parallel_capacity and queued else 0
         )
         rows.append(
             {
@@ -814,7 +812,6 @@ def _release_reservations(
                 status_code=409,
             )
         stock.reserved_qty -= line.quantity
-        stock.available_qty += line.quantity
         stock.updated_at = utcnow()
         db.add(
             InventoryAdjustment(
@@ -822,7 +819,7 @@ def _release_reservations(
                 menu_item_id=line.menu_item_id,
                 actor_user_id=actor_id,
                 order_id=order.id,
-                delta_available=line.quantity,
+                delta_available=0,
                 delta_reserved=-line.quantity,
                 reason="order_reject",
             )

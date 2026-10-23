@@ -84,6 +84,22 @@ class ReceiptResponse(_Out):
 class ConfirmCashRequest(_In):
     amount_paise: int = Field(ge=1, le=10_000_000)
     idempotency_key: str = Field(pattern=KEY_PATTERN)
+    token: str | None = Field(default=None, max_length=128)
+    code: str | None = Field(default=None, max_length=24)
+
+    @field_validator("token", "code")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    @model_validator(mode="after")
+    def _one_method(self) -> "ConfirmCashRequest":
+        if bool(self.token) == bool(self.code):
+            raise ValueError("Send either the scanned code or the manual code.")
+        return self
 
 
 class ConfirmCashResponse(_Out):

@@ -8,6 +8,20 @@ export function clearPrivateBrowserState(): void {
   window.dispatchEvent(new Event("bowlbyte-session-end"));
 }
 
+/** Sign-in, registration, and recovery screens. These never show a signed-in header. */
+export function isAuthScreen(pathname: string): boolean {
+  return (
+    pathname === "/login" ||
+    pathname.includes("/login") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/student/register") ||
+    pathname.startsWith("/student/verify-email") ||
+    pathname.startsWith("/verify-email")
+  );
+}
+
 export function isPrivatePath(pathname: string): boolean {
   if (
     pathname.includes("/login") ||
@@ -15,7 +29,8 @@ export function isPrivatePath(pathname: string): boolean {
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/invite") ||
     pathname.startsWith("/student/register") ||
-    pathname.startsWith("/student/verify-email")
+    pathname.startsWith("/student/verify-email") ||
+    pathname.startsWith("/verify-email")
   ) {
     return false;
   }

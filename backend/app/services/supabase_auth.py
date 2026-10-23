@@ -199,6 +199,15 @@ class SupabaseAuthClient:
         if status != 200:
             raise SupabaseAuthError(status)
 
+    def confirm_email(self, auth_user_id: str) -> None:
+        status, _body = self._admin(
+            "PUT",
+            f"/auth/v1/admin/users/{auth_user_id}",
+            {"email_confirm": True},
+        )
+        if status not in {200, 201}:
+            raise SupabaseAuthError(status)
+
     def send_signup_confirmation(self, email: str, redirect_to: str) -> None:
         status, _body = self._public(
             "POST",

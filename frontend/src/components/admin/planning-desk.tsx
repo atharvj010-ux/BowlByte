@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { PageHead, Panel } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
+import { textInputClass } from "@/components/auth/password-field";
 import { apiFetch, readError } from "@/lib/auth";
 import { newKey } from "@/lib/cash";
-import { fieldClass, managerCanDecide, planSchema } from "@/lib/intelligence";
+import { managerCanDecide, planSchema } from "@/lib/intelligence";
+import { cn } from "@/lib/utils";
 
 const stationSchema = z.object({
   id: z.string(),
@@ -18,6 +21,16 @@ const stationSchema = z.object({
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function statusTone(status: string | undefined): string {
+  if (status === "APPROVED") {
+    return "is-good";
+  }
+  if (status === "REJECTED") {
+    return "is-bad";
+  }
+  return "is-warn";
 }
 
 export function PlanningDesk({ role }: { role: string }) {
@@ -107,39 +120,54 @@ export function PlanningDesk({ role }: { role: string }) {
   }
 
   return (
-    <section className="space-y-6" data-testid="planning-desk">
-      <div>
-        <h1 className="font-display text-4xl">Preparation planning</h1>
-        <p className="text-sm text-muted-foreground">
-          A recommendation is a quantity to consider. It does not create a production batch.
-        </p>
-      </div>
-      <label className="grid max-w-xs gap-1 text-sm">
-        Service date
-        <input type="date" value={day} onChange={(event) => setDay(event.target.value)} className={fieldClass} data-testid="plan-date" />
-      </label>
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" disabled={busy || !canDecide} onClick={generate} data-testid="plan-generate">
-          Generate recommendation
-        </Button>
-        <Button type="button" variant="secondary" disabled={busy || !plan?.id || !canDecide} onClick={() => decide(true)} data-testid="plan-approve">
-          Approve plan
-        </Button>
-      </div>
-      {message ? <p data-testid="plan-notice">{message}</p> : null}
-      {plan?.status ? <p data-testid="plan-status">Status {plan.status}. Solver {plan.solver}.</p> : null}
-      <PlanList rows={plan?.items ?? []} testId="plan-items" />
-      <div className="rounded-2xl border border-border p-4" data-testid="what-if">
-        <h2 className="font-display text-2xl">What-if</h2>
-        <p className="text-sm text-muted-foreground">Estimates only. Stock and orders stay as they are.</p>
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="grid gap-1 text-sm">
-            Demand factor
-            <input value={factor} onChange={(event) => setFactor(event.target.value)} className={fieldClass} data-testid="demand-factor" />
+    <section className="grid gap-4" data-testid="planning-desk">
+      <PageHead
+        kicker="Insight · what to cook"
+        title="Preparation planning"
+        description="A recommendation is a quantity to consider. It does not create a production batch."
+      />
+      <Panel title="Recommendation" subtitle="Generate a draft for a service day, then approve it as the plan of record." tone="#f6d15a">
+        <div className="mgr-toolbar">
+          <label className="mgr-field">
+            <span>Service date</span>
+            <input type="date" value={day} onChange={(event) => setDay(event.target.value)} className={textInputClass} data-testid="plan-date" />
           </label>
-          <label className="grid gap-1 text-sm">
-            Station treated as unavailable
-            <select value={stationId} onChange={(event) => setStationId(event.target.value)} className={fieldClass} data-testid="simulate-station">
+          <Button type="button" disabled={busy || !canDecide} onClick={generate} data-testid="plan-generate">
+            Generate recommendation
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy || !plan?.id || !canDecide}
+            onClick={() => decide(true)}
+            data-testid="plan-approve"
+          >
+            Approve plan
+          </Button>
+        </div>
+        {message ? (
+          <p className="mgr-notice" role="status" data-testid="plan-notice">
+            {message}
+          </p>
+        ) : null}
+        {plan?.status ? (
+          <p className="flex flex-wrap items-center gap-2 text-sm" data-testid="plan-status">
+            <span className={cn("mgr-badge", statusTone(plan.status))}>{plan.status}</span>
+            Status {plan.status}. Solver {plan.solver}.
+          </p>
+        ) : null}
+        <PlanList rows={plan?.items ?? []} testId="plan-items" />
+      </Panel>
+
+      <Panel title="What-if" subtitle="Estimates only. Stock and orders stay as they are." testId="what-if">
+        <div className="mgr-toolbar">
+          <label className="mgr-field">
+            <span>Demand factor</span>
+            <input value={factor} onChange={(event) => setFactor(event.target.value)} className={textInputClass} inputMode="decimal" data-testid="demand-factor" />
+          </label>
+          <label className="mgr-field">
+            <span>Station treated as unavailable</span>
+            <select value={stationId} onChange={(event) => setStationId(event.target.value)} className={textInputClass} data-testid="simulate-station">
               <option value="">None</option>
               {stations.data?.map((station) => (
                 <option key={station.id} value={station.id}>
@@ -152,9 +180,13 @@ export function PlanningDesk({ role }: { role: string }) {
             Compare scenario
           </Button>
         </div>
-        {simulation?.label ? <p data-testid="simulate-label">{simulation.label}</p> : null}
+        {simulation?.label ? (
+          <p className="mgr-notice" data-testid="simulate-label">
+            {simulation.label}
+          </p>
+        ) : null}
         <PlanList rows={simulation?.items ?? []} testId="simulate-items" />
-      </div>
+      </Panel>
     </section>
   );
 }
@@ -164,15 +196,21 @@ function PlanList({ rows, testId }: { rows: z.infer<typeof planSchema>["items"];
     return null;
   }
   return (
-    <ul className="space-y-3" data-testid={testId}>
+    <ul className="mgr-list" data-testid={testId}>
       {rows.map((row) => (
-        <li key={row.menu_item_id} className="rounded-2xl border border-border p-4 text-sm">
-          <p>
-            Recommend {row.recommended_additional_qty} more. Feasible {row.feasible_qty}. Unmet {row.unmet_qty}.
-            {row.capacity_limited ? " Capacity limited." : ""}
-          </p>
-          <p>Forecast {row.forecast_qty ?? "none"}. Confirmed {row.confirmed_unfulfilled_qty}. Usable {row.usable_prepared_qty}. Scheduled {row.scheduled_qty}.</p>
-          <p>{row.explanation}</p>
+        <li key={row.menu_item_id} className="mgr-list-row items-start text-sm">
+          <div className="grid min-w-0 flex-1 gap-1">
+            <p className="mgr-row-title">
+              Recommend {row.recommended_additional_qty} more. Feasible {row.feasible_qty}. Unmet {row.unmet_qty}.
+              {row.capacity_limited ? " Capacity limited." : ""}
+            </p>
+            <p className="mgr-row-meta">
+              Forecast {row.forecast_qty ?? "none"}. Confirmed {row.confirmed_unfulfilled_qty}. Usable{" "}
+              {row.usable_prepared_qty}. Scheduled {row.scheduled_qty}.
+            </p>
+            <p className="mgr-row-meta">{row.explanation}</p>
+          </div>
+          {row.capacity_limited ? <span className="mgr-badge is-warn">Capacity limited</span> : null}
         </li>
       ))}
     </ul>
