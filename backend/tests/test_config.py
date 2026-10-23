@@ -41,6 +41,8 @@ def test_supabase_db_url_becomes_database_url_when_database_url_unset(monkeypatc
         settings = get_settings()
         assert settings.database_url.startswith("postgresql+psycopg://user:secret@")
         assert "aws-0.pooler.supabase.com" in settings.database_url
+        assert "sslrootcert=" in settings.database_url
+        assert "prod-ca-2021.crt" in settings.database_url
     finally:
         get_settings.cache_clear()
 
@@ -57,5 +59,22 @@ def test_explicit_database_url_wins_over_supabase_db_url(monkeypatch) -> None:
     get_settings.cache_clear()
     try:
         assert get_settings().database_url == "postgresql+psycopg://app:pass@db.example:5432/bowlbyte"
+    finally:
+        get_settings.cache_clear()
+
+
+def test_windows_sslrootcert_is_replaced_for_supabase(monkeypatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv(
+        "SUPABASE_DB_URL",
+        "postgresql://user:secret@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
+        "?sslmode=verify-full&sslrootcert=C:/Users/athar/AppData/Local/BowlByte/p011/prod-ca-2021.crt",
+    )
+    get_settings.cache_clear()
+    try:
+        url = get_settings().database_url
+        assert "AppData" not in url
+        assert "prod-ca-2021.crt" in url
+        assert "sslmode=verify-full" in url
     finally:
         get_settings.cache_clear()

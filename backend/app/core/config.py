@@ -1,9 +1,13 @@
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Self
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_SUPABASE_CA = Path(__file__).resolve().parents[1] / "certs" / "prod-ca-2021.crt"
 
 
 def _origin_from_host(value: str) -> str | None:
@@ -17,15 +21,45 @@ def _origin_from_host(value: str) -> str | None:
     return f"https://{text}"
 
 
+def _is_machine_local_cert_path(value: str) -> bool:
+    text = value.strip().strip('"').strip("'")
+    if not text:
+        return False
+    lowered = text.lower()
+    return (
+        ":\\" in text
+        or text.startswith("/Users/")
+        or text.startswith("/home/")
+        or "appdata" in lowered
+        or text.startswith("C:/")
+        or text.startswith("C:\\")
+    )
+
+
 def rewrite_database_url(url: str) -> str:
-    """Match start-dev.ps1: drive SQLAlchemy with the psycopg driver name."""
+    """Drive SQLAlchemy with psycopg and a portable Supabase CA path.
+
+    Local `.env` often sets ``sslrootcert`` to a Windows path. That path does
+    not exist on Vercel, so pooler connections fail with OperationalError.
+    When the host is Supabase, point ``sslrootcert`` at the bundled public CA.
+    """
 
     raw = url.strip().strip('"').strip("'")
     if raw.startswith("postgres://"):
         raw = "postgresql://" + raw[len("postgres://") :]
     if raw.startswith("postgresql://"):
         raw = "postgresql+psycopg://" + raw[len("postgresql://") :]
-    return raw
+    parts = urlsplit(raw)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    host = (parts.hostname or "").lower()
+    if "supabase.com" in host and _SUPABASE_CA.is_file():
+        query["sslmode"] = query.get("sslmode") or "verify-full"
+        query["sslrootcert"] = str(_SUPABASE_CA)
+    elif "sslrootcert" in query and _is_machine_local_cert_path(query["sslrootcert"]):
+        query.pop("sslrootcert", None)
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
 
 EligibilityMode = Literal["disabled", "open", "institutional_domain", "roster"]
 
@@ -198,9 +232,11 @@ class Settings(BaseSettings):
     def _production_guards(self) -> Self:
         # Local start-dev.ps1 maps SUPABASE_DB_URL into DATABASE_URL. On Vercel only
         # SUPABASE_DB_URL is often set, so apply the same rewrite unless DATABASE_URL
-        # was provided explicitly.
+        # was provided explicitly. Always normalize sslrootcert for portable hosts.
         if self.supabase_db_url.strip() and not os.environ.get("DATABASE_URL", "").strip():
             self.database_url = rewrite_database_url(self.supabase_db_url)
+        else:
+            self.database_url = rewrite_database_url(self.database_url)
         if self.environment == "production":
             if not self.cookie_secure:
                 raise ValueError("COOKIE_SECURE must be true in production.")
