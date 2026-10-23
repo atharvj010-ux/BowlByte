@@ -67,7 +67,8 @@ def test_ready_reports_down_when_dependencies_fail(client, monkeypatch) -> None:
     body = response.json()
     assert body["status"] == "not_ready"
     assert body["checks"]["postgres"]["status"] == "down"
-    assert body["checks"]["postgres"]["detail"] == "ConnectionError"
+    assert body["checks"]["postgres"]["detail"].startswith("ConnectionError")
     assert body["checks"]["redis"]["status"] == "down"
+    assert body["checks"]["redis"]["detail"].startswith("TimeoutError")
     assert "postgres unavailable" not in response.text
     assert "redis unavailable" not in response.text

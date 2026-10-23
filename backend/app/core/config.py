@@ -16,6 +16,17 @@ def _origin_from_host(value: str) -> str | None:
         return text.rstrip("/")
     return f"https://{text}"
 
+
+def rewrite_database_url(url: str) -> str:
+    """Match start-dev.ps1: drive SQLAlchemy with the psycopg driver name."""
+
+    raw = url.strip().strip('"').strip("'")
+    if raw.startswith("postgres://"):
+        raw = "postgresql://" + raw[len("postgres://") :]
+    if raw.startswith("postgresql://"):
+        raw = "postgresql+psycopg://" + raw[len("postgresql://") :]
+    return raw
+
 EligibilityMode = Literal["disabled", "open", "institutional_domain", "roster"]
 
 
@@ -185,6 +196,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _production_guards(self) -> Self:
+        # Local start-dev.ps1 maps SUPABASE_DB_URL into DATABASE_URL. On Vercel only
+        # SUPABASE_DB_URL is often set, so apply the same rewrite unless DATABASE_URL
+        # was provided explicitly.
+        if self.supabase_db_url.strip() and not os.environ.get("DATABASE_URL", "").strip():
+            self.database_url = rewrite_database_url(self.supabase_db_url)
         if self.environment == "production":
             if not self.cookie_secure:
                 raise ValueError("COOKIE_SECURE must be true in production.")
@@ -206,6 +222,11 @@ class Settings(BaseSettings):
                 raise ValueError("Set PICKUP_HASH_KEY and PUSH_ENCRYPTION_KEY in production.")
             if not self.vapid_public_key or self.vapid_public_key.startswith("replace-with"):
                 raise ValueError("Set VAPID_PUBLIC_KEY in production.")
+            if any(
+                host in self.redis_url
+                for host in ("localhost", "127.0.0.1", "0.0.0.0")
+            ):
+                raise ValueError("Set REDIS_URL to a reachable hosted Redis in production.")
         local_from = "BowlByte <noreply@bowlbyte.local>"
         if self.smtp_from_email and ("<" not in self.smtp_from or self.smtp_from == local_from):
             self.smtp_from = f"{self.smtp_from_name or 'BowlByte'} <{self.smtp_from_email}>"

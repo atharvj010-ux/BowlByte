@@ -30,6 +30,7 @@ def health() -> HealthResponse:
 def ready(response: Response) -> ReadyResponse:
     """Readiness probe. Reports live PostgreSQL and Redis connectivity."""
 
+    settings = get_settings()
     checks: dict[str, DependencyCheck] = {}
     probes = (("postgres", check_postgres), ("redis", check_redis))
     for name, probe in probes:
@@ -37,7 +38,16 @@ def ready(response: Response) -> ReadyResponse:
             probe()
         except Exception as exc:
             logger.warning("readiness check failed for %s: %s", name, type(exc).__name__)
-            checks[name] = DependencyCheck(status="down", detail=type(exc).__name__)
+            detail = type(exc).__name__
+            if name == "postgres" and any(
+                host in settings.database_url for host in ("localhost", "127.0.0.1")
+            ):
+                detail = f"{detail}; DATABASE_URL/SUPABASE_DB_URL still points at localhost"
+            if name == "redis" and any(
+                host in settings.redis_url for host in ("localhost", "127.0.0.1")
+            ):
+                detail = f"{detail}; REDIS_URL still points at localhost"
+            checks[name] = DependencyCheck(status="down", detail=detail)
         else:
             checks[name] = DependencyCheck(status="up")
 
