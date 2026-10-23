@@ -699,6 +699,23 @@ def authenticate(
     return user, raw_session, raw_csrf, refresh
 
 
+def _send_login_otp(user: User, code: str) -> None:
+    text, html = branded_message(
+        heading="Your sign-in code",
+        intro=f"Enter this code on the BowlByte sign-in page: {code}",
+        note=(
+            f"The code expires in {_verification_minutes()} minutes and works once. "
+            "If you did not request this, you can ignore this message."
+        ),
+    )
+    send_email(
+        recipient=user.email,
+        subject="Your BowlByte sign-in code",
+        body=text,
+        html=html,
+    )
+
+
 def request_email_otp(db: Session, email: str, client_key: str) -> None:
     settings = get_settings()
     if not supabase_auth_enabled(settings):
@@ -715,8 +732,9 @@ def request_email_otp(db: Session, email: str, client_key: str) -> None:
     if user is None or user.status != ACTIVE or not _auth_link(db, user.id):
         return
     try:
-        SupabaseAuthClient(settings).request_email_otp(normalized)
-    except SupabaseAuthError as exc:
+        code = SupabaseAuthClient(settings).create_email_login_otp(normalized)
+        _send_login_otp(user, code)
+    except (EmailDeliveryError, SupabaseAuthError) as exc:
         raise ApiError(
             code="EMAIL_DELIVERY_FAILED",
             message="The message could not be sent. Try again shortly.",

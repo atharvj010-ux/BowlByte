@@ -247,7 +247,7 @@ def test_password_reset_hides_missing_accounts_and_uses_a_fixed_path(
     assert "https://evil.example" not in sent[0]["body"]
 
 
-def test_email_otp_is_not_dispatched_by_the_local_mailer(
+def test_email_otp_is_skipped_when_supabase_auth_is_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.api.v1.endpoints.auth import router
@@ -262,6 +262,38 @@ def test_email_otp_is_not_dispatched_by_the_local_mailer(
     paths = {getattr(route, "path", "") for route in router.routes}
     assert "/auth/email-otp" in paths
     assert "/auth/email-otp/verify" in paths
+
+
+def test_email_otp_is_dispatched_by_the_local_mailer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.identity import request_email_otp
+
+    sent: list[dict[str, object]] = []
+    user = SimpleNamespace(id=uuid4(), email="student@example.edu", status=ACTIVE)
+    db = SimpleNamespace(
+        scalar=lambda _query: user,
+        execute=lambda *_args, **_kwargs: SimpleNamespace(scalar=lambda: "auth-user-1"),
+    )
+    monkeypatch.setenv("SUPABASE_CREDENTIALS_ROTATED", "yes")
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_example")
+    monkeypatch.setenv("SUPABASE_SECRET_KEY", "sb_secret_example_value")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.services.identity.assert_allowance", lambda **_kwargs: None)
+    monkeypatch.setattr("app.services.identity.record_attempt", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "app.services.identity.SupabaseAuthClient",
+        lambda _settings: SimpleNamespace(create_email_login_otp=lambda _email: "482917"),
+    )
+    monkeypatch.setattr("app.services.identity.send_email", lambda **kwargs: sent.append(kwargs))
+    request_email_otp(db, "Student@Example.edu", "203.0.113.8")
+    assert len(sent) == 1
+    assert sent[0]["recipient"] == "student@example.edu"
+    assert sent[0]["subject"] == "Your BowlByte sign-in code"
+    assert "482917" in str(sent[0]["body"])
+    assert "482917" in str(sent[0]["html"])
+    get_settings.cache_clear()
 
 
 def test_verification_and_recovery_requests_are_rate_limited(

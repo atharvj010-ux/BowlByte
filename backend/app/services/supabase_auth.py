@@ -171,20 +171,31 @@ class SupabaseAuthClient:
             return None
         return self._verified(body)
 
-    def request_email_otp(self, email: str) -> None:
-        status, _body = self._public(
+    def create_email_login_otp(self, email: str) -> str:
+        """Mint a login OTP without sending Supabase's magic-link email.
+
+        Admin generate_link returns the 6-digit code so BowlByte can email it
+        with the same OTP copy used elsewhere. Supabase's default Magic Link
+        template would otherwise send a ConfirmationURL instead of {{ .Token }}.
+        """
+
+        status, body = self._admin(
             "POST",
-            "/auth/v1/otp",
-            {"email": email, "create_user": False},
+            "/auth/v1/admin/generate_link",
+            {"type": "magiclink", "email": email},
         )
-        if status != 200:
+        if status not in {200, 201}:
             raise SupabaseAuthError(status)
+        otp = _email_otp_from_generate_link(body)
+        if not otp:
+            raise SupabaseAuthError(status)
+        return otp
 
     def verify_email_otp(self, email: str, code: str) -> VerifiedTokens | None:
         status, body = self._public(
             "POST",
             "/auth/v1/verify",
-            {"type": "email", "email": email, "token": code},
+            {"type": "magiclink", "email": email, "token": code},
         )
         if status != 200:
             return None
@@ -341,6 +352,19 @@ def _public_key(jwks: dict[str, Any], kid: object) -> ec.EllipticCurvePublicKey:
         ec.SECP256R1(),
     )
     return numbers.public_key()
+
+
+def _email_otp_from_generate_link(body: dict[str, Any]) -> str:
+    """Pull the 6-digit OTP from a generate_link response (flat or nested)."""
+
+    candidates: list[Any] = [body.get("email_otp")]
+    properties = body.get("properties")
+    if isinstance(properties, dict):
+        candidates.append(properties.get("email_otp"))
+    for value in candidates:
+        if isinstance(value, str) and value.strip().isdigit() and len(value.strip()) >= 6:
+            return value.strip()
+    return ""
 
 
 def _b64bytes(value: str) -> bytes:

@@ -99,13 +99,15 @@ def test_access_token_rejects_bad_issuer_expiry_and_algorithm() -> None:
         assert str(error) == "algorithm"
 
 
-def test_email_otp_does_not_create_a_user() -> None:
+def test_email_login_otp_uses_admin_generate_link() -> None:
     seen: dict = {}
 
     def transport(method, url, headers, body):
+        seen["method"] = method
         seen["body"] = body
         seen["url"] = url
-        return 200, {}
+        seen["authorization"] = headers.get("authorization")
+        return 200, {"email_otp": "482917", "properties": {"email_otp": "482917"}}
 
     settings = Settings(
         supabase_url="https://example.supabase.co",
@@ -113,13 +115,64 @@ def test_email_otp_does_not_create_a_user() -> None:
         supabase_secret_key="sb_secret_example_value",
         supabase_credentials_rotated="yes",
     )
-    SupabaseAuthClient(settings, transport=transport, jwks=_jwks()).request_email_otp(
+    code = SupabaseAuthClient(settings, transport=transport, jwks=_jwks()).create_email_login_otp(
         "student@college.edu"
     )
-    assert seen["body"] == {"email": "student@college.edu", "create_user": False}
-    assert seen["url"].endswith("/auth/v1/otp")
+    assert code == "482917"
+    assert seen["method"] == "POST"
+    assert seen["body"] == {"type": "magiclink", "email": "student@college.edu"}
+    assert seen["url"].endswith("/auth/v1/admin/generate_link")
+    assert seen["authorization"] == "Bearer sb_secret_example_value"
     assert supabase_auth_enabled(settings) is True
-    assert supabase_auth_enabled(Settings()) is False
+    assert (
+        supabase_auth_enabled(
+            Settings(
+                supabase_url="",
+                supabase_publishable_key="",
+                supabase_secret_key="",
+                supabase_credentials_rotated="",
+            )
+        )
+        is False
+    )
+
+
+def test_verify_email_otp_uses_magiclink_type() -> None:
+    seen: dict = {}
+
+    def transport(method, url, headers, body):
+        seen["body"] = body
+        seen["url"] = url
+        return 200, {
+            "access_token": "access",
+            "refresh_token": "refresh",
+        }
+
+    settings = Settings(
+        supabase_url="https://example.supabase.co",
+        supabase_publishable_key="sb_publishable_example",
+        supabase_secret_key="sb_secret_example_value",
+        supabase_credentials_rotated="yes",
+    )
+
+    class _Client(SupabaseAuthClient):
+        def _verified(self, body):  # type: ignore[no-untyped-def]
+            seen["verified"] = body
+            from app.services.supabase_auth import VerifiedTokens
+
+            return VerifiedTokens("access", "refresh", "subject-1")
+
+    tokens = _Client(settings, transport=transport, jwks=_jwks()).verify_email_otp(
+        "student@college.edu", "482917"
+    )
+    assert tokens is not None
+    assert tokens.subject == "subject-1"
+    assert seen["body"] == {
+        "type": "magiclink",
+        "email": "student@college.edu",
+        "token": "482917",
+    }
+    assert seen["url"].endswith("/auth/v1/verify")
 
 
 def test_reconciliation_refuses_unintended_targets() -> None:
