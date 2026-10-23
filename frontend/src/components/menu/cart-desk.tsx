@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
+import { useCart } from "@/components/cart/cart-provider";
 import { FoodPairings } from "@/components/menu/food-pairings";
 import { FoodPicture } from "@/components/menu/menu-card";
 import { KineticText } from "@/components/motion/kinetic";
@@ -18,13 +19,11 @@ import { nutritionLabel } from "@/lib/nutrition";
 import {
   cartCount,
   estimateTotal,
-  loadCart,
   menuItemSchema,
   orderSchema,
   saveCart,
   upsertLine,
   type CanteenOrder,
-  type CartLine,
   type MenuItem,
 } from "@/lib/ordering";
 
@@ -32,7 +31,9 @@ const menuResponse = z.object({ items: z.array(menuItemSchema) });
 
 export function CartDesk() {
   const router = useRouter();
-  const [lines, setLines] = useState<CartLine[]>(() => loadCart());
+  // Share lines with CartProvider so pairing "Add" (fly-to-cart) updates this page too.
+  const cart = useCart();
+  const lines = cart.lines;
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -82,9 +83,8 @@ export function CartDesk() {
   const anyIllustrative = priced.some((row) => row.item && !row.item.image_url);
 
   function update(id: string, quantity: number) {
-    const next = upsertLine(lines, id, quantity);
-    setLines(next);
-    saveCart(next);
+    // saveCart dispatches bowlbyte-cart; CartProvider reloads lines for every listener.
+    saveCart(upsertLine(lines, id, quantity));
   }
 
   async function place() {
@@ -105,7 +105,6 @@ export function CartDesk() {
       const order = orderSchema.parse(await response.json());
       const shown = priced.flatMap((row) => (row.item ? [row.item] : []));
       saveCart([]);
-      setLines([]);
       setPlaced({ order, items: shown });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The order could not be placed.");

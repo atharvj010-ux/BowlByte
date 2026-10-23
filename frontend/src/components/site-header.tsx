@@ -118,46 +118,47 @@ export function SiteHeader() {
             </motion.span>
           </>
         ) : null}
-        <div className="hidden min-w-0 items-center gap-2 lg:flex">
+        <div className="flex min-w-0 items-center gap-2">
           {account ? (
             <>
-              <span className="max-w-48 truncate text-sm">
+              <span className="hidden max-w-48 truncate text-sm lg:inline">
                 {account.full_name}
                 <span className="text-muted-foreground"> · {roleLabel(account.role)}</span>
               </span>
-              <Button type="button" variant="outline" onClick={logout}>
+              <Button type="button" variant="outline" className="hidden lg:inline-flex" onClick={logout}>
                 Log out
               </Button>
+              <details className="relative lg:hidden">
+                <summary className="inline-flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-full border border-border bg-card text-sm sm:px-4">
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 sm:hidden">
+                    <path
+                      d="M3 6h14M3 10h14M3 14h14"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="max-sm:sr-only">Menu</span>
+                </summary>
+                <nav
+                  aria-label="Mobile"
+                  className="absolute right-0 mt-2 flex w-56 flex-col rounded-2xl border border-border bg-card p-2 shadow-lg"
+                >
+                  {links}
+                  <button type="button" className={navLinkClass} onClick={logout}>
+                    Log out
+                  </button>
+                </nav>
+              </details>
             </>
           ) : isAuthScreen(pathname) ? null : (
+            // One header CTA only. A separate mobile duplicate sat in the flex
+            // row and showed as a second "Get started now" on some laptop widths.
             <Link href="/login" className="pill pill-solid">
               Get started now
             </Link>
           )}
         </div>
-        {account ? (
-        <details className="relative lg:hidden">
-          <summary className="inline-flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-full border border-border bg-card text-sm sm:px-4">
-            <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 sm:hidden">
-              <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            <span className="max-sm:sr-only">Menu</span>
-          </summary>
-          <nav
-            aria-label="Mobile"
-            className="absolute right-0 mt-2 flex w-56 flex-col rounded-2xl border border-border bg-card p-2 shadow-lg"
-          >
-            {links}
-            <button type="button" className={navLinkClass} onClick={logout}>
-              Log out
-            </button>
-          </nav>
-        </details>
-        ) : isAuthScreen(pathname) ? null : (
-          <Link href="/login" className="pill pill-solid lg:hidden">
-            Get started now
-          </Link>
-        )}
       </div>
     </header>
   );
