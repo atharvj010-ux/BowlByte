@@ -63,6 +63,16 @@ def test_explicit_database_url_wins_over_supabase_db_url(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_redis_url_accepts_marketplace_aliases(monkeypatch) -> None:
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("STORAGE_URL", "rediss://default:secret@upstash.example:6379")
+    get_settings.cache_clear()
+    try:
+        assert get_settings().redis_url == "rediss://default:secret@upstash.example:6379"
+    finally:
+        get_settings.cache_clear()
+
+
 def test_windows_sslrootcert_is_replaced_for_supabase(monkeypatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv(

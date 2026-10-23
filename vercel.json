@@ -21,6 +21,12 @@
   },
   "rewrites": [
     {
+      "source": "/api/v1/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"

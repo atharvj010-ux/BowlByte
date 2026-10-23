@@ -100,7 +100,17 @@ class Settings(BaseSettings):
     supabase_secret_key: str = ""
     supabase_db_url: str = ""
     supabase_credentials_rotated: str = ""
-    redis_url: str = "redis://localhost:6379/0"
+    # Upstash / Vercel Marketplace integrations may inject REDIS_URL, KV_URL,
+    # or a custom prefix such as STORAGE_URL. Accept all of them.
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        validation_alias=AliasChoices(
+            "REDIS_URL",
+            "UPSTASH_REDIS_URL",
+            "KV_URL",
+            "STORAGE_URL",
+        ),
+    )
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     public_app_url: str = "http://127.0.0.1:3000"
     cookie_secure: bool = False
