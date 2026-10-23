@@ -76,6 +76,22 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        # Exhausted Supabase pooler / dropped connections surface as DBAPI errors.
+        from sqlalchemy.exc import DBAPIError, OperationalError
+
+        text = str(exc)
+        if isinstance(exc, (OperationalError, DBAPIError)) or "EMAXCONN" in text:
+            logger.warning(
+                "database unavailable",
+                extra={"path": request.url.path, "error": type(exc).__name__},
+            )
+            return JSONResponse(
+                status_code=503,
+                content=error_body(
+                    code="DATABASE_UNAVAILABLE",
+                    message="The database is busy. Wait a moment and try again.",
+                ),
+            )
         logger.exception("unhandled error", extra={"path": request.url.path})
         return JSONResponse(
             status_code=500,
