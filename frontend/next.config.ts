@@ -6,7 +6,8 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  output: "standalone",
+  // Vercel builds the Next service itself. Standalone output stays for the local Node server.
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
   cacheComponents: true,
   partialPrefetching: true,
   async headers() {

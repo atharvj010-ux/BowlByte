@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { backendOrigin, backendUrl } from "@/lib/backend-origin";
+
 export const healthResponseSchema = z.object({
   status: z.literal("ok"),
   service: z.string(),
@@ -26,7 +28,7 @@ export function apiBaseUrl(): string {
   if (typeof window !== "undefined") {
     return "";
   }
-  return process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8010";
+  return backendOrigin();
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -38,7 +40,8 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${apiBaseUrl()}/api/v1/health`, { cache: "no-store" });
+  const target = typeof window === "undefined" ? backendUrl("/api/v1/health") : "/api/v1/health";
+  const response = await fetch(target, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Health request failed with HTTP ${response.status}`);
   }
@@ -46,7 +49,8 @@ export async function fetchHealth(): Promise<HealthResponse> {
 }
 
 export async function fetchReady(): Promise<ReadyResponse> {
-  const response = await fetch(`${apiBaseUrl()}/api/v1/ready`, { cache: "no-store" });
+  const target = typeof window === "undefined" ? backendUrl("/api/v1/ready") : "/api/v1/ready";
+  const response = await fetch(target, { cache: "no-store" });
   const body = readyResponseSchema.parse(await readJson(response));
   if (response.status !== 200 && response.status !== 503) {
     throw new Error(`Readiness request failed with HTTP ${response.status}`);

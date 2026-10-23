@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { currentUserSchema, homeForRole, type CurrentUser } from "@/lib/auth";
+import { backendUrl } from "@/lib/backend-origin";
 import { sessionCookieName } from "@/lib/cookies";
 
 export type Access =
@@ -20,8 +21,7 @@ export const fetchServerUser = cache(async function fetchServerUser(): Promise<C
   if (!session) {
     return null;
   }
-  const base = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8010";
-  const response = await fetch(`${base}/api/v1/auth/me`, {
+  const response = await fetch(backendUrl("/api/v1/auth/me"), {
     headers: { cookie: `${sessionCookieName()}=${encodeURIComponent(session)}` },
     cache: "no-store",
   });

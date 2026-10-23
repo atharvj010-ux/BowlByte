@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { backendUrl } from "@/lib/backend-origin";
+
 const hopByHop = new Set([
   "connection",
   "keep-alive",
@@ -11,8 +13,7 @@ const hopByHop = new Set([
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
-  const base = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8010";
-  const target = new URL(`/api/v1/${path.join("/")}`, base);
+  const target = backendUrl(`/api/v1/${path.join("/")}`);
   target.search = request.nextUrl.search;
 
   const headers = new Headers();

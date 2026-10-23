@@ -1,8 +1,20 @@
+import os
 from functools import lru_cache
 from typing import Literal, Self
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _origin_from_host(value: str) -> str | None:
+    """Normalize a host or URL from the environment into an https Origin."""
+
+    text = value.strip().rstrip("/")
+    if not text:
+        return None
+    if text.startswith("https://") or text.startswith("http://"):
+        return text.rstrip("/")
+    return f"https://{text}"
 
 EligibilityMode = Literal["disabled", "open", "institutional_domain", "roster"]
 
@@ -204,8 +216,29 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
+    def deployment_origins(self) -> set[str]:
+        """Origins for the current host, including Vercel system URLs.
+
+        Login and other unsafe methods require Origin to match this set. On
+        Vercel, PUBLIC_APP_URL may be unset while VERCEL_URL still names the
+        deployment. Preview and production hosts are both accepted.
+        """
+
+        origins: set[str] = set()
+        for key in (
+            "VERCEL_URL",
+            "VERCEL_BRANCH_URL",
+            "VERCEL_PROJECT_PRODUCTION_URL",
+        ):
+            origin = _origin_from_host(os.environ.get(key, ""))
+            if origin:
+                origins.add(origin)
+        return origins
+
+    @property
     def allowed_origins(self) -> set[str]:
         origins = set(self.cors_origin_list)
+        origins.update(self.deployment_origins)
         public = self.public_app_url.rstrip("/")
         if public:
             origins.add(public)
